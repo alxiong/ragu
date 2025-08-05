@@ -102,7 +102,7 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
         generators: &impl arithmetic::FixedGenerators<C>,
         blind: F,
     ) -> C {
-        assert!(generators.g().len() >= R::num_coeffs());
+        assert!(generators.g().len() >= R::num_coeffs()); // TODO(ebfull)
 
         arithmetic::mul(
             self.coeffs.iter().chain(Some(&blind)),

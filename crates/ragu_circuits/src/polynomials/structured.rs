@@ -62,73 +62,33 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
 
     /// Inner product of `self` with the reversed `other`.
     pub fn revdot(&self, other: &Self) -> F {
-        let mut result = F::ZERO;
-
-        for (a, b) in self.u.iter().zip(other.v.iter()) {
-            result += *a * *b;
-        }
-
-        for (a, b) in self.v.iter().zip(other.u.iter()) {
-            result += *a * *b;
-        }
-
-        for (a, b) in self.w.iter().zip(other.d.iter()) {
-            result += *a * *b;
-        }
-
-        for (a, b) in self.d.iter().zip(other.w.iter()) {
-            result += *a * *b;
-        }
-
-        result
+        self.u
+            .iter()
+            .zip(other.v.iter())
+            .chain(self.v.iter().zip(other.u.iter()))
+            .chain(self.w.iter().zip(other.d.iter()))
+            .chain(self.d.iter().zip(other.w.iter()))
+            .fold(F::ZERO, |acc, (a, b)| acc + (*a * *b))
     }
 
     /// Add the coefficients of `other` to `self`.
     pub fn add_assign(&mut self, other: &Self) {
-        Self::combine_assign(&mut self.u, &other.u, |a, b| *a += *b);
-        Self::combine_assign(&mut self.v, &other.v, |a, b| *a += *b);
-        Self::combine_assign(&mut self.w, &other.w, |a, b| *a += *b);
-        Self::combine_assign(&mut self.d, &other.d, |a, b| *a += *b);
+        self.combine_assign_all(other, |a, b| *a += *b);
     }
 
     /// Subtract the coefficients of `other` from `self`.
     pub fn sub_assign(&mut self, other: &Self) {
-        Self::combine_assign(&mut self.u, &other.u, |a, b| *a -= *b);
-        Self::combine_assign(&mut self.v, &other.v, |a, b| *a -= *b);
-        Self::combine_assign(&mut self.w, &other.w, |a, b| *a -= *b);
-        Self::combine_assign(&mut self.d, &other.d, |a, b| *a -= *b);
+        self.combine_assign_all(other, |a, b| *a -= *b);
     }
 
     /// Negate the coefficients of this polynomial.
     pub fn negate(&mut self) {
-        for coeff in self.u.iter_mut() {
-            *coeff = -*coeff;
-        }
-        for coeff in self.v.iter_mut() {
-            *coeff = -*coeff;
-        }
-        for coeff in self.w.iter_mut() {
-            *coeff = -*coeff;
-        }
-        for coeff in self.d.iter_mut() {
-            *coeff = -*coeff;
-        }
+        self.apply_all(|coeff| *coeff = -*coeff);
     }
 
     /// Scale the coefficients of the polynomial by the given factor.
     pub fn scale(&mut self, by: F) {
-        for coeff in self.u.iter_mut() {
-            *coeff *= by;
-        }
-        for coeff in self.v.iter_mut() {
-            *coeff *= by;
-        }
-        for coeff in self.w.iter_mut() {
-            *coeff *= by;
-        }
-        for coeff in self.d.iter_mut() {
-            *coeff *= by;
-        }
+        self.apply_all(|coeff| *coeff *= by);
     }
 
     /// Returns a mutable reference to the constant term of the polynomial.
@@ -137,20 +97,6 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
             self.w.push(F::ZERO);
         }
         &mut self.w[0]
-    }
-
-    /// Helper function to combine coefficient vectors with a binary operation.
-    fn combine_assign<Op>(a: &mut Vec<F>, b: &[F], mut op: Op)
-    where
-        Op: FnMut(&mut F, &F),
-    {
-        if a.len() < b.len() {
-            a.resize(b.len(), F::ZERO);
-        }
-
-        for (a_coeff, b_coeff) in a.iter_mut().zip(b.iter()) {
-            op(a_coeff, b_coeff);
-        }
     }
 
     /// Transforms this polynomial from $p(X)$ to $p(zX)$ for $z \in \mathbb{F}$.
@@ -165,8 +111,7 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
             *c *= cur;
             cur *= z;
         }
-        cur *= z.pow_vartime([(R::n() - self.w.len()) as u64]);
-        cur *= z.pow_vartime([(R::n() - self.v.len()) as u64]);
+        cur *= z.pow_vartime([self.first_padding() as u64]);
         for b in self.v.iter_mut().rev() {
             *b *= cur;
             cur *= z;
@@ -175,8 +120,7 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
             *a *= cur;
             cur *= z;
         }
-        cur *= z.pow_vartime([(R::n() - self.u.len()) as u64]);
-        cur *= z.pow_vartime([(R::n() - self.d.len()) as u64]);
+        cur *= z.pow_vartime([self.second_padding() as u64]);
         for d in self.d.iter_mut().rev() {
             *d *= cur;
             cur *= z;
@@ -185,6 +129,11 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
 
     /// Evaluate this polynomial at a point `z`.
     pub fn eval(&self, z: F) -> F {
+        assert!(self.u.len() <= R::n());
+        assert!(self.v.len() <= R::n());
+        assert!(self.w.len() <= R::n());
+        assert!(self.d.len() <= R::n());
+
         let mut result = F::ZERO;
 
         let mut cur = F::ONE;
@@ -192,8 +141,7 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
             result += *c * cur;
             cur *= z;
         }
-        cur *= z.pow_vartime([(R::n() - self.w.len()) as u64]);
-        cur *= z.pow_vartime([(R::n() - self.v.len()) as u64]);
+        cur *= z.pow_vartime([self.first_padding() as u64]);
         for b in self.v.iter().rev() {
             result += *b * cur;
             cur *= z;
@@ -202,8 +150,7 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
             result += *a * cur;
             cur *= z;
         }
-        cur *= z.pow_vartime([(R::n() - self.u.len()) as u64]);
-        cur *= z.pow_vartime([(R::n() - self.d.len()) as u64]);
+        cur *= z.pow_vartime([self.second_padding() as u64]);
         for d in self.d.iter().rev() {
             result += *d * cur;
             cur *= z;
@@ -218,17 +165,17 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
         generators: &impl arithmetic::FixedGenerators<C>,
         blind: F,
     ) -> C {
-        assert!(generators.g().len() >= R::num_coeffs());
+        assert!(self.u.len() <= R::n());
+        assert!(self.v.len() <= R::n());
+        assert!(self.w.len() <= R::n());
+        assert!(self.d.len() <= R::n());
 
-        let u_padding = R::n() - self.u.len();
-        let v_padding = R::n() - self.v.len();
-        let w_padding = R::n() - self.w.len();
-        let d_padding = R::n() - self.d.len();
+        assert!(generators.g().len() >= R::num_coeffs()); // TODO(ebfull)
 
-        let w_start = &generators.g()[0..];
-        let v_start = &w_start[self.w.len() + w_padding + v_padding..];
+        let w_start = generators.g();
+        let v_start = &w_start[self.w.len() + self.first_padding()..];
         let u_start = &v_start[self.v.len()..];
-        let d_start = &u_start[self.u.len() + u_padding + d_padding..];
+        let d_start = &u_start[self.u.len() + self.second_padding()..];
 
         arithmetic::mul(
             self.w
@@ -257,24 +204,65 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
         assert!(self.w.len() <= R::n());
         assert!(self.d.len() <= R::n());
 
-        let u_padding = R::n() - self.u.len();
-        let v_padding = R::n() - self.v.len();
-        let w_padding = R::n() - self.w.len();
-        let d_padding = R::n() - self.d.len();
-
         super::unstructured::Polynomial {
             coeffs: self
                 .w
                 .iter()
                 .cloned()
-                .chain(repeat_n(F::ZERO, w_padding + v_padding))
+                .chain(repeat_n(F::ZERO, self.first_padding()))
                 .chain(self.v.iter().rev().cloned())
                 .chain(self.u.iter().cloned())
-                .chain(repeat_n(F::ZERO, u_padding + d_padding))
+                .chain(repeat_n(F::ZERO, self.second_padding()))
                 .chain(self.d.iter().rev().cloned())
                 .collect(),
             _marker: core::marker::PhantomData,
         }
+    }
+
+    /// Helper function to apply an operation to all coefficients.
+    fn apply_all<Op>(&mut self, op: Op)
+    where
+        Op: Fn(&mut F),
+    {
+        self.u.iter_mut().for_each(|c| op(c));
+        self.v.iter_mut().for_each(|c| op(c));
+        self.w.iter_mut().for_each(|c| op(c));
+        self.d.iter_mut().for_each(|c| op(c));
+    }
+
+    /// Helper function to combine two polynomials with a binary operation.
+    fn combine_assign_all<Op>(&mut self, other: &Self, mut op: Op)
+    where
+        Op: FnMut(&mut F, &F),
+    {
+        Self::combine_assign(&mut self.u, &other.u, &mut op);
+        Self::combine_assign(&mut self.v, &other.v, &mut op);
+        Self::combine_assign(&mut self.w, &other.w, &mut op);
+        Self::combine_assign(&mut self.d, &other.d, &mut op);
+    }
+
+    /// Helper function to combine coefficient vectors with a binary operation.
+    fn combine_assign<Op>(a: &mut Vec<F>, b: &[F], mut op: Op)
+    where
+        Op: FnMut(&mut F, &F),
+    {
+        if a.len() < b.len() {
+            a.resize(b.len(), F::ZERO);
+        }
+
+        for (a_coeff, b_coeff) in a.iter_mut().zip(b.iter()) {
+            op(a_coeff, b_coeff);
+        }
+    }
+
+    /// The first padding space between the `w` and `v` vectors.
+    fn first_padding(&self) -> usize {
+        R::n() * 2 - self.w.len() - self.v.len()
+    }
+
+    /// The second padding space between the `u` and `d` vectors.
+    fn second_padding(&self) -> usize {
+        R::n() * 2 - self.u.len() - self.d.len()
     }
 }
 
