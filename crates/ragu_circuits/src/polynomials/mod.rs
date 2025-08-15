@@ -5,9 +5,7 @@ use ff::Field;
 pub mod structured;
 pub mod unstructured;
 
-mod staging;
-
-pub use staging::Staging;
+pub(crate) mod staging;
 
 mod private {
     pub trait Sealed {}
