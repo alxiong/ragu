@@ -30,11 +30,11 @@ use crate::{
     fixedvec::{ConstLen, FixedVec},
 };
 
-/// Represents a $128$-bit challenge used to scale elliptic curve points.
+/// Represents a challenge used to scale elliptic curve points.
 #[derive(Gadget)]
 pub struct Endoscalar<'dr, D: Driver<'dr>> {
     #[ragu(gadget)]
-    bits: FixedVec<Demoted<'dr, D, Boolean<'dr, D>>, ConstLen<128>>,
+    bits: FixedVec<Demoted<'dr, D, Boolean<'dr, D>>, ConstLen<{ u128::BITS as usize }>>,
     #[ragu(witness)]
     value: Witness<D, u128>,
 }
@@ -44,9 +44,14 @@ impl<'dr, D: Driver<'dr>> Endoscalar<'dr, D> {
     pub fn alloc(dr: &mut D, value: Witness<D, u128>) -> Result<Self> {
         // Convert the provided u128 into a little-endian representation of its
         // bits.
-        let mut bits = Vec::with_capacity(128);
-        for i in 0..128 {
-            let bit = Boolean::alloc(dr, value.view().map(|v| (v >> i) & 1 == 1))?;
+        let mut bits = Vec::with_capacity(u128::BITS as usize);
+        for i in 0..(u128::BITS as usize) {
+            let bit = Boolean::alloc(
+                dr,
+                value
+                    .view()
+                    .map(|v| (*v >> i) & u128::from(1u64) == u128::from(1u64)),
+            )?;
             bits.push(Demoted::new(&bit));
         }
 
@@ -58,10 +63,10 @@ impl<'dr, D: Driver<'dr>> Endoscalar<'dr, D> {
 
     /// Returns an iterator over the bits in this endoscalar, little endian order.
     pub fn bits(&self) -> impl Iterator<Item = Boolean<'dr, D>> {
-        let mut bits = self
-            .value
-            .view()
-            .map(|v| (0..128).map(move |i| (v >> i) & 1 == 1));
+        let mut bits = self.value.view().map(|v| {
+            (0..(u128::BITS as usize))
+                .map(move |i| (*v >> i) & u128::from(1u64) == u128::from(1u64))
+        });
 
         self.bits.iter().map(move |demoted_bit| {
             demoted_bit.promote(bits.view_mut().map(|bits| bits.next().unwrap()))
@@ -73,8 +78,8 @@ impl<'dr, D: Driver<'dr>> Endoscalar<'dr, D> {
     where
         D::F: WithSmallOrderMulGroup<3>,
     {
-        let mut bits = Vec::with_capacity(128);
-        let mut value = D::just(|| 0u128);
+        let mut bits = Vec::with_capacity(u128::BITS as usize);
+        let mut value = D::just(|| u128::from(0u64));
         let mut constant = D::F::ZERO;
 
         let mut coeff_0 = D::F::ZERO;
@@ -82,7 +87,7 @@ impl<'dr, D: Driver<'dr>> Endoscalar<'dr, D> {
         let coeff_2 = D::F::MULTIPLICATIVE_GENERATOR;
         let coeff_3 = D::F::ONE - D::F::MULTIPLICATIVE_GENERATOR;
 
-        for i in 0..128 {
+        for i in 0..(u128::BITS as usize) {
             let (sqrt, bit) = D::with(|| {
                 let value = *elem.value().take() + constant;
 
@@ -100,7 +105,7 @@ impl<'dr, D: Driver<'dr>> Endoscalar<'dr, D> {
 
             value.view_mut().map(|v| {
                 if *bit.snag() {
-                    *v |= 1 << i
+                    *v |= u128::from(1u64) << i
                 }
             });
 
@@ -149,7 +154,7 @@ impl<'dr, D: Driver<'dr>> Endoscalar<'dr, D> {
         let mut acc = p.endo(dr)?.add_incomplete(dr, p)?.double(dr)?;
         let mut bits = self.bits();
 
-        for _ in 0..64 {
+        for _ in 0..(u128::BITS as usize / 2) {
             let negate_bit = bits.next().unwrap();
             let endo_bit = bits.next().unwrap();
 
@@ -177,7 +182,7 @@ impl<'dr, D: Driver<'dr>> Endoscalar<'dr, D> {
         let mut acc = Element::zero(dr);
         let mut bits = self.bits();
 
-        for _ in 0..64 {
+        for _ in 0..(u128::BITS as usize / 2) {
             let n = bits.next().unwrap();
             let e = bits.next().unwrap();
             let ne = n.and(dr, &e)?;
@@ -221,12 +226,12 @@ mod tests {
         pub fn scale<C: CurveAffine>(&self, p: &C) -> C {
             let p = p.to_curve();
             let mut acc = (p.endo() + p).double();
-            for bits in (0..64).map(|i| self.value >> (i << 1)) {
+            for bits in (0..(u128::BITS as usize / 2)).map(|i| self.value >> (i << 1)) {
                 let mut s = p;
-                if bits & 0b01 != 0 {
+                if bits & u128::from(0b01u64) != u128::from(0u64) {
                     s = -s;
                 }
-                if bits & 0b10 != 0 {
+                if bits & u128::from(0b10u64) != u128::from(0u64) {
                     s = s.endo();
                 }
 
@@ -238,12 +243,12 @@ mod tests {
         /// Implements [Algorithm 2, \[BGH19\]](https://eprint.iacr.org/2019/1021).
         pub fn compute_scalar<F: WithSmallOrderMulGroup<3>>(&self) -> F {
             let mut acc = (F::ZETA + F::ONE).double();
-            for bits in (0..64).map(|i| self.value >> (i << 1)) {
+            for bits in (0..(u128::BITS as usize / 2)).map(|i| self.value >> (i << 1)) {
                 let mut tmp = F::ONE;
-                if bits & 0b01 != 0 {
+                if bits & u128::from(0b01u64) != u128::from(0u64) {
                     tmp = -tmp;
                 }
-                if bits & 0b10 != 0 {
+                if bits & u128::from(0b10u64) != u128::from(0u64) {
                     tmp = tmp * F::ZETA;
                 }
                 acc = acc.double() + tmp;
@@ -253,18 +258,19 @@ mod tests {
     }
 
     pub fn extract_endoscalar<F: PrimeField>(value: F) -> EndoscalarTest {
-        // Given a random output of a secure algebraic hash function, we can extract
-        // 128 bits of "randomness" from the value without having to perform a
-        // complete decomposition. Instead, we'll witness 128 bits where each bit
-        // represents whether or not the value added to a fixed constant is a
-        // quadratic residue. This can be tested easily in the circuit.
+        // Given a random output of a secure algebraic hash function, we can
+        // extract k bits of "randomness" from the value without having to
+        // perform a complete decomposition. Instead, we'll witness k bits where
+        // each bit represents whether or not the value added to a fixed
+        // constant is a quadratic residue. This can be tested easily in the
+        // circuit.
 
-        let mut endoscalar = 0u128;
+        let mut endoscalar = u128::from(0u64);
 
-        for i in (0..128).rev() {
+        for i in (0..u128::BITS).rev() {
             endoscalar <<= 1;
             if (value + F::from(i as u64)).sqrt().into_option().is_some() {
-                endoscalar |= 1;
+                endoscalar |= u128::from(1u64);
             }
         }
 
@@ -278,7 +284,7 @@ mod tests {
 
         let p = EpAffine::generator();
         let e = EndoscalarTest {
-            value: 206786806484900909362154774549736492353,
+            value: u128::from(206786806484900909362154774549736492353u128),
         };
         let scaled = e.scale(&p);
         let expected: EpAffine = (p * e.compute_scalar::<Fq>()).into();
