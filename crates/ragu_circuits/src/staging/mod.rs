@@ -210,7 +210,7 @@ pub trait StageExt<F: Field, R: Rank>: Stage<F, R> {
         };
 
         if values.len() > Self::values() {
-            return Err(ragu_core::Error::MultiplicationBoundExceeded(R::n()));
+            return Err(ragu_core::Error::MultiplicationBoundExceeded(Self::num_multiplications()));
         }
 
         assert!(values.len() <= Self::values());

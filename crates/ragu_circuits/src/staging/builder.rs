@@ -113,6 +113,10 @@ impl<
                 };
                 let gadget = Next::witness(&mut dr, witness)?.map_gadget(&mut dr)?;
 
+                if dr.alloc_count > Next::values() {
+                    return Err(ragu_core::Error::MultiplicationBoundExceeded(Next::num_multiplications()));
+                }
+
                 while dr.alloc_count < Next::values() {
                     dr.convert_wire(&())?;
                 }
