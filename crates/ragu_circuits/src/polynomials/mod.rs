@@ -3,6 +3,7 @@
 use ff::Field;
 
 pub mod structured;
+mod txz;
 pub mod unstructured;
 
 mod private {
@@ -80,22 +81,23 @@ pub trait Rank:
             return F::ZERO;
         }
 
-        let xinv = x.invert().unwrap();
-        let zinv = z.invert().unwrap();
-        let mut xz_step = xinv * z;
-        let mut xzinv_step = xinv * zinv;
-        let mut l = x.pow([(4 * Self::n() - 1) as u64]) * z.pow([2 * Self::n() as u64]);
-        let mut r = l;
+        use ragu_core::{
+            drivers::{Driver, Emulator},
+            maybe::Maybe,
+        };
+        use ragu_primitives::Element;
 
-        // This is computed efficiently as a geometric series.
-        for _ in 0..Self::log2_n() {
-            l += l * xz_step;
-            r += r * xzinv_step;
-            xz_step = xz_step.square();
-            xzinv_step = xzinv_step.square();
-        }
+        let mut dr = Emulator::<F>::default();
+        *dr.with((x, z), |dr, xz| {
+            let (x, z) = xz.cast();
+            let x = Element::alloc(dr, x)?;
+            let z = Element::alloc(dr, z)?;
 
-        -(l + r * zinv)
+            dr.routine(txz::Evaluate::new(Self::log2_n()), (x, z))
+        })
+        .expect("should synthesize correctly without triggering inversion errors")
+        .value()
+        .take()
     }
 }
 
@@ -151,19 +153,35 @@ fn test_tz() {
 fn test_txz_consistency() {
     use ragu_pasta::Fp;
     use rand::thread_rng;
-
     type DemoR = R<10>;
-
     let z = Fp::random(thread_rng());
     let x = Fp::random(thread_rng());
-
+    // Reference computation (original algorithm reproduced here)
+    let reference = {
+        if x == Fp::ZERO || z == Fp::ZERO {
+            Fp::ZERO
+        } else {
+            let xinv = x.invert().unwrap();
+            let zinv = z.invert().unwrap();
+            let mut xz_step = xinv * z;
+            let mut xzinv_step = xinv * zinv;
+            let mut l = x.pow([(4 * DemoR::n() - 1) as u64]) * z.pow([2 * DemoR::n() as u64]);
+            let mut r = l;
+            for _ in 0..DemoR::log2_n() {
+                l += l * xz_step;
+                r += r * xzinv_step;
+                xz_step = xz_step.square();
+                xzinv_step = xzinv_step.square();
+            }
+            -(l + r * zinv)
+        }
+    };
     let txz = DemoR::txz(x, z);
-
+    assert_eq!(txz, reference);
     assert_eq!(
         txz,
         arithmetic::eval(&DemoR::tz::<Fp>(z).unstructured().coeffs, x)
     );
-
     assert_eq!(
         txz,
         arithmetic::eval(&DemoR::tx::<Fp>(x).unstructured().coeffs, z)

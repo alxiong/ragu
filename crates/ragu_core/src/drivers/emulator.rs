@@ -3,7 +3,9 @@ use ff::Field;
 use crate::{
     Result,
     drivers::{Coeff, Driver, DriverTypes},
+    gadgets::GadgetKind,
     maybe::{Always, MaybeKind},
+    routines::{Prediction, Routine},
 };
 
 /// A driver used to execute circuit synthesis code and obtain the result of a
@@ -52,7 +54,7 @@ impl<F: Field> DriverTypes for Emulator<F> {
     type LCenforce = ();
 }
 
-impl<F: Field> Driver<'_> for Emulator<F> {
+impl<'dr, F: Field> Driver<'dr> for Emulator<F> {
     type F = F;
     type Wire = ();
     const ONE: Self::Wire = ();
@@ -74,5 +76,18 @@ impl<F: Field> Driver<'_> for Emulator<F> {
 
     fn enforce_zero(&mut self, _: impl Fn(Self::LCenforce) -> Self::LCenforce) -> Result<()> {
         Ok(())
+    }
+
+    fn routine<R: Routine<Self::F> + 'dr>(
+        &mut self,
+        routine: R,
+        input: <R::Input as GadgetKind<Self::F>>::Rebind<'dr, Self>,
+    ) -> Result<<R::Output as GadgetKind<Self::F>>::Rebind<'dr, Self>> {
+        // Emulator will short-circuit execution if the routine can predict its
+        // output, as the emulator is not involved in enforcing any constraints.
+        match routine.predict(self, &input)? {
+            Prediction::Known(output, _) => Ok(output),
+            Prediction::Unknown(aux) => routine.execute(self, input, aux),
+        }
     }
 }
