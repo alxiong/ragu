@@ -92,7 +92,7 @@ impl<'dr, F: Field> Driver<'dr> for Emulator<F> {
     }
 }
 
-impl<'dr, 'new_dr, D: Driver<'dr>> FromDriver<'dr, 'new_dr, D> for Emulator<D::F> {
+impl<'dr, D: Driver<'dr>> FromDriver<'dr, '_, D> for Emulator<D::F> {
     type NewDriver = Self;
 
     fn convert_wire(&mut self, _: &D::Wire) -> Result<()> {

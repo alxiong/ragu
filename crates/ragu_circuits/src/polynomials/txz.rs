@@ -92,7 +92,7 @@ impl<F: Field> Routine<F> for Evaluate {
                     .ok_or_else(|| Error::InvalidWitness("division by zero".into()))?;
                 let mut xz_step = xinv * z;
                 let mut xzinv_step = xinv * zinv;
-                let mut l = x.pow([(4 * self.n - 1) as u64]) * z.pow([2 * self.n as u64]);
+                let mut l = x.pow([4 * self.n - 1]) * z.pow([2 * self.n]);
                 let mut r = l;
 
                 // This is computed efficiently as a geometric series.
