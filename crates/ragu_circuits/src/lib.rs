@@ -26,6 +26,7 @@ use alloc::{boxed::Box, vec::Vec};
 
 pub mod composition;
 mod ky;
+pub mod mesh;
 mod metrics;
 pub mod polynomials;
 mod rx;

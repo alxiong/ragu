@@ -44,7 +44,8 @@ impl<'params, F: PrimeField, R: Rank> Mesh<'params, F, R> {
         self.add_circuit_object(circuit.into_object()?)
     }
 
-    /// Adds a custom circuit object to this mesh.
+    /// Adds a custom circuit object to this mesh. Returns the point of the mesh
+    /// domain that the circuit is assigned to.
     pub fn add_circuit_object(
         &mut self,
         circuit: Box<dyn CircuitObject<F, R> + 'params>,
