@@ -10,7 +10,7 @@ use ff::Field;
 
 use crate::{
     Result,
-    drivers::{Driver, Emulator, Witness},
+    drivers::{Driver, Witness},
     gadgets::GadgetKind,
 };
 
@@ -76,23 +76,3 @@ pub enum Prediction<T, A> {
     /// the driver should simply execute it to obtain the result.
     Unknown(A),
 }
-
-/// Helper trait for routines.
-pub trait RoutineExt<F: Field>: Routine<F> {
-    /// Executes a routine for a driver, discarding the routine's prediction but
-    /// forwarding its auxiliary data to the execution method. This is the
-    /// default behavior of the [`Driver`] trait.
-    fn predict_and_execute<'dr, D: Driver<'dr, F = F>>(
-        &self,
-        dr: &mut D,
-        input: <Self::Input as GadgetKind<F>>::Rebind<'dr, D>,
-    ) -> Result<<Self::Output as GadgetKind<F>>::Rebind<'dr, D>> {
-        let mut dummy = Emulator::<D::MaybeKind, F>::default();
-        let dummy_input = Self::Input::map_gadget(&input, &mut dummy)?;
-        match self.predict(&mut dummy, &dummy_input)? {
-            Prediction::Known(_, aux) | Prediction::Unknown(aux) => self.execute(dr, input, aux),
-        }
-    }
-}
-
-impl<F: Field, R: Routine<F>> RoutineExt<F> for R {}

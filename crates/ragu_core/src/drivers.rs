@@ -51,7 +51,7 @@ use crate::{
     Result,
     gadgets::GadgetKind,
     maybe::{Maybe, MaybeKind},
-    routines::{Routine, RoutineExt},
+    routines::{Prediction, Routine},
 };
 
 mod emulator;
@@ -193,18 +193,19 @@ pub trait Driver<'dr>: DriverTypes<ImplWire = Self::Wire, ImplField = Self::F> +
         <Witness<Self, R> as Maybe<R>>::with(f)
     }
 
-    /// Executes a routine.
-    ///
-    /// Drivers can override this method to provide more efficient
-    /// implementations, but they must preserve the behavior that this method
-    /// merely has the effect of executing the routine just as the default
-    /// implementation for this trait does.
+    /// Executes a routine with this driver.
     fn routine<R: Routine<Self::F> + 'dr>(
         &mut self,
         routine: R,
         input: <R::Input as GadgetKind<Self::F>>::Rebind<'dr, Self>,
     ) -> Result<<R::Output as GadgetKind<Self::F>>::Rebind<'dr, Self>> {
-        routine.predict_and_execute(self, input)
+        let mut dummy = Emulator::<Self::MaybeKind, Self::F>::default();
+        let dummy_input = R::Input::map_gadget(&input, &mut dummy)?;
+        match routine.predict(&mut dummy, &dummy_input)? {
+            Prediction::Known(_, aux) | Prediction::Unknown(aux) => {
+                routine.execute(self, input, aux)
+            }
+        }
     }
 }
 
