@@ -2,6 +2,7 @@
 
 use arithmetic::CurveAffine;
 use ff::Field;
+use rand::Rng;
 
 use alloc::vec::Vec;
 
@@ -71,6 +72,29 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
             v: Vec::new(),
             w: Vec::new(),
             d: Vec::new(),
+            _marker: core::marker::PhantomData,
+        }
+    }
+
+    /// Creates a new polynomial with random coefficients.
+    pub fn random<RNG: Rng>(rng: &mut RNG) -> Self {
+        let mut u = Vec::with_capacity(R::n());
+        let mut v = Vec::with_capacity(R::n());
+        let mut w = Vec::with_capacity(R::n());
+        let mut d = Vec::with_capacity(R::n());
+
+        for _ in 0..R::n() {
+            u.push(F::random(&mut *rng));
+            v.push(F::random(&mut *rng));
+            w.push(F::random(&mut *rng));
+            d.push(F::random(&mut *rng));
+        }
+
+        Self {
+            u,
+            v,
+            w,
+            d,
             _marker: core::marker::PhantomData,
         }
     }

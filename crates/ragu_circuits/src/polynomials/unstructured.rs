@@ -3,6 +3,7 @@
 
 use arithmetic::CurveAffine;
 use ff::Field;
+use rand::Rng;
 
 use alloc::{vec, vec::Vec};
 use core::ops::{Deref, DerefMut};
@@ -42,6 +43,18 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
     pub fn new() -> Self {
         Self {
             coeffs: vec![F::ZERO; R::num_coeffs()],
+            _marker: core::marker::PhantomData,
+        }
+    }
+
+    /// Creates a new polynomial with random coefficients.
+    pub fn random<RNG: Rng>(rng: &mut RNG) -> Self {
+        let mut coeffs = Vec::with_capacity(R::num_coeffs());
+        for _ in 0..R::num_coeffs() {
+            coeffs.push(F::random(&mut *rng));
+        }
+        Self {
+            coeffs,
             _marker: core::marker::PhantomData,
         }
     }
@@ -141,13 +154,7 @@ fn test_add_structured() {
 
     type R = super::R<13>;
 
-    let mut p = super::structured::Polynomial::<Fp, R>::new();
-    for _ in 0..R::n() {
-        p.u.push(Fp::random(thread_rng()));
-        p.v.push(Fp::random(thread_rng()));
-        p.w.push(Fp::random(thread_rng()));
-        p.d.push(Fp::random(thread_rng()));
-    }
+    let p = super::structured::Polynomial::<Fp, R>::random(&mut thread_rng());
 
     let mut q = super::structured::Polynomial::<Fp, R>::new();
     for i in 0..R::n() {
