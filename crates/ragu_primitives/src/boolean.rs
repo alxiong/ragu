@@ -2,7 +2,7 @@ use arithmetic::Coeff;
 use ff::{Field, PrimeField};
 use ragu_core::{
     Result,
-    drivers::{Driver, DriverInput, LinearExpression},
+    drivers::{Driver, DriverValue, LinearExpression},
     gadgets::{Gadget, Kind},
     maybe::Maybe,
 };
@@ -25,15 +25,15 @@ pub struct Boolean<'dr, D: Driver<'dr>> {
     wire: D::Wire,
 
     /// The witness value for the value of this boolean.
-    #[ragu(witness)]
-    value: DriverInput<D, bool>,
+    #[ragu(value)]
+    value: DriverValue<D, bool>,
 }
 
 impl<'dr, D: Driver<'dr>> Boolean<'dr, D> {
     /// Allocates a boolean with the provided witness value.
     ///
     /// This costs one multiplication constraint and two linear constraints.
-    pub fn alloc(dr: &mut D, value: DriverInput<D, bool>) -> Result<Self> {
+    pub fn alloc(dr: &mut D, value: DriverValue<D, bool>) -> Result<Self> {
         let (a, b, c) = dr.mul(|| {
             let value = value.coeff().take();
             Ok((value, value, value))
@@ -80,7 +80,7 @@ impl<'dr, D: Driver<'dr>> Boolean<'dr, D> {
     }
 
     /// Returns the witness value of this boolean.
-    pub fn value(&self) -> DriverInput<D, bool> {
+    pub fn value(&self) -> DriverValue<D, bool> {
         self.value.clone()
     }
 
@@ -110,7 +110,7 @@ impl<F: Field> Promotion<F> for Kind![F; @Boolean<'_, _>] {
 
     fn promote<'dr, D: Driver<'dr, F = F>>(
         demoted: &Demoted<'dr, D, Boolean<'dr, D>>,
-        witness: DriverInput<D, bool>,
+        witness: DriverValue<D, bool>,
     ) -> Boolean<'dr, D> {
         Boolean {
             wire: demoted.wire.clone(),

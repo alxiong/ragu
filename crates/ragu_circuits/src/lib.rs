@@ -17,7 +17,7 @@ extern crate alloc;
 use ff::Field;
 use ragu_core::{
     Error, Result,
-    drivers::{Driver, DriverInput},
+    drivers::{Driver, DriverValue},
     gadgets::GadgetKind,
 };
 use ragu_primitives::io::Write;
@@ -65,7 +65,7 @@ pub trait Circuit<F: Field>: Sized + Send + Sync {
     fn instance<'dr, 'source: 'dr, D: Driver<'dr, F = F>>(
         &self,
         dr: &mut D,
-        instance: DriverInput<D, Self::Instance<'source>>,
+        instance: DriverValue<D, Self::Instance<'source>>,
     ) -> Result<<Self::Output as GadgetKind<F>>::Rebind<'dr, D>>;
 
     /// Given a witness type for this circuit, perform a computation using the
@@ -75,10 +75,10 @@ pub trait Circuit<F: Field>: Sized + Send + Sync {
     fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = F>>(
         &self,
         dr: &mut D,
-        witness: DriverInput<D, Self::Witness<'source>>,
+        witness: DriverValue<D, Self::Witness<'source>>,
     ) -> Result<(
         <Self::Output as GadgetKind<F>>::Rebind<'dr, D>,
-        DriverInput<D, Self::Aux<'source>>,
+        DriverValue<D, Self::Aux<'source>>,
     )>;
 }
 
