@@ -89,7 +89,10 @@ impl<'params, F: PrimeField, R: Rank> MeshBuilder<'params, F, R> {
     }
 }
 
-/// A finalized mesh ready for polynomial evaluation.
+/// Represents a collection of circuits over a particular field, some of which
+/// may make reference to the others or be executed in similar contexts. The
+/// circuits are combined together using an interpolation polynomial so that
+/// they can be queried efficiently.
 pub struct Mesh<'params, F: PrimeField, R: Rank> {
     domain: Domain<F>,
     circuits: Vec<Box<dyn CircuitObject<F, R> + 'params>>,
