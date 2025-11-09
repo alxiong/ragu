@@ -5,13 +5,36 @@ inputs:
     description: Optional Rust components to install (comma-separated)
     required: false
     default: ''
+  targets:
+    description: Additional targets to install
+    required: false
+    default: ''
+  install-multilib:
+    description: Install gcc-multilib for 32-bit compilation
+    required: false
+    default: 'false'
 runs:
   using: composite
   steps:
+    - name: Cache apt packages
+      if: runner.os == 'Linux' && inputs.install-multilib == 'true'
+      uses: actions/cache@v4
+      with:
+        path: /var/cache/apt
+        key: ${{ runner.os }}-apt-gcc-multilib
+
+    - name: Install 32-bit support
+      if: runner.os == 'Linux' && inputs.install-multilib == 'true'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-multilib
+
     - name: Install Rust toolchain (from rust-toolchain.toml)
       uses: dtolnay/rust-toolchain@1.85.0
       with:
         components: ${{ inputs.components }}
+        targets: ${{ inputs.targets }}
 
     - id: cargo-cache
       name: Cache cargo (restore)

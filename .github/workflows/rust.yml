@@ -50,12 +50,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup Rust
         uses: ./.github/actions/rust-setup
-      - name: Install 32-bit support
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-multilib
-      - name: Add 32-bit target
-        run: rustup target add i686-unknown-linux-gnu
+        with:
+          targets: i686-unknown-linux-gnu
+          install-multilib: 'true'
       - name: Run 32-bit tests
         run: cargo test --release --all --locked --target i686-unknown-linux-gnu
 
