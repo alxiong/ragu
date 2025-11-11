@@ -9,7 +9,7 @@ $$
 \v{k}_j
 $$
 
-for some (sparse) public input vector $\v{k} \in \F^{4n}$ and fixed matrices $\v{u}, \v{v}, \v{w} \in \F^{n \times 4n}$, where $\v{u_{j}}, \v{v_{j}}, \v{w_{j}} \in \F^{4n}$ denote the _j-th column_ (selector) vectors of those matrices. Because $n$ is fixed, individual circuits vary only by these matrices after this reduction.
+for some (sparse) public input vector $\v{k} \in \F^{4n}$ and fixed matrices $\v{u}, \v{v}, \v{w} \in \F^{n \times 4n}$, where $\v{u_{j}}, \v{v_{j}}, \v{w_{j}} \in \F^{4n}$ denote the _j-th column_ of those matrices. Because $n$ is fixed, individual circuits vary only by these matrices after this reduction.
 
 ## Multiplication Constraints
 
@@ -30,7 +30,7 @@ $$\revdot{\v{r}}{\v{r} \circ \v{z^{4n}}} =
 
 $$
 
-and notice that a vector $\v{t}$ exists ($\v{t}$ is picked to cancel the $c_{i}$ weights that appear alongside the $a_{i}b_{i}$ weights in the expansion) such that
+and notice that for all $z \in \F$ and for any choice of $\v{r}$ there exists a unique vector $\v{t}$ such that
 
 $$
 \revdot{\v{r}}{\v{t}} = -\sum_{i = 0}^{n - 1} \v{c}_i \big( \underline{ z^{2n - 1 - i} + z^{2n + i} } \big).
