@@ -452,6 +452,7 @@ mod tests {
             for _ in 0..mesh.domain.n() {
                 let wxy = mesh.wxy(w, x, y);
                 let xy = mesh.xy(x, y);
+                assert_eq!(wxy, xy.eval(w), "Failed for num_circuits={}", num_circuits);
             }
         }
 
