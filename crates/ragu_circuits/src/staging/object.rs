@@ -216,56 +216,21 @@ mod tests {
     use ragu_core::{
         Result,
         drivers::{Driver, DriverValue, LinearExpression},
-        gadgets::{GadgetKind, Kind},
+        gadgets::GadgetKind,
         maybe::Maybe,
     };
     use ragu_pasta::{EpAffine, Fp, Fq};
-    use ragu_primitives::{Element, Endoscalar, Point};
+    use ragu_primitives::{Endoscalar, Point};
     use rand::{Rng, thread_rng};
 
-    use crate::{Circuit, CircuitExt, CircuitObject, metrics, polynomials::Rank, s::sy};
+    use crate::{
+        CircuitExt, CircuitObject, metrics, polynomials::Rank, s::sy, tests::SquareCircuit,
+    };
 
     use super::{
         super::{Stage, StageExt},
         StageObject,
     };
-
-    /// Dummy circuit.
-    pub struct SquareCircuit {
-        times: usize,
-    }
-
-    impl Circuit<Fp> for SquareCircuit {
-        type Instance<'instance> = Fp;
-        type Output = Kind![Fp; Element<'_, _>];
-        type Witness<'witness> = Fp;
-        type Aux<'witness> = ();
-
-        fn instance<'dr, 'instance: 'dr, D: Driver<'dr, F = Fp>>(
-            &self,
-            dr: &mut D,
-            instance: DriverValue<D, Self::Instance<'instance>>,
-        ) -> Result<<Self::Output as GadgetKind<Fp>>::Rebind<'dr, D>> {
-            Element::alloc(dr, instance)
-        }
-
-        fn witness<'dr, 'witness: 'dr, D: Driver<'dr, F = Fp>>(
-            &self,
-            dr: &mut D,
-            witness: DriverValue<D, Self::Witness<'witness>>,
-        ) -> Result<(
-            <Self::Output as GadgetKind<Fp>>::Rebind<'dr, D>,
-            DriverValue<D, Self::Aux<'witness>>,
-        )> {
-            let mut a = Element::alloc(dr, witness)?;
-
-            for _ in 0..self.times {
-                a = a.square(dr)?;
-            }
-
-            Ok((a, D::just(|| ())))
-        }
-    }
 
     impl<F: Field, R: Rank> crate::Circuit<F> for StageObject<R> {
         type Instance<'source> = ();

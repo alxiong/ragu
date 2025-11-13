@@ -286,18 +286,14 @@ pub fn omega_j<F: PrimeField>(id: u32) -> F {
 #[cfg(test)]
 mod tests {
     use super::{MeshBuilder, OmegaKey, omega_j};
-    use crate::{Circuit, polynomials::R};
+    use crate::polynomials::R;
+    use crate::tests::SquareCircuit;
     use alloc::collections::btree_map::BTreeMap;
     use arithmetic::{Cycle, Domain, bitreverse};
     use ff::Field;
     use ff::PrimeField;
-    use ragu_core::{
-        Result,
-        drivers::{Driver, DriverValue},
-        gadgets::{GadgetKind, Kind},
-    };
+    use ragu_core::Result;
     use ragu_pasta::{Fp, Pasta};
-    use ragu_primitives::Element;
     use rand::thread_rng;
 
     #[test]
@@ -321,42 +317,6 @@ mod tests {
         assert_eq!(order(omega_j::<Fp>(5)), 8);
         assert_eq!(order(omega_j::<Fp>(6)), 8);
         assert_eq!(order(omega_j::<Fp>(7)), 8);
-    }
-
-    struct SquareCircuit {
-        times: usize,
-    }
-
-    impl Circuit<Fp> for SquareCircuit {
-        type Instance<'instance> = Fp;
-        type Output = Kind![Fp; Element<'_, _>];
-        type Witness<'witness> = Fp;
-        type Aux<'witness> = ();
-
-        fn instance<'dr, 'instance: 'dr, D: Driver<'dr, F = Fp>>(
-            &self,
-            dr: &mut D,
-            instance: DriverValue<D, Self::Instance<'instance>>,
-        ) -> Result<<Self::Output as GadgetKind<Fp>>::Rebind<'dr, D>> {
-            Element::alloc(dr, instance)
-        }
-
-        fn witness<'dr, 'witness: 'dr, D: Driver<'dr, F = Fp>>(
-            &self,
-            dr: &mut D,
-            witness: DriverValue<D, Self::Witness<'witness>>,
-        ) -> Result<(
-            <Self::Output as GadgetKind<Fp>>::Rebind<'dr, D>,
-            DriverValue<D, Self::Aux<'witness>>,
-        )> {
-            let mut a = Element::alloc(dr, witness)?;
-
-            for _ in 0..self.times {
-                a = a.square(dr)?;
-            }
-
-            Ok((a, D::just(|| ())))
-        }
     }
 
     type TestRank = R<8>;
