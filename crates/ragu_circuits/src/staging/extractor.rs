@@ -1,9 +1,10 @@
 use arithmetic::Coeff;
+use ff::Field;
 use ragu_core::{
     Result,
-    drivers::{Driver, DriverTypes, FromDriver},
+    drivers::{Driver, DriverTypes, FromDriver, emulator::MaybeWired},
     gadgets::{Gadget, GadgetKind},
-    maybe::Empty,
+    maybe::{Always, Empty},
 };
 
 use alloc::vec::Vec;
@@ -66,8 +67,16 @@ impl<'dr, D: Driver<'dr>> FromDriver<'dr, 'dr, D> for WireExtractor<'dr, D> {
     }
 }
 
-pub fn wires<'dr, D: Driver<'dr>, G: Gadget<'dr, D>>(gadget: &G) -> Result<Vec<D::Wire>> {
+pub fn wires<
+    'dr,
+    F: Field,
+    W: Clone,
+    D: Driver<'dr, F = F, Wire = MaybeWired<Always<()>, F>>,
+    G: Gadget<'dr, D>,
+>(
+    gadget: &G,
+) -> Result<Vec<F>> {
     let mut collector: WireExtractor<'_, D> = WireExtractor::new();
     <G::Kind as GadgetKind<D::F>>::map_gadget(gadget, &mut collector)?;
-    Ok(collector.wires)
+    Ok(collector.wires.into_iter().map(|w| w.value()).collect())
 }
