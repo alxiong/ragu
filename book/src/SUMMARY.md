@@ -15,7 +15,6 @@
     - [Arithmetic Circuits](design/circuits/index.md)
       - [Witness Structure](design/circuits/witness.md)
       - [Constraint System](design/circuits/constraints.md)
-      - [Circuit Polynomials](design/circuits/circuit_polynomials.md)
     - [Recursion](design/recursion/index.md)
       - [Staging Polynomials](design/recursion/staging.md)
   - [Development](development/index.md)
@@ -23,4 +22,5 @@
     - [Drivers](development/driver_abstraction.md)
     - [Routines](development/routines.md)
     - [Gadget System](design/gadgets.md)
+    - [Circuit Polynomials](development/circuit_polynomials.md)
   - [Notation](notation.md)
