@@ -73,6 +73,13 @@ impl Index {
             index: StepIndex::Internal(value),
         }
     }
+
+    pub(crate) fn get_application_index(&self) -> Option<usize> {
+        match self.index {
+            StepIndex::Internal(_) => None,
+            StepIndex::Application(i) => Some(i),
+        }
+    }
 }
 
 #[test]
