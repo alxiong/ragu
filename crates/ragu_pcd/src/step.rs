@@ -121,5 +121,7 @@ pub trait Step<C: Cycle>: Sized + Send + Sync {
             Encoded<'dr, D, Self::Output, HEADER_SIZE>,
         ),
         DriverValue<D, Self::Aux<'source>>,
-    )>;
+    )>
+    where
+        Self: 'dr;
 }
