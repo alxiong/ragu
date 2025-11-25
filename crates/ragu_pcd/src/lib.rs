@@ -158,6 +158,31 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         self.trivial().carry(())
     }
 
+    /// Rerandomize proof-carrying data.
+    ///
+    /// This will internally fold the [`Pcd`] with a random proof instance using
+    /// an internal rerandomization step, such that the resulting proof is valid
+    /// for the same [`Header`] but reveals nothing else about the original
+    /// proof. As a result, [`Application::verify`] should produce the same
+    /// result on the provided `pcd` as it would the output of this method.
+    pub fn rerandomize<'source, RNG: Rng, H: Header<C::CircuitField>>(
+        &self,
+        pcd: Pcd<'source, C, R, H>,
+        rng: &mut RNG,
+    ) -> Result<Pcd<'source, C, R, H>> {
+        let random_proof = self.random(rng);
+        let data = pcd.data.clone();
+        let rerandomized_proof = self.merge(
+            rng,
+            step::rerandomize::Rerandomize::new(),
+            (),
+            pcd,
+            random_proof,
+        )?;
+
+        Ok(rerandomized_proof.0.carry(data))
+    }
+
     /// Merge two PCD into one using a provided [`Step`].
     ///
     /// ## Parameters
@@ -209,31 +234,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             },
             aux,
         ))
-    }
-
-    /// Rerandomize proof-carrying data.
-    ///
-    /// This will internally fold the [`Pcd`] with a random proof instance using
-    /// an internal rerandomization step, such that the resulting proof is valid
-    /// for the same [`Header`] but reveals nothing else about the original
-    /// proof. As a result, [`Application::verify`] should produce the same
-    /// result on the provided `pcd` as it would the output of this method.
-    pub fn rerandomize<'source, RNG: Rng, H: Header<C::CircuitField>>(
-        &self,
-        pcd: Pcd<'source, C, R, H>,
-        rng: &mut RNG,
-    ) -> Result<Pcd<'source, C, R, H>> {
-        let random_proof = self.random(rng);
-        let data = pcd.data.clone();
-        let rerandomized_proof = self.merge(
-            rng,
-            step::rerandomize::Rerandomize::new(),
-            (),
-            pcd,
-            random_proof,
-        )?;
-
-        Ok(rerandomized_proof.0.carry(data))
     }
 
     /// Verifies some [`Pcd`] for the provided [`Header`].
