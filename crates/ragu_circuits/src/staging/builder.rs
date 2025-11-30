@@ -1,20 +1,19 @@
 use arithmetic::Coeff;
-use ff::Field;
 use ragu_core::{
     Result,
     drivers::{
-        Driver, DriverValue, FromDriver, LinearExpression,
+        Driver, DriverValue, FromDriver,
         emulator::{Emulator, Wireless},
     },
     gadgets::{Gadget, GadgetKind},
-    maybe::{Always, Maybe, MaybeKind},
+    maybe::Empty,
 };
 
+use alloc::vec::Vec;
 use core::marker::PhantomData;
 
 use super::{Stage, StageExt};
 use crate::polynomials::Rank;
-use alloc::vec::Vec;
 
 /// Builder object for synthesizing a staged circuit witness.
 pub struct StageBuilder<
@@ -43,32 +42,32 @@ impl<'a, 'dr, D: Driver<'dr>, R: Rank, Target: Stage<D::F, R>>
 
 /// Allocates stage wires on the underlying driver and collects
 /// them for later use by `StageGuard`.
-struct StageWireAllocator<'a, 'dr, D: Driver<'dr>, F: ff::Field> {
+struct StageWireAllocator<'a, 'dr, D: Driver<'dr>> {
     underlying: &'a mut D,
     stage_wires: Vec<D::Wire>,
-    _marker: PhantomData<F>,
+    _marker: PhantomData<D::F>,
 }
 
-impl<'dr, D: Driver<'dr>, F: ff::Field> FromDriver<'_, 'dr, Emulator<Wireless<Always<()>, F>>>
-    for StageWireAllocator<'_, 'dr, D, F>
+impl<'dr, D: Driver<'dr>, F: ff::Field> FromDriver<'_, 'dr, Emulator<Wireless<Empty, F>>>
+    for StageWireAllocator<'_, 'dr, D>
 where
     D: Driver<'dr, F = F>,
 {
-    type NewDriver = D;
+    type NewDriver = PhantomData<D::F>;
 
     /// For every stage wire conversion, allocate a zero on the underlying driver.
-    fn convert_wire(&mut self, _: &()) -> Result<D::Wire> {
+    fn convert_wire(&mut self, _: &()) -> Result<()> {
         let stage_wire = self.underlying.alloc(|| Ok(Coeff::Zero))?;
-        self.stage_wires.push(stage_wire.clone());
-        Ok(stage_wire)
+        self.stage_wires.push(stage_wire);
+        Ok(())
     }
 }
 
-/// `FromDriver` that enforces equality between live wires and stage wires.
+/// Injects pre-allocated stage wires into a gadget, and enforces equality
+/// between live wires and stage wires.
 struct EnforcingInjector<'a, 'dr, D: Driver<'dr>> {
     driver: &'a mut D,
     stage_wires: core::slice::Iter<'a, D::Wire>,
-    _marker: PhantomData<&'dr ()>,
 }
 
 impl<'dr, D: Driver<'dr>> FromDriver<'dr, 'dr, D> for EnforcingInjector<'_, 'dr, D> {
@@ -80,22 +79,20 @@ impl<'dr, D: Driver<'dr>> FromDriver<'dr, 'dr, D> for EnforcingInjector<'_, 'dr,
             .next()
             .ok_or_else(|| ragu_core::Error::InvalidWitness("not enough stage wires".into()))?;
 
-        // Constraint enforcement: live_wire - stage_wire = 0.
-        self.driver
-            .enforce_zero(|lc| lc.add(live_wire).sub(stage_wire))?;
+        self.driver.enforce_equal(live_wire, stage_wire)?;
 
         Ok(stage_wire.clone())
     }
 }
 
-/// `FromDriver` that injects pre-allocated stage wires into a gadget.
-struct StageWireInjector<'a, 'dr, D: Driver<'dr>, M: MaybeKind, F: Field> {
+/// Injects pre-allocated stage wires into a gadget, without enforcing constraints.
+struct StageWireInjector<'a, 'dr, D: Driver<'dr>> {
     stage_wires: core::slice::Iter<'a, D::Wire>,
-    _marker: PhantomData<(&'dr (), M, F)>,
+    _marker: PhantomData<&'dr ()>,
 }
 
-impl<'dr, D: Driver<'dr, F = F>, M: MaybeKind, F: Field>
-    FromDriver<'_, 'dr, Emulator<Wireless<M, F>>> for StageWireInjector<'_, 'dr, D, M, F>
+impl<'dr, D: Driver<'dr>> FromDriver<'_, 'dr, Emulator<Wireless<D::MaybeKind, D::F>>>
+    for StageWireInjector<'_, 'dr, D>
 {
     type NewDriver = D;
 
@@ -113,14 +110,17 @@ impl<'dr, D: Driver<'dr, F = F>, M: MaybeKind, F: Field>
 /// witness computation is deferred until either [`unenforced`](Self::unenforced)
 /// or [`enforced`](Self::enforced) is called.
 ///
-/// Dropping this guard without calling either method effectively "skips" the
-/// stage, where the wire positions are reserved but no gadget is returned.
+/// Implicitely, dropping this guard without calling either method effectively "skips"
+/// the stage, where the wire positions are reserved but no gadget is returned.
 pub struct StageGuard<'dr, D: Driver<'dr>, R: Rank, Next: Stage<D::F, R>> {
     stage_wires: Vec<D::Wire>,
     _marker: PhantomData<(&'dr (), R, Next)>,
 }
 
-impl<'dr, D: Driver<'dr>, R: Rank, Next: Stage<D::F, R>> StageGuard<'dr, D, R, Next> {
+impl<'dr, D: Driver<'dr>, R: Rank, Next: Stage<D::F, R>> StageGuard<'dr, D, R, Next>
+where
+    Next: 'dr,
+{
     /// Enforce constraints and inject stage wires.
     ///
     /// Runs the stage's witness method on the real driver (enforcing all
@@ -130,13 +130,7 @@ impl<'dr, D: Driver<'dr>, R: Rank, Next: Stage<D::F, R>> StageGuard<'dr, D, R, N
         self,
         driver: &'a mut D,
         witness: DriverValue<D, Next::Witness<'source>>,
-    ) -> Result<(
-        <Next::OutputKind as GadgetKind<D::F>>::Rebind<'dr, D>,
-        Vec<D::Wire>,
-    )>
-    where
-        Next: 'dr,
-    {
+    ) -> Result<<Next::OutputKind as GadgetKind<D::F>>::Rebind<'dr, D>> {
         // Run witness on the real driver, enforcing all constraints.
         let computed_gadget = Next::witness(driver, witness)?;
 
@@ -144,12 +138,9 @@ impl<'dr, D: Driver<'dr>, R: Rank, Next: Stage<D::F, R>> StageGuard<'dr, D, R, N
         let mut injector = EnforcingInjector {
             driver,
             stage_wires: self.stage_wires.iter(),
-            _marker: PhantomData,
         };
 
-        let gadget = computed_gadget.map(&mut injector)?;
-
-        Ok((gadget, self.stage_wires))
+        computed_gadget.map(&mut injector)
     }
 
     /// Inject stage wires without enforcing constraints.
@@ -160,25 +151,16 @@ impl<'dr, D: Driver<'dr>, R: Rank, Next: Stage<D::F, R>> StageGuard<'dr, D, R, N
     pub fn unenforced<'source: 'dr>(
         self,
         witness: DriverValue<D, Next::Witness<'source>>,
-    ) -> Result<(
-        <Next::OutputKind as GadgetKind<D::F>>::Rebind<'dr, D>,
-        Vec<D::Wire>,
-    )>
-    where
-        Next: 'dr,
-    {
+    ) -> Result<<Next::OutputKind as GadgetKind<D::F>>::Rebind<'dr, D>> {
         let mut emulator: Emulator<Wireless<D::MaybeKind, D::F>> = Emulator::wireless();
         let computed_gadget = Next::witness(&mut emulator, witness)?;
 
-        // Inject stage wires into the gadget.
-        let mut injector = StageWireInjector::<D, D::MaybeKind, D::F> {
+        let mut injector = StageWireInjector::<D> {
             stage_wires: self.stage_wires.iter(),
             _marker: PhantomData,
         };
 
-        let gadget = computed_gadget.map(&mut injector)?;
-
-        Ok((gadget, self.stage_wires))
+        computed_gadget.map(&mut injector)
     }
 }
 
@@ -196,16 +178,11 @@ impl<'a, 'dr, D: Driver<'dr>, R: Rank, Current: Stage<D::F, R>, Target: Stage<D:
     ) -> Result<(
         StageGuard<'dr, D, R, Next>,
         StageBuilder<'a, 'dr, D, R, Next, Target>,
-    )>
-    where
-        for<'s> Next::Witness<'s>: Default,
-    {
+    )> {
         // Invoke wireless emulator with dummy witness to get gadget structure.
         // The emulator never actually reads the witness values.
-        let mut emulator: Emulator<Wireless<Always<()>, D::F>> = Emulator::wireless();
-        let dummy_witness =
-            <Always<Next::Witness<'_>> as Maybe<Next::Witness<'_>>>::just(Default::default);
-        let dummy_gadget = Next::witness(&mut emulator, dummy_witness)?;
+        let mut emulator = Emulator::<Wireless<Empty, D::F>>::wireless();
+        let dummy_gadget = Next::witness(&mut emulator, Empty)?;
 
         // Map the dummy gadget, allocating stage wires on the underlying driver.
         let mut allocator = StageWireAllocator {
@@ -214,7 +191,7 @@ impl<'a, 'dr, D: Driver<'dr>, R: Rank, Current: Stage<D::F, R>, Target: Stage<D:
             _marker: PhantomData,
         };
 
-        let _mapped_gadget = dummy_gadget.map(&mut allocator)?;
+        dummy_gadget.map(&mut allocator)?;
 
         if allocator.stage_wires.len() > Next::values() {
             return Err(ragu_core::Error::MultiplicationBoundExceeded(
