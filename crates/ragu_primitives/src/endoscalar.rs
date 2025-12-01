@@ -289,7 +289,7 @@ mod tests {
 
         let p = EpAffine::generator();
         let e = EndoscalarTest {
-            value: Uendo::from(206786806484900909362154774549736492353u128),
+            value: 206786806484900909362154774549736492353u128,
         };
         let scaled = e.scale(&p);
         let expected: EpAffine = (p * e.compute_scalar::<Fq>()).into();
