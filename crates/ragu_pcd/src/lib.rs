@@ -20,13 +20,13 @@ use rand::Rng;
 use alloc::collections::BTreeMap;
 use core::{any::TypeId, marker::PhantomData};
 
-use circuits::dummy::Dummy;
 use header::Header;
+use internal_circuits::dummy;
 pub use proof::{Pcd, Proof};
 use step::{Step, adapter::Adapter};
 
-mod circuits;
 pub mod header;
+mod internal_circuits;
 mod merge;
 mod proof;
 pub mod step;
@@ -118,7 +118,7 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
                 ))?;
 
         // Then, insert all of the "internal circuits" used for recursion plumbing.
-        self.circuit_mesh = self.circuit_mesh.register_circuit(Dummy)?;
+        self.circuit_mesh = self.circuit_mesh.register_circuit(dummy::Circuit)?;
 
         Ok(Application {
             circuit_mesh: self.circuit_mesh.finalize(params.circuit_poseidon())?,
