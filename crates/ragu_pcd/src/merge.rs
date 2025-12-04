@@ -31,10 +31,12 @@ pub fn merge<'source, C: Cycle, R: Rank, RNG: Rng, S: Step<C>, const HEADER_SIZE
     let nested_generators = params.nested_generators();
     let circuit_poseidon = params.circuit_poseidon();
 
+    // Compute the preamble (just a stub)
     let preamble_rx = stages::native::preamble::Stage::<C, R>::rx(())?;
     let preamble_blind = C::CircuitField::random(&mut *rng);
     let preamble_commitment = preamble_rx.commit(host_generators, preamble_blind);
 
+    // Compute nested preamble
     let nested_preamble_rx =
         stages::nested::preamble::Stage::<C::HostCurve, R>::rx(preamble_commitment)?;
     let nested_preamble_blind = C::ScalarField::random(&mut *rng);
@@ -55,15 +57,16 @@ pub fn merge<'source, C: Cycle, R: Rank, RNG: Rng, S: Step<C>, const HEADER_SIZE
         w,
     };
 
-    let ky = Staged::new(internal_circuits::c::Circuit::<C, R>::new(circuit_poseidon))
-        .ky(unified_instance)?;
-
-    // c.rs
+    // Circuit for computing `c` value (incomplete)
+    // See: c.rs
     let internal_circuit_c = internal_circuits::c::Circuit::<C, R>::new(circuit_poseidon);
     let internal_circuit_c_witness = internal_circuits::c::Witness { unified_instance };
     let internal_circuit_c_staged = Staged::new(internal_circuit_c);
     let (internal_circuit_c_rx, _) =
         internal_circuit_c_staged.rx::<R>(internal_circuit_c_witness, circuit_mesh.get_key())?;
+
+    let ky = Staged::new(internal_circuits::c::Circuit::<C, R>::new(circuit_poseidon))
+        .ky(unified_instance)?;
 
     {
         let mut combined_rx = preamble_rx.clone();

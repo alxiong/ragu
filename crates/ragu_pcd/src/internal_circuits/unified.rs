@@ -50,14 +50,14 @@ impl<'a, 'dr, D: Driver<'dr>, T: Clone, C: Cycle> Slot<'a, 'dr, D, T, C> {
     }
 
     pub fn get(&mut self, dr: &mut D, instance: &DriverValue<D, &'a Instance<C>>) -> T {
-        assert!(self.value.is_none(), "slot already accessed");
+        assert!(self.value.is_none(), "Slot::get: slot already filled");
         let value = (self.alloc)(dr, instance);
         self.value = Some(value.clone());
         value
     }
 
     pub fn set(&mut self, value: T) {
-        assert!(self.value.is_none(), "slot already accessed");
+        assert!(self.value.is_none(), "Slot::set: slot already filled");
         self.value = Some(value);
     }
 
