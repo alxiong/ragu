@@ -14,7 +14,7 @@ use core::marker::PhantomData;
 
 use crate::{
     internal_circuits,
-    proof::{ApplicationProof, Pcd, Proof},
+    proof::{ApplicationProof, Pcd, PreambleProof, Proof},
     step::{Step, adapter::Adapter},
 };
 
@@ -117,6 +117,15 @@ pub fn merge<'source, C: Cycle, R: Rank, RNG: Rng, S: Step<C>, const HEADER_SIZE
 
     Ok((
         Proof {
+            preamble: PreambleProof {
+                preamble_rx,
+                preamble_commitment,
+                preamble_blind,
+                nested_preamble_rx,
+                nested_preamble_commitment,
+                nested_preamble_blind,
+                _marker: PhantomData,
+            },
             application: ApplicationProof {
                 circuit_id: application_circuit_id,
                 left_header: left_header.into_inner(),

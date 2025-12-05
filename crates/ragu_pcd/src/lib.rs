@@ -141,7 +141,11 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     /// This may or may not be identical to any previously constructed (trivial)
     /// proof, and so is not guaranteed to be freshly randomized.
     pub fn trivial(&self) -> Proof<C, R> {
-        proof::trivial::<C, R, HEADER_SIZE>(self.num_application_steps, &self.circuit_mesh)
+        proof::trivial::<C, R, HEADER_SIZE>(
+            self.num_application_steps,
+            &self.circuit_mesh,
+            self.params,
+        )
     }
 
     /// Creates a random trivial proof for the empty [`Header`] implementation

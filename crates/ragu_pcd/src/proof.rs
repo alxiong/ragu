@@ -16,6 +16,7 @@ use super::{
 
 /// Represents a recursive proof for the correctness of some computation.
 pub struct Proof<C: Cycle, R: Rank> {
+    pub(crate) preamble: PreambleProof<C, R>,
     pub(crate) application: ApplicationProof<C, R>,
     pub(crate) _marker: PhantomData<(C, R)>,
 }
@@ -28,9 +29,20 @@ pub struct ApplicationProof<C: Cycle, R: Rank> {
     pub(crate) _marker: PhantomData<(C, R)>,
 }
 
+pub struct PreambleProof<C: Cycle, R: Rank> {
+    pub(crate) preamble_rx: structured::Polynomial<C::CircuitField, R>,
+    pub(crate) preamble_commitment: C::HostCurve,
+    pub(crate) preamble_blind: C::CircuitField,
+    pub(crate) nested_preamble_rx: structured::Polynomial<C::ScalarField, R>,
+    pub(crate) nested_preamble_commitment: C::NestedCurve,
+    pub(crate) nested_preamble_blind: C::ScalarField,
+    pub(crate) _marker: PhantomData<(C, R)>,
+}
+
 impl<C: Cycle, R: Rank> Clone for Proof<C, R> {
     fn clone(&self) -> Self {
         Proof {
+            preamble: self.preamble.clone(),
             application: self.application.clone(),
             _marker: PhantomData,
         }
@@ -44,6 +56,20 @@ impl<C: Cycle, R: Rank> Clone for ApplicationProof<C, R> {
             left_header: self.left_header.clone(),
             right_header: self.right_header.clone(),
             rx: self.rx.clone(),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<C: Cycle, R: Rank> Clone for PreambleProof<C, R> {
+    fn clone(&self) -> Self {
+        PreambleProof {
+            preamble_rx: self.preamble_rx.clone(),
+            preamble_commitment: self.preamble_commitment,
+            preamble_blind: self.preamble_blind,
+            nested_preamble_rx: self.nested_preamble_rx.clone(),
+            nested_preamble_commitment: self.nested_preamble_commitment,
+            nested_preamble_blind: self.nested_preamble_blind,
             _marker: PhantomData,
         }
     }
@@ -78,15 +104,43 @@ impl<C: Cycle, R: Rank, H: Header<C::CircuitField>> Clone for Pcd<'_, C, R, H> {
 pub fn trivial<C: Cycle, R: Rank, const HEADER_SIZE: usize>(
     num_application_steps: usize,
     mesh: &Mesh<'_, C::CircuitField, R>,
+    params: &C,
 ) -> Proof<C, R> {
-    let rx = dummy::Circuit
+    use internal_circuits::stages;
+    use ragu_circuits::staging::StageExt;
+
+    // Preamble rx polynomial
+    let preamble_rx =
+        stages::native::preamble::Stage::<C, R>::rx(()).expect("preamble rx should not fail");
+    let preamble_blind = C::CircuitField::ONE;
+    let preamble_commitment = preamble_rx.commit(params.host_generators(), preamble_blind);
+
+    // Nested preamble rx polynomial
+    let nested_preamble_rx =
+        stages::nested::preamble::Stage::<C::HostCurve, R>::rx(preamble_commitment)
+            .expect("nested preamble rx should not fail");
+    let nested_preamble_blind = C::ScalarField::ONE;
+    let nested_preamble_commitment =
+        nested_preamble_rx.commit(params.nested_generators(), nested_preamble_blind);
+
+    // Application rx polynomial
+    let application_rx = dummy::Circuit
         .rx((), mesh.get_key())
         .expect("should not fail")
         .0;
 
     Proof {
+        preamble: PreambleProof {
+            preamble_rx,
+            preamble_commitment,
+            preamble_blind,
+            nested_preamble_rx,
+            nested_preamble_commitment,
+            nested_preamble_blind,
+            _marker: PhantomData,
+        },
         application: ApplicationProof {
-            rx,
+            rx: application_rx,
             circuit_id: internal_circuits::index(num_application_steps, dummy::CIRCUIT_ID),
             left_header: vec![C::CircuitField::ZERO; HEADER_SIZE],
             right_header: vec![C::CircuitField::ZERO; HEADER_SIZE],
