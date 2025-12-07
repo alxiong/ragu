@@ -45,12 +45,12 @@ pub struct Instance<C: Cycle> {
 /// An entry in the shared public inputs for an internal circuit.
 pub struct Slot<'a, 'dr, D: Driver<'dr>, T, C: Cycle> {
     value: Option<T>,
-    alloc: fn(&mut D, &DriverValue<D, &'a Instance<C>>) -> T,
+    alloc: fn(&mut D, &DriverValue<D, &'a Instance<C>>) -> Result<T>,
     _marker: core::marker::PhantomData<&'dr ()>,
 }
 
 impl<'a, 'dr, D: Driver<'dr>, T: Clone, C: Cycle> Slot<'a, 'dr, D, T, C> {
-    pub(super) fn new(alloc: fn(&mut D, &DriverValue<D, &'a Instance<C>>) -> T) -> Self {
+    pub(super) fn new(alloc: fn(&mut D, &DriverValue<D, &'a Instance<C>>) -> Result<T>) -> Self {
         Slot {
             value: None,
             alloc,
@@ -58,11 +58,11 @@ impl<'a, 'dr, D: Driver<'dr>, T: Clone, C: Cycle> Slot<'a, 'dr, D, T, C> {
         }
     }
 
-    pub fn get(&mut self, dr: &mut D, instance: &DriverValue<D, &'a Instance<C>>) -> T {
+    pub fn get(&mut self, dr: &mut D, instance: &DriverValue<D, &'a Instance<C>>) -> Result<T> {
         assert!(self.value.is_none(), "Slot::get: slot already filled");
-        let value = (self.alloc)(dr, instance);
+        let value = (self.alloc)(dr, instance)?;
         self.value = Some(value.clone());
-        value
+        Ok(value)
     }
 
     pub fn set(&mut self, value: T) {
@@ -70,8 +70,10 @@ impl<'a, 'dr, D: Driver<'dr>, T: Clone, C: Cycle> Slot<'a, 'dr, D, T, C> {
         self.value = Some(value);
     }
 
-    fn unwrap(self, dr: &mut D, instance: &DriverValue<D, &'a Instance<C>>) -> T {
-        self.value.unwrap_or_else(|| (self.alloc)(dr, instance))
+    fn take(self, dr: &mut D, instance: &DriverValue<D, &'a Instance<C>>) -> Result<T> {
+        self.value
+            .map(Result::Ok)
+            .unwrap_or_else(|| (self.alloc)(dr, instance))
     }
 }
 
@@ -88,14 +90,14 @@ impl<'a, 'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle> OutputBuilder<'a, '
         macro_rules! point_slot {
             ($field:ident) => {
                 Slot::new(|dr, i: &DriverValue<D, &'a Instance<C>>| {
-                    Point::alloc(dr, i.view().map(|i| i.$field)).unwrap()
+                    Point::alloc(dr, i.view().map(|i| i.$field))
                 })
             };
         }
         macro_rules! element_slot {
             ($field:ident) => {
                 Slot::new(|dr, i: &DriverValue<D, &'a Instance<C>>| {
-                    Element::alloc(dr, i.view().map(|i| i.$field)).unwrap()
+                    Element::alloc(dr, i.view().map(|i| i.$field))
                 })
             };
         }
@@ -114,11 +116,11 @@ impl<'a, 'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle> OutputBuilder<'a, '
         instance: &DriverValue<D, &'a Instance<C>>,
     ) -> Result<Output<'dr, D, C>> {
         Ok(Output {
-            nested_preamble_commitment: self.nested_preamble_commitment.unwrap(dr, instance),
-            w: self.w.unwrap(dr, instance),
-            c: self.c.unwrap(dr, instance),
-            mu: self.mu.unwrap(dr, instance),
-            nu: self.nu.unwrap(dr, instance),
+            nested_preamble_commitment: self.nested_preamble_commitment.take(dr, instance)?,
+            w: self.w.take(dr, instance)?,
+            c: self.c.take(dr, instance)?,
+            mu: self.mu.take(dr, instance)?,
+            nu: self.nu.take(dr, instance)?,
             zero: Element::zero(dr),
         })
     }

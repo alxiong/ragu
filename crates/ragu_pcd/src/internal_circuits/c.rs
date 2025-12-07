@@ -83,7 +83,7 @@ impl<C: Cycle, R: Rank, const NUM_REVDOT_CLAIMS: usize> StagedCircuit<C::Circuit
             // Grab nested_preamble_commitment from the unified instance
             let nested_preamble_commitment = unified_output
                 .nested_preamble_commitment
-                .get(dr, unified_instance);
+                .get(dr, unified_instance)?;
 
             let mut sponge = Sponge::new(dr, self.circuit_poseidon);
             nested_preamble_commitment.write(dr, &mut sponge)?;
@@ -98,8 +98,8 @@ impl<C: Cycle, R: Rank, const NUM_REVDOT_CLAIMS: usize> StagedCircuit<C::Circuit
         // Compute c, the folded revdot product claim.
         {
             // Grab mu and nu from the unified instance
-            let mu = unified_output.mu.get(dr, unified_instance);
-            let nu = unified_output.nu.get(dr, unified_instance);
+            let mu = unified_output.mu.get(dr, unified_instance)?;
+            let nu = unified_output.nu.get(dr, unified_instance)?;
 
             // Allocate error terms.
             let error_terms = ErrorTermsLen::<NUM_REVDOT_CLAIMS>::range()
