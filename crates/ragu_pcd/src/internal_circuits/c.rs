@@ -11,7 +11,7 @@ use ragu_core::{
 };
 use ragu_primitives::{
     Element, GadgetExt, Sponge,
-    vec::{CollectFixed, ConstLen, FixedVec, Len},
+    vec::{CollectFixed, Len},
 };
 
 use alloc::vec::Vec;
@@ -115,14 +115,13 @@ impl<C: Cycle, R: Rank, const NUM_REVDOT_CLAIMS: usize> StagedCircuit<C::Circuit
             let error_matrix = ErrorMatrix::new(error_elements);
 
             // TODO: Use zeros for ky_values for now.
-            let ky_values_vec: Vec<_> = (0..NUM_REVDOT_CLAIMS).map(|_| Element::zero(dr)).collect();
-            let ky_values = FixedVec::<_, ConstLen<NUM_REVDOT_CLAIMS>>::new(ky_values_vec)
-                .expect("ky_values length");
+            let ky_values = (0..NUM_REVDOT_CLAIMS)
+                .map(|_| Element::zero(dr))
+                .collect_fixed()?;
 
             let input = RevdotClaimInput {
                 mu,
                 nu,
-                mu_inv,
                 error_matrix,
                 ky_values,
             };

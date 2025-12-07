@@ -11,7 +11,7 @@ use ragu_core::{
 };
 use ragu_primitives::{
     Element, GadgetExt, Point, Sponge,
-    vec::{CollectFixed, ConstLen, FixedVec, Len},
+    vec::{CollectFixed, Len},
 };
 use rand::rngs::OsRng;
 
@@ -185,9 +185,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             );
 
             // TODO: Use zeros for ky_values for now.
-            let ky_values_vec: Vec<_> = (0..NUM_REVDOT_CLAIMS).map(|_| Element::zero(dr)).collect();
-            let ky_values =
-                FixedVec::<_, ConstLen<NUM_REVDOT_CLAIMS>>::new(ky_values_vec).expect("len");
+            let ky_values = (0..NUM_REVDOT_CLAIMS)
+                .map(|_| Element::zero(dr))
+                .collect_fixed()?;
 
             let input = RevdotClaimInput {
                 mu,
