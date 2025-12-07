@@ -14,21 +14,6 @@ use ragu_primitives::{
 
 use super::ErrorTermsLen;
 
-/// Off-diagonal "error" terms of the matrix of revdot evaluations for a folding
-/// step.
-#[derive(Gadget)]
-pub struct ErrorTerms<'dr, D: Driver<'dr>, const NUM_REVDOT_CLAIMS: usize> {
-    #[ragu(gadget)]
-    elements: FixedVec<Element<'dr, D>, ErrorTermsLen<NUM_REVDOT_CLAIMS>>,
-}
-
-impl<'dr, D: Driver<'dr>, const NUM_REVDOT_CLAIMS: usize> ErrorTerms<'dr, D, NUM_REVDOT_CLAIMS> {
-    /// Creates a new [`ErrorTerms`] from the given elements.
-    pub fn new(elements: FixedVec<Element<'dr, D>, ErrorTermsLen<NUM_REVDOT_CLAIMS>>) -> Self {
-        Self { elements }
-    }
-}
-
 /// Input gadget for the [`RevdotFolding`] routine.
 #[derive(Gadget)]
 pub struct RevdotFoldingInput<'dr, D: Driver<'dr>, const NUM_REVDOT_CLAIMS: usize> {
@@ -40,7 +25,7 @@ pub struct RevdotFoldingInput<'dr, D: Driver<'dr>, const NUM_REVDOT_CLAIMS: usiz
     pub nu: Element<'dr, D>,
     /// Off-diagonal error terms from folding.
     #[ragu(gadget)]
-    pub error_terms: ErrorTerms<'dr, D, NUM_REVDOT_CLAIMS>,
+    pub error_terms: FixedVec<Element<'dr, D>, ErrorTermsLen<NUM_REVDOT_CLAIMS>>,
     /// Diagonal k(Y) polynomial evaluations.
     #[ragu(gadget)]
     pub ky_values: FixedVec<Element<'dr, D>, ConstLen<NUM_REVDOT_CLAIMS>>,
@@ -64,7 +49,7 @@ impl<F: Field, const NUM_REVDOT_CLAIMS: usize> Routine<F> for RevdotFolding<NUM_
         let munu = input.mu.mul(dr, &input.nu)?;
         let mu_inv = input.mu.invert(dr)?;
 
-        let mut error_terms = input.error_terms.elements.into_iter();
+        let mut error_terms = input.error_terms.into_iter();
         let mut ky_values = input.ky_values.into_iter();
 
         let mut result = Element::zero(dr);
@@ -142,12 +127,11 @@ mod tests {
         let mu = Element::constant(&mut emulator, mu);
         let nu = Element::constant(&mut emulator, nu);
 
-        let error_vec = error
+        let error_terms = error
             .iter()
             .map(|&v| Element::constant(&mut emulator, v))
             .collect_fixed()
             .unwrap();
-        let error_terms = ErrorTerms::new(error_vec);
 
         let ky_values = ky
             .iter()

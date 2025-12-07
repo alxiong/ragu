@@ -21,7 +21,7 @@ use crate::{
     Application,
     components::{
         ErrorTermsLen,
-        fold_revdot::{ErrorTerms, RevdotFolding, RevdotFoldingInput},
+        fold_revdot::{RevdotFolding, RevdotFoldingInput},
     },
     header::Header,
     internal_circuits::{self, NUM_REVDOT_CLAIMS, dummy},
@@ -178,12 +178,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             let mu = Element::alloc(dr, Always::maybe_just(|| mu))?;
             let nu = Element::alloc(dr, Always::maybe_just(|| nu))?;
 
-            let error_terms = ErrorTerms::new(
-                error_terms
-                    .iter()
-                    .map(|&et| Element::alloc(dr, Always::maybe_just(|| et)))
-                    .try_collect_fixed()?,
-            );
+            let error_terms = error_terms
+                .iter()
+                .map(|&et| Element::alloc(dr, Always::maybe_just(|| et)))
+                .try_collect_fixed()?;
 
             // TODO: Use zeros for ky_values for now.
             let ky_values = (0..NUM_REVDOT_CLAIMS)
