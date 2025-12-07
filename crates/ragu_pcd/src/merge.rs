@@ -1,11 +1,7 @@
 use arithmetic::Cycle;
 use ff::Field;
 use ragu_circuits::{CircuitExt, polynomials::Rank, staging::StageExt};
-use ragu_core::{
-    Result,
-    drivers::emulator::Emulator,
-    maybe::{Always, Maybe, MaybeKind},
-};
+use ragu_core::{Result, drivers::emulator::Emulator, maybe::Maybe};
 use ragu_primitives::{
     Element, GadgetExt, Point, Sponge,
     vec::{CollectFixed, Len},
@@ -77,7 +73,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         // Generate dummy values for mu, nu, and error_terms (for now – these will be derived challenges)
         let mu = C::CircuitField::random(&mut *rng);
         let nu = C::CircuitField::random(&mut *rng);
-        let mu_inv = mu.invert().unwrap();
 
         let error_terms = ErrorTermsLen::<NUM_REVDOT_CLAIMS>::range()
             .map(|_| C::CircuitField::random(&mut *rng))
@@ -85,15 +80,20 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
 
         // Compute c by running the routine in a wireless emulator
         let c: C::CircuitField =
-            Emulator::emulate_wireless((mu, nu, mu_inv, error_terms.clone()), |dr, _| {
-                let mu = Element::alloc(dr, Always::maybe_just(|| mu))?;
-                let nu = Element::alloc(dr, Always::maybe_just(|| nu))?;
+            Emulator::emulate_wireless((mu, nu, &error_terms), |dr, witness| {
+                let (mu, nu, error_terms) = witness.cast();
 
-                let error_terms = error_terms
-                    .iter()
-                    .map(|&et| Element::alloc(dr, Always::maybe_just(|| et)))
+                let mu = Element::alloc(dr, mu)?;
+                let nu = Element::alloc(dr, nu)?;
+
+                let mut error_terms = error_terms.map(|et| et.iter());
+                let error_terms = ErrorTermsLen::<NUM_REVDOT_CLAIMS>::range()
+                    .map(|_| {
+                        Element::alloc(dr, error_terms.view_mut().map(|et| *et.next().unwrap()))
+                    })
                     .try_collect_fixed()?;
 
+                // TODO: Use zeros for ky_values for now.
                 let ky_values = (0..NUM_REVDOT_CLAIMS)
                     .map(|_| Element::zero(dr))
                     .collect_fixed()?;
