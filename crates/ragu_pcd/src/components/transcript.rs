@@ -12,9 +12,9 @@ use ragu_primitives::{Element, GadgetExt, Point, Sponge};
 pub fn compute_w<'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle>(
     dr: &mut D,
     nested_preamble_commitment: &Point<'dr, D, C::NestedCurve>,
-    circuit_poseidon: &'dr C::CircuitPoseidon,
+    params: &'dr C,
 ) -> Result<Element<'dr, D>> {
-    let mut sponge = Sponge::new(dr, circuit_poseidon);
+    let mut sponge = Sponge::new(dr, params.circuit_poseidon());
     nested_preamble_commitment.write(dr, &mut sponge)?;
     sponge.squeeze(dr)
 }
@@ -27,11 +27,8 @@ pub fn emulate_w<C: Cycle>(
 where
     C::NestedCurve: Send,
 {
-    let circuit_poseidon = params.circuit_poseidon();
     Emulator::emulate_wireless(nested_preamble_commitment, |dr, comm| {
         let point = Point::alloc(dr, comm)?;
-        Ok(*compute_w::<_, C>(dr, &point, circuit_poseidon)?
-            .value()
-            .take())
+        Ok(*compute_w::<_, C>(dr, &point, params)?.value().take())
     })
 }

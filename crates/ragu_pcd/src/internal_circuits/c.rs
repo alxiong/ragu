@@ -25,8 +25,8 @@ pub const CIRCUIT_ID: usize = super::C_CIRCUIT_ID;
 pub const STAGED_ID: usize = super::C_STAGED_ID;
 
 pub struct Circuit<'params, C: Cycle, R, const NUM_REVDOT_CLAIMS: usize> {
-    circuit_poseidon: &'params C::CircuitPoseidon,
-    _marker: PhantomData<(C, R)>,
+    params: &'params C,
+    _marker: PhantomData<R>,
 }
 
 impl<'params, C: Cycle, R: Rank, const NUM_REVDOT_CLAIMS: usize>
@@ -34,7 +34,7 @@ impl<'params, C: Cycle, R: Rank, const NUM_REVDOT_CLAIMS: usize>
 {
     pub fn new(params: &'params C) -> Staged<C::CircuitField, R, Self> {
         Staged::new(Circuit {
-            circuit_poseidon: params.circuit_poseidon(),
+            params,
             _marker: PhantomData,
         })
     }
@@ -90,7 +90,7 @@ impl<C: Cycle, R: Rank, const NUM_REVDOT_CLAIMS: usize> StagedCircuit<C::Circuit
             let w = crate::components::transcript::compute_w::<_, C>(
                 dr,
                 &nested_preamble_commitment,
-                self.circuit_poseidon,
+                self.params,
             )?;
 
             // Use our local w value to impose upon the unified instance
