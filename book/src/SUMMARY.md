@@ -42,7 +42,8 @@
 - [Extensions](protocol/extensions/index.md)
   - [Mesh Polynomial](protocol/extensions/mesh.md)
   - [Staging](protocol/extensions/staging.md)
-  - [PCD Construction](protocol/extensions/pcd.md)
+- [Recursion](protocol/recursion/index.md)
+  - [Public Inputs](protocol/recursion/public_inputs.md)
 - [Analysis](protocol/analysis.md)
 
 ---
@@ -64,3 +65,4 @@
 
 - [Cryptography Background](appendix/math.md)
 - [Related Work](appendix/related.md)
+- [Terminology](appendix/terminology.md)
