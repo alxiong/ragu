@@ -23,7 +23,7 @@ $$
 \boxed{\v{a} \circ \v{b} = \v{c}} \;\Longleftrightarrow\; \boxed{\sum_{i=0}^{n-1} z^{i}\,\big(\mathbf a_i \mathbf b_i - \mathbf c_i\big) = 0} \;\Longleftrightarrow\; \boxed{\dot{\v{a}}{\v{z^{n}} \circ \v{b}} - \dot{\v{c}}{\v{z^{n}}} = 0}.
 $$
 
-By the definition of $\v{r}$ (as a [structured vector](../../concepts/structured_vectors.md)) we can
+By the definition of $\v{r}$ (as a [structured vector](../prelim/structured_vectors.md)) we can
 do something identical. Observe the expansion
 
 $$\revdot{\v{r}}{\v{r} \circ \v{z^{4n}}} =

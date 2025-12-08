@@ -9,7 +9,7 @@ $$
 $$
 
 for some vectors $\v{a}, \v{b}, \v{c}, \v{d} \in \F^n$. These vectors have the
-property that $\v{\hat{r}}$ (its [reversed vector](../protocol/prelim/notation.md#reversed-vector-notation))
+property that $\v{\hat{r}}$ (its [reversed vector](./notation.md#reversed-vector-notation))
 can be written
 
 $$
@@ -21,7 +21,7 @@ $\v{c}$ swapped with $\v{d}$.
 
 ## Mirrored Dot Product
 
-The [mirrored dot product](../protocol/prelim/notation.md#mirrored-dot-product)
+The [mirrored dot product](./notation.md#mirrored-dot-product)
 $\revdot{\v{a}}{\v{b}} = \dot{\v{a}}{\v{\hat{b}}} = \dot{\v{\hat{a}}}{\v{b}}$ is
 a central component of Ragu's accumulation-based recursive SNARK protocol
 because it is natural to reduce into claims about univariate polynomials: given
@@ -38,7 +38,7 @@ $$
 \end{array}
 $$
 
-and so we can encode [multiplication constraints](../protocol/prelim/cs.md#multiplication-constraints)
+and so we can encode [multiplication constraints](./cs.md#multiplication-constraints)
 into claims about such vectors, using verifier challenges to keep the claims linearly independent.
 
 ### Folding

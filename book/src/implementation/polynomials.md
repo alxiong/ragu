@@ -2,7 +2,7 @@
 
 ## Circuit Polynomials
 
-Individual arithmetic circuits are defined by the [structured vector](../concepts/structured_vectors.md) $\v{s} \in \F^{4n}$ that describes the [linear constraints](../protocol/prelim/cs.md) enforced over the witness, given a concrete choice of random challenge $y$. This vector is the coefficient vector of a special polynomial
+Individual arithmetic circuits are defined by the [structured vector](../protocol/prelim/structured_vectors.md) $\v{s} \in \F^{4n}$ that describes the [linear constraints](../protocol/prelim/cs.md) enforced over the witness, given a concrete choice of random challenge $y$. This vector is the coefficient vector of a special polynomial
 
 $$
 s(X, Y) = \sum\limits_{j=0}^{4n - 1} Y^j \Big(

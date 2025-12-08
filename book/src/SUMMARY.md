@@ -7,8 +7,6 @@
 # Part I: Concepts
 
 - [Proof-Carrying Data](concepts/pcd.md)
-- [Core Ideas](concepts/core.md)
-- [Structured Vectors](concepts/structured_vectors.md)
 
 ---
 
@@ -26,11 +24,12 @@
 
 ---
 
-# Part III: Protocol Specification
+# Part III: Protocol Design
 
 - [Protocol Overview](protocol/index.md)
 - [Preliminaries](protocol/prelim/index.md)
   - [Notation](protocol/prelim/notation.md)
+  - [Structured Vectors](protocol/prelim/structured_vectors.md)
   - [Constraint Systems](protocol/prelim/cs.md)
   - [Building Blocks](protocol/prelim/building_blocks.md)
 - [Core Construction](protocol/core/index.md)
