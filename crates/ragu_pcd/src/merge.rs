@@ -80,11 +80,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 let mu = Element::alloc(dr, mu)?;
                 let nu = Element::alloc(dr, nu)?;
 
-                let mut error_terms = error_terms.map(|et| et.iter());
                 let error_terms = ErrorTermsLen::<NUM_REVDOT_CLAIMS>::range()
-                    .map(|_| {
-                        Element::alloc(dr, error_terms.view_mut().map(|et| *et.next().unwrap()))
-                    })
+                    .map(|i| Element::alloc(dr, error_terms.view().map(|et| et[i])))
                     .try_collect_fixed()?;
 
                 // TODO: Use zeros for ky_values for now.
