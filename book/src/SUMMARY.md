@@ -52,6 +52,5 @@
 
 # Appendices
 
-- [Cryptography Background](appendix/math.md)
 - [Related Work](appendix/related.md)
 - [Terminology](appendix/terminology.md)
