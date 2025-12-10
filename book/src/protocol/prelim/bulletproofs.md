@@ -10,8 +10,9 @@ P = \dot{\v{a}}{\v{G}} + \dot{\v{b}}{\v{H}} + \dot{\v{a}}{\v{b}}\cdot Q
 \}
 $$
 
-[BCC+16] and Bulletproof constructed a transparent SNARK for this relation with
-$O(\log n)$ proof size but $O(n)$ verifier time.
+[[BCC+16]](https://eprint.iacr.org/2016/263) and Bulletproof constructed a 
+transparent SNARK for this relation with $O(\log n)$ proof size
+but $O(n)$ verifier time.
 We skip presenting the full protocol and refer readers to existing 
 resources [^bp-learn] for details. We only provide a high-level description here.
 
@@ -32,7 +33,7 @@ $$
 The verifier can fold the instance $\v{G}, \v{H}$ on its own, effectively 
 reducing the instance $\inst$ to half of its size.
 After $k$ rounds of folding, in the last $j=1$ round, the prover sends over
-$\v{a}^0, \v{b}^0$ where are just single element vector over for verification.
+$\v{a}^0, \v{b}^0$, which are just single element vector, for verification.
 In the non-interactive argument, as an optimization, the verifier computes the 
 final $\v{G}^{(0)}=(G_0), \v{H}^{(0)}=(H_0)$ in a single multi-scalar 
 multiplication (MSM) instead of computing them round-by-round.
@@ -74,4 +75,6 @@ Therefore the _PCS evaluation proof is exactly an IPA proof_.
 is great and engineer-friendly; Chapter 14.4 of Justin Thaler's 
 [PAZK textbook](https://people.cs.georgetown.edu/jthaler/ProofsArgsAndZK.html) 
 provides more details and context; Yupeng Zhang's 
-[lecture](https://www.youtube.com/watch?v=WyT5KkKBJUw) is also highly recommended.
+[lecture](https://www.youtube.com/watch?v=WyT5KkKBJUw) and Yingtong's
+[whiteboard session](https://www.youtube.com/watch?v=RaEs5mnXIhY)
+are also highly recommended.
