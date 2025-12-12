@@ -143,9 +143,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             pcd.proof.application.circuit_id,
             &application_ky,
         );
-        assert!(c_circuit_valid, "c_circuit_valid failed");
-        assert!(v_circuit_valid, "v_circuit_valid failed");
-        assert!(application_valid, "application_valid failed");
 
         Ok(preamble_valid
             && error_valid
