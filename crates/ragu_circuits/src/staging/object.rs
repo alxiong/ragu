@@ -302,6 +302,7 @@ mod tests {
             type OutputKind = Endoscalar<'static, core::marker::PhantomData<Fp>>;
 
             fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = Fp>>(
+                &self,
                 dr: &mut D,
                 witness: DriverValue<D, Self::Witness<'source>>,
             ) -> Result<<Self::OutputKind as GadgetKind<Fp>>::Rebind<'dr, D>>
@@ -326,6 +327,7 @@ mod tests {
             );
 
             fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = Fp>>(
+                &self,
                 dr: &mut D,
                 witness: DriverValue<D, Self::Witness<'source>>,
             ) -> Result<<Self::OutputKind as GadgetKind<Fp>>::Rebind<'dr, D>>
@@ -561,6 +563,7 @@ mod tests {
         }
 
         fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = Fp>>(
+            &self,
             dr: &mut D,
             witness: DriverValue<D, Self::Witness<'source>>,
         ) -> Result<<Self::OutputKind as GadgetKind<Fp>>::Rebind<'dr, D>>

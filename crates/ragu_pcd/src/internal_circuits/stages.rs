@@ -37,6 +37,7 @@ macro_rules! define_nested_point_stage {
                 }
 
                 fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = C::Base>>(
+                    &self,
                     dr: &mut D,
                     witness: DriverValue<D, Self::Witness<'source>>,
                 ) -> Result<<Self::OutputKind as GadgetKind<C::Base>>::Rebind<'dr, D>>
@@ -89,6 +90,7 @@ macro_rules! define_nested_multi_point_stage {
                 }
 
                 fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = C::Base>>(
+                    &self,
                     dr: &mut D,
                     witness: DriverValue<D, Self::Witness<'source>>,
                 ) -> Result<<Self::OutputKind as GadgetKind<C::Base>>::Rebind<'dr, D>>
