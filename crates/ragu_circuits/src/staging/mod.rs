@@ -303,7 +303,7 @@ impl<F: Field, R: Rank, S: StagedCircuit<F, R>> Circuit<F> for Staged<F, R, S> {
 pub trait StageExt<F: Field, R: Rank>: Stage<F, R> {
     /// Returns the number of multiplication gates used for allocations.
     fn num_multiplications() -> usize {
-        (Self::values() + 1) / 2
+        Self::values().div_ceil(2)
     }
 
     /// Compute the (partial) witness polynomial $r(X)$ for this stage.

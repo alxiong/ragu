@@ -226,10 +226,7 @@ mod tests {
     use rand::{Rng, thread_rng};
 
     use crate::{
-        CircuitExt, CircuitObject, metrics,
-        polynomials::Rank,
-        s::sy,
-        staging::{StageBuilder, StagedCircuit},
+        CircuitExt, CircuitObject, metrics, polynomials::Rank, s::sy, staging::StageBuilder,
         tests::SquareCircuit,
     };
 
@@ -576,39 +573,6 @@ mod tests {
             dr.enforce_zero(|lc| lc.add(a.wire()).sub(b.wire()))?;
 
             Ok(TwoElements { a, b })
-        }
-    }
-
-    struct EnforceStageCircuit;
-
-    impl StagedCircuit<Fp, R> for EnforceStageCircuit {
-        type Final = ConstrainedStage;
-        type Instance<'source> = ();
-        type Witness<'source> = (Fp, Fp);
-        type Output = TwoElements<'static, PhantomData<Fp>>;
-        type Aux<'source> = ();
-
-        fn instance<'dr, 'source: 'dr, D: Driver<'dr, F = Fp>>(
-            &self,
-            _dr: &mut D,
-            _instance: DriverValue<D, Self::Instance<'source>>,
-        ) -> Result<<Self::Output as GadgetKind<Fp>>::Rebind<'dr, D>> {
-            Err(ragu_core::Error::InvalidWitness(
-                "instance not used in this test".into(),
-            ))
-        }
-
-        fn witness<'a, 'dr, 'source: 'dr, D: Driver<'dr, F = Fp>>(
-            &self,
-            builder: StageBuilder<'a, 'dr, D, R, (), Self::Final>,
-            witness: DriverValue<D, Self::Witness<'source>>,
-        ) -> Result<(
-            <Self::Output as GadgetKind<Fp>>::Rebind<'dr, D>,
-            DriverValue<D, Self::Aux<'source>>,
-        )> {
-            let (guard, builder) = builder.add_stage::<ConstrainedStage>()?;
-            let gadget = guard.enforced(builder.finish(), witness)?;
-            Ok((gadget, D::just(|| ())))
         }
     }
 

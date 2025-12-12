@@ -78,6 +78,7 @@ pub enum Read {
     Slot(usize),
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct Endoscaling<C: CurveAffine, R: Rank, const NUM_SLOTS: usize> {
     pub a: Read,

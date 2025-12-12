@@ -1,10 +1,9 @@
 [toolchain]
-channel = "1.85.0"
+channel = "1.90.0"
 components = ["clippy", "rustfmt"]
 
 # Bumping MSRV
 # * update `toolchain.channel` key in `rust-toolchain.toml` (this file)
 # * update toolchain in `.github/actions/rust-setup/action.yml`
 # * update `book/src/guide/requirements.md`
-# * in each crate (both inside of `crates` and the root crate `ragu` itself):
-#     * update `package.rust-version` key in `Cargo.toml`
+# * update `workspace.package.rust-version` key in root `Cargo.toml`
