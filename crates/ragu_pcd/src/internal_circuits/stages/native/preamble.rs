@@ -162,6 +162,7 @@ impl<'a, C: Cycle, R: Rank, const HEADER_SIZE: usize> Witness<'a, C, R, HEADER_S
     }
 }
 
+#[derive(Default)]
 pub struct Stage<C: Cycle, R, const HEADER_SIZE: usize> {
     _marker: PhantomData<(C, R)>,
 }

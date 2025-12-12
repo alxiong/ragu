@@ -286,7 +286,9 @@ mod tests {
 
     #[test]
     fn test_staging_valid() -> Result<()> {
+        #[derive(Default)]
         struct MyStage1;
+        #[derive(Default)]
         struct MyStage2;
 
         impl Stage<Fp, R> for MyStage1 {
@@ -537,6 +539,7 @@ mod tests {
         }
     }
 
+    #[derive(Default)]
     struct ConstrainedStage;
 
     #[derive(ragu_core::gadgets::Gadget, ragu_primitives::io::Write)]

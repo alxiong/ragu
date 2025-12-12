@@ -19,8 +19,10 @@ use crate::{
     staging::{Stage, StageBuilder, StagedCircuit},
 };
 
+#[derive(Default)]
 pub struct EndoscalarStage;
 
+#[derive(Default)]
 pub struct SlotStage<C: CurveAffine, const NUM_SLOTS: usize>(core::marker::PhantomData<C>);
 
 impl<F: Field, R: Rank> Stage<F, R> for EndoscalarStage {

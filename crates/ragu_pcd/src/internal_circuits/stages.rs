@@ -22,6 +22,7 @@ macro_rules! define_nested_point_stage {
             use core::marker::PhantomData;
 
             $(#[$meta])*
+            #[derive(Default)]
             pub struct Stage<C: CurveAffine, R> {
                 _marker: PhantomData<(C, R)>,
             }
@@ -71,6 +72,7 @@ macro_rules! define_nested_multi_point_stage {
             use ragu_primitives::{Point, vec::{CollectFixed, ConstLen, FixedVec}};
 
             $(#[$meta])*
+            #[derive(Default)]
             pub struct Stage<C: CurveAffine, R, const NUM: usize> {
                 _marker: PhantomData<(C, R)>,
             }
