@@ -70,37 +70,34 @@ impl GenericDriver {
 
     fn extract_from_param(param: &TypeParam) -> Result<Self> {
         for bound in &param.bounds {
-            if let TypeParamBound::Trait(bound) = bound {
-                if let Some(seg) = bound.path.segments.last() {
-                    if seg.ident != "Driver" {
-                        continue;
-                    }
-                    if let PathArguments::AngleBracketed(args) = &seg.arguments {
-                        let lifetimes = args
-                            .args
-                            .iter()
-                            .filter_map(|arg| {
-                                if let GenericArgument::Lifetime(lt) = arg {
-                                    Some(lt.clone())
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect::<Vec<_>>();
-                        if lifetimes.len() == 1 {
-                            return Ok(GenericDriver {
-                                ident: param.ident.clone(),
-                                lifetime: lifetimes[0].clone(),
-                            });
-                        } else {
-                            return Err(Error::new(
-                                args.span(),
-                                "expected a single lifetime bound",
-                            ));
-                        }
+            if let TypeParamBound::Trait(bound) = bound
+                && let Some(seg) = bound.path.segments.last()
+            {
+                if seg.ident != "Driver" {
+                    continue;
+                }
+                if let PathArguments::AngleBracketed(args) = &seg.arguments {
+                    let lifetimes = args
+                        .args
+                        .iter()
+                        .filter_map(|arg| {
+                            if let GenericArgument::Lifetime(lt) = arg {
+                                Some(lt.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    if lifetimes.len() == 1 {
+                        return Ok(GenericDriver {
+                            ident: param.ident.clone(),
+                            lifetime: lifetimes[0].clone(),
+                        });
                     } else {
-                        return Err(Error::new(seg.ident.span(), "expected a lifetime bound"));
+                        return Err(Error::new(args.span(), "expected a single lifetime bound"));
                     }
+                } else {
+                    return Err(Error::new(seg.ident.span(), "expected a lifetime bound"));
                 }
             }
         }

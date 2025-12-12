@@ -11,11 +11,11 @@ use core::{
 };
 
 const BITS: usize = 136;
-const LIMBS: usize = (BITS + 63) / 64;
+const LIMBS: usize = BITS.div_ceil(64);
 const NORMALIZATION_MASK: u64 = u64::MAX >> (64 - (BITS % 64));
 
 const _ASSERT_CORRECT_BITS_VALUE: () = {
-    if BITS % 2 != 0 {
+    if !BITS.is_multiple_of(2) {
         // This integer type is used for endoscalars, which are assumed to have
         // an even bit length for simplicity.
         panic!("BITS must be even");

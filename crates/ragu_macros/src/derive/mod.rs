@@ -8,12 +8,11 @@ use crate::helpers::GenericDriver;
 
 impl GenericDriver {
     fn is_ty(&self, other: &Type) -> bool {
-        if let Type::Path(path) = other {
-            if let Some(seg) = path.path.segments.last() {
-                if seg.ident == self.ident {
-                    return true;
-                }
-            }
+        if let Type::Path(path) = other
+            && let Some(seg) = path.path.segments.last()
+            && seg.ident == self.ident
+        {
+            return true;
         }
         false
     }

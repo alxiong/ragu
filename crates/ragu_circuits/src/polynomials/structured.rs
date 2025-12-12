@@ -354,7 +354,7 @@ pub struct View<'a, F, R: Rank, M: Perspective> {
 
 impl<F: Field, R: Rank> Polynomial<F, R> {
     /// Obtain a view of the polynomial from the forward perspective.
-    pub fn forward(&mut self) -> View<F, R, Forward> {
+    pub fn forward(&mut self) -> View<'_, F, R, Forward> {
         View {
             a: &mut self.u,
             b: &mut self.v,
@@ -364,7 +364,7 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
     }
 
     /// Obtain a view of the polynomial from the backward perspective.
-    pub fn backward(&mut self) -> View<F, R, Backward> {
+    pub fn backward(&mut self) -> View<'_, F, R, Backward> {
         // a and b are swapped, c and d are swapped
         View {
             a: &mut self.v,
