@@ -118,8 +118,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
             unified_output.w.set(w);
         }
 
-        // TODO: Computation of (y, z)
-
         // TODO: Call Horner's method routine to evaluate k(Y) polynomials at y.
 
         // Compute c, the folded revdot product claim.
@@ -143,7 +141,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
             unified_output.c.set(c);
         }
 
-        // TODO: Error stage's nested_s_doubleprime_commitment must equal the one in unified output
+        // Error stage's nested_s_doubleprime_commitment must equal the one in unified output
+        unified_output
+            .nested_s_doubleprime_commitment
+            .set(error_output.nested_s_doubleprime_commitment);
 
         Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
     }

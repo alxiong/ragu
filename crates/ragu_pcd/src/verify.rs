@@ -72,17 +72,23 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             internal_circuits::v::STAGED_ID,
         );
 
-        // TODO: Missing fields: nested_s_prime_commitment, y, z,
-        // nested_s_doubleprime_commitment, nested_s_commitment
         let unified_instance = internal_circuits::unified::Instance {
             nested_preamble_commitment: pcd.proof.preamble.nested_preamble_commitment,
             w: pcd.proof.internal_circuits.w,
+            nested_s_prime_commitment: pcd.proof.s_prime.nested_s_prime_commitment,
+            y: pcd.proof.internal_circuits.y,
+            z: pcd.proof.internal_circuits.z,
+            nested_s_doubleprime_commitment: pcd
+                .proof
+                .s_doubleprime
+                .nested_s_doubleprime_commitment,
             nested_error_commitment: pcd.proof.error.nested_error_commitment,
             mu: pcd.proof.internal_circuits.mu,
             nu: pcd.proof.internal_circuits.nu,
             c: pcd.proof.internal_circuits.c,
             nested_ab_commitment: pcd.proof.ab.nested_ab_commitment,
             x: pcd.proof.internal_circuits.x,
+            nested_s_commitment: pcd.proof.s.nested_s_commitment,
             nested_query_commitment: pcd.proof.query.nested_query_commitment,
             alpha: pcd.proof.internal_circuits.alpha,
             nested_f_commitment: pcd.proof.f.nested_f_commitment,

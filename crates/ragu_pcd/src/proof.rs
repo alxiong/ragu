@@ -3,7 +3,7 @@ use ff::Field;
 use ragu_circuits::{
     CircuitExt,
     mesh::CircuitIndex,
-    polynomials::{Rank, structured},
+    polynomials::{Rank, structured, unstructured},
     staging::StageExt,
 };
 use ragu_core::{Result, drivers::emulator::Emulator, maybe::Maybe};
@@ -25,8 +25,11 @@ use crate::{
 /// Represents a recursive proof for the correctness of some computation.
 pub struct Proof<C: Cycle, R: Rank> {
     pub(crate) preamble: PreambleProof<C, R>,
+    pub(crate) s_prime: SPrimeProof<C, R>,
+    pub(crate) s_doubleprime: SDoublePrimeProof<C, R>,
     pub(crate) error: ErrorProof<C, R>,
     pub(crate) ab: ABProof<C, R>,
+    pub(crate) s: SProof<C, R>,
     pub(crate) query: QueryProof<C, R>,
     pub(crate) f: FProof<C, R>,
     pub(crate) eval: EvalProof<C, R>,
@@ -61,6 +64,8 @@ pub(crate) struct PreambleProof<C: Cycle, R: Rank> {
 /// Fiat-Shamir challenges and C/V circuit polynomials.
 pub(crate) struct InternalCircuits<C: Cycle, R: Rank> {
     pub(crate) w: C::CircuitField,
+    pub(crate) y: C::CircuitField,
+    pub(crate) z: C::CircuitField,
     pub(crate) c: C::CircuitField,
     pub(crate) c_rx: structured::Polynomial<C::CircuitField, R>,
     pub(crate) c_rx_blind: C::CircuitField,
@@ -135,12 +140,52 @@ pub(crate) struct ABProof<C: Cycle, R: Rank> {
     pub(crate) nested_ab_commitment: C::NestedCurve,
 }
 
+/// S' stage proof: m(w, x_i, Y) and nested commitment.
+pub(crate) struct SPrimeProof<C: Cycle, R: Rank> {
+    pub(crate) mesh_wx0: unstructured::Polynomial<C::CircuitField, R>,
+    pub(crate) mesh_wx0_blind: C::CircuitField,
+    pub(crate) mesh_wx0_commitment: C::HostCurve,
+
+    pub(crate) mesh_wx1: unstructured::Polynomial<C::CircuitField, R>,
+    pub(crate) mesh_wx1_blind: C::CircuitField,
+    pub(crate) mesh_wx1_commitment: C::HostCurve,
+
+    pub(crate) nested_s_prime_rx: structured::Polynomial<C::ScalarField, R>,
+    pub(crate) nested_s_prime_blind: C::ScalarField,
+    pub(crate) nested_s_prime_commitment: C::NestedCurve,
+}
+
+/// S'' stage proof: m(w, X, y) and nested commitment.
+pub(crate) struct SDoublePrimeProof<C: Cycle, R: Rank> {
+    pub(crate) mesh_wy: structured::Polynomial<C::CircuitField, R>,
+    pub(crate) mesh_wy_blind: C::CircuitField,
+    pub(crate) mesh_wy_commitment: C::HostCurve,
+
+    pub(crate) nested_s_doubleprime_rx: structured::Polynomial<C::ScalarField, R>,
+    pub(crate) nested_s_doubleprime_blind: C::ScalarField,
+    pub(crate) nested_s_doubleprime_commitment: C::NestedCurve,
+}
+
+/// S stage proof: m(x, y) and nested commitment.
+pub(crate) struct SProof<C: Cycle, R: Rank> {
+    pub(crate) mesh_xy: unstructured::Polynomial<C::CircuitField, R>,
+    pub(crate) mesh_xy_blind: C::CircuitField,
+    pub(crate) mesh_xy_commitment: C::HostCurve,
+
+    pub(crate) nested_s_rx: structured::Polynomial<C::ScalarField, R>,
+    pub(crate) nested_s_blind: C::ScalarField,
+    pub(crate) nested_s_commitment: C::NestedCurve,
+}
+
 impl<C: Cycle, R: Rank> Clone for Proof<C, R> {
     fn clone(&self) -> Self {
         Proof {
             preamble: self.preamble.clone(),
+            s_prime: self.s_prime.clone(),
+            s_doubleprime: self.s_doubleprime.clone(),
             error: self.error.clone(),
             ab: self.ab.clone(),
+            s: self.s.clone(),
             query: self.query.clone(),
             f: self.f.clone(),
             eval: self.eval.clone(),
@@ -172,6 +217,48 @@ impl<C: Cycle, R: Rank> Clone for PreambleProof<C, R> {
             nested_preamble_rx: self.nested_preamble_rx.clone(),
             nested_preamble_commitment: self.nested_preamble_commitment,
             nested_preamble_blind: self.nested_preamble_blind,
+        }
+    }
+}
+
+impl<C: Cycle, R: Rank> Clone for SPrimeProof<C, R> {
+    fn clone(&self) -> Self {
+        SPrimeProof {
+            mesh_wx0: self.mesh_wx0.clone(),
+            mesh_wx0_blind: self.mesh_wx0_blind,
+            mesh_wx0_commitment: self.mesh_wx0_commitment,
+            mesh_wx1: self.mesh_wx1.clone(),
+            mesh_wx1_blind: self.mesh_wx1_blind,
+            mesh_wx1_commitment: self.mesh_wx1_commitment,
+            nested_s_prime_rx: self.nested_s_prime_rx.clone(),
+            nested_s_prime_blind: self.nested_s_prime_blind,
+            nested_s_prime_commitment: self.nested_s_prime_commitment,
+        }
+    }
+}
+
+impl<C: Cycle, R: Rank> Clone for SDoublePrimeProof<C, R> {
+    fn clone(&self) -> Self {
+        SDoublePrimeProof {
+            mesh_wy: self.mesh_wy.clone(),
+            mesh_wy_blind: self.mesh_wy_blind,
+            mesh_wy_commitment: self.mesh_wy_commitment,
+            nested_s_doubleprime_rx: self.nested_s_doubleprime_rx.clone(),
+            nested_s_doubleprime_blind: self.nested_s_doubleprime_blind,
+            nested_s_doubleprime_commitment: self.nested_s_doubleprime_commitment,
+        }
+    }
+}
+
+impl<C: Cycle, R: Rank> Clone for SProof<C, R> {
+    fn clone(&self) -> Self {
+        SProof {
+            mesh_xy: self.mesh_xy.clone(),
+            mesh_xy_blind: self.mesh_xy_blind,
+            mesh_xy_commitment: self.mesh_xy_commitment,
+            nested_s_rx: self.nested_s_rx.clone(),
+            nested_s_blind: self.nested_s_blind,
+            nested_s_commitment: self.nested_s_commitment,
         }
     }
 }
@@ -209,6 +296,8 @@ impl<C: Cycle, R: Rank> Clone for InternalCircuits<C, R> {
     fn clone(&self) -> Self {
         InternalCircuits {
             w: self.w,
+            y: self.y,
+            z: self.z,
             c: self.c,
             c_rx: self.c_rx.clone(),
             c_rx_blind: self.c_rx_blind,
@@ -342,6 +431,25 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 nested_preamble_blind: C::ScalarField::random(&mut *rng),
                 nested_preamble_commitment: self.params.nested_generators().g()[0],
             },
+            s_prime: SPrimeProof {
+                mesh_wx0: unstructured::Polynomial::new(),
+                mesh_wx0_blind: C::CircuitField::random(&mut *rng),
+                mesh_wx0_commitment: self.params.host_generators().g()[0],
+                mesh_wx1: unstructured::Polynomial::new(),
+                mesh_wx1_blind: C::CircuitField::random(&mut *rng),
+                mesh_wx1_commitment: self.params.host_generators().g()[0],
+                nested_s_prime_rx: structured::Polynomial::new(),
+                nested_s_prime_blind: C::ScalarField::random(&mut *rng),
+                nested_s_prime_commitment: self.params.nested_generators().g()[0],
+            },
+            s_doubleprime: SDoublePrimeProof {
+                mesh_wy: structured::Polynomial::new(),
+                mesh_wy_blind: C::CircuitField::random(&mut *rng),
+                mesh_wy_commitment: self.params.host_generators().g()[0],
+                nested_s_doubleprime_rx: structured::Polynomial::new(),
+                nested_s_doubleprime_blind: C::ScalarField::random(&mut *rng),
+                nested_s_doubleprime_commitment: self.params.nested_generators().g()[0],
+            },
             error: ErrorProof {
                 native_error_rx: structured::Polynomial::new(),
                 native_error_blind: C::CircuitField::random(&mut *rng),
@@ -361,8 +469,18 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 nested_ab_blind: C::ScalarField::random(&mut *rng),
                 nested_ab_commitment: self.params.nested_generators().g()[0],
             },
+            s: SProof {
+                mesh_xy: unstructured::Polynomial::new(),
+                mesh_xy_blind: C::CircuitField::random(&mut *rng),
+                mesh_xy_commitment: self.params.host_generators().g()[0],
+                nested_s_rx: structured::Polynomial::new(),
+                nested_s_blind: C::ScalarField::random(&mut *rng),
+                nested_s_commitment: self.params.nested_generators().g()[0],
+            },
             internal_circuits: InternalCircuits {
                 w: C::CircuitField::random(&mut *rng),
+                y: C::CircuitField::random(&mut *rng),
+                z: C::CircuitField::random(&mut *rng),
                 c: C::CircuitField::random(&mut *rng),
                 c_rx: c_rx_dummy_rx.clone(),
                 c_rx_blind: c_rx_dummy_blind,
@@ -449,12 +567,43 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let w =
             crate::components::transcript::emulate_w::<C>(nested_preamble_commitment, self.params)?;
 
+        // We compute a nested commitment to s' = m(w, x_i, Y).
+        let mesh_wx0 = unstructured::Polynomial::new();
+        let mesh_wx0_blind = C::CircuitField::random(&mut *rng);
+        let mesh_wx0_commitment = self.params.host_generators().g()[0];
+        let mesh_wx1 = unstructured::Polynomial::new();
+        let mesh_wx1_blind = C::CircuitField::random(&mut *rng);
+        let mesh_wx1_commitment = self.params.host_generators().g()[0];
+        let nested_s_prime_rx = stages::nested::s_prime::Stage::<C::HostCurve, R, 2>::rx(&[
+            mesh_wx0_commitment,
+            mesh_wx1_commitment,
+        ])?;
+        let nested_s_prime_blind = C::ScalarField::random(&mut *rng);
+        let nested_s_prime_commitment =
+            nested_s_prime_rx.commit(self.params.nested_generators(), nested_s_prime_blind);
+
+        // Derive (y, z) = H(w, nested_s_prime_commitment).
+        let (y, z) = crate::components::transcript::emulate_y_z::<C>(
+            w,
+            nested_s_prime_commitment,
+            self.params,
+        )?;
+
+        // We compute a nested commitment to S'' = m(w, X, y).
+        let mesh_wy = structured::Polynomial::new();
+        let mesh_wy_blind = C::CircuitField::random(&mut *rng);
+        let mesh_wy_commitment = self.params.host_generators().g()[0];
+        let nested_s_doubleprime_rx =
+            stages::nested::s_doubleprime::Stage::<C::HostCurve, R>::rx(mesh_wy_commitment)?;
+        let nested_s_doubleprime_blind = C::ScalarField::random(&mut *rng);
+        let nested_s_doubleprime_commitment = nested_s_doubleprime_rx
+            .commit(self.params.nested_generators(), nested_s_doubleprime_blind);
+
         // Compute error stage first so we can derive mu/nu from nested_error_commitment.
         // Create error witness with dummy z and error terms.
-        let z = C::CircuitField::random(&mut *rng);
         let error_witness = stages::native::error::Witness::<C, NUM_NATIVE_REVDOT_CLAIMS> {
             z,
-            nested_s_doubleprime_commitment: self.params.nested_generators().g()[0],
+            nested_s_doubleprime_commitment,
             error_terms: ErrorTermsLen::<NUM_NATIVE_REVDOT_CLAIMS>::range()
                 .map(|_| C::CircuitField::ZERO)
                 .collect_fixed()?,
@@ -528,9 +677,20 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let x =
             crate::components::transcript::emulate_x::<C>(nu, nested_ab_commitment, self.params)?;
 
+        // Compute commitment to mesh polynomial at (x, y).
+        let mesh_xy = unstructured::Polynomial::new();
+        let mesh_xy_blind = C::CircuitField::random(&mut *rng);
+        let mesh_xy_commitment = self.params.host_generators().g()[0];
+
+        let nested_s_rx = stages::nested::s::Stage::<C::HostCurve, R>::rx(mesh_xy_commitment)?;
+        let nested_s_blind = C::ScalarField::random(&mut *rng);
+        let nested_s_commitment =
+            nested_s_rx.commit(self.params.nested_generators(), nested_s_blind);
+
         // Compute query witness (stubbed for now).
         let query_witness = internal_circuits::stages::native::query::Witness {
             x,
+            nested_s_commitment,
             queries: internal_circuits::stages::native::query::Queries::range()
                 .map(|_| C::CircuitField::ZERO)
                 .collect_fixed()?,
@@ -600,17 +760,20 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             crate::components::transcript::emulate_beta::<C>(nested_eval_commitment, self.params)?;
 
         // Create unified instance and compute c_rx
-        // TODO: Missing fields: nested_s_prime_commitment, y, z,
-        // nested_s_doubleprime_commitment, nested_s_commitment
         let unified_instance = internal_circuits::unified::Instance {
             nested_preamble_commitment,
             w,
+            nested_s_prime_commitment,
+            y,
+            z,
+            nested_s_doubleprime_commitment,
             nested_error_commitment,
             mu,
             nu,
             c,
             nested_ab_commitment,
             x,
+            nested_s_commitment,
             nested_query_commitment,
             alpha,
             nested_f_commitment,
@@ -659,6 +822,25 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 nested_preamble_commitment,
                 nested_preamble_blind,
             },
+            s_prime: SPrimeProof {
+                mesh_wx0,
+                mesh_wx0_blind,
+                mesh_wx0_commitment,
+                mesh_wx1,
+                mesh_wx1_blind,
+                mesh_wx1_commitment,
+                nested_s_prime_rx,
+                nested_s_prime_blind,
+                nested_s_prime_commitment,
+            },
+            s_doubleprime: SDoublePrimeProof {
+                mesh_wy,
+                mesh_wy_blind,
+                mesh_wy_commitment,
+                nested_s_doubleprime_rx,
+                nested_s_doubleprime_blind,
+                nested_s_doubleprime_commitment,
+            },
             error: ErrorProof {
                 native_error_rx,
                 native_error_blind,
@@ -678,8 +860,18 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 nested_ab_blind,
                 nested_ab_commitment,
             },
+            s: SProof {
+                mesh_xy,
+                mesh_xy_blind,
+                mesh_xy_commitment,
+                nested_s_rx,
+                nested_s_blind,
+                nested_s_commitment,
+            },
             internal_circuits: InternalCircuits {
                 w,
+                y,
+                z,
                 c,
                 c_rx,
                 c_rx_blind,

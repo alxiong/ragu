@@ -1,7 +1,7 @@
 use crate::components::transcript;
 use arithmetic::Cycle;
 use ragu_circuits::{
-    polynomials::Rank,
+    polynomials::{Rank, txz::Evaluate},
     staging::{StageBuilder, Staged, StagedCircuit},
 };
 use ragu_core::{
@@ -39,7 +39,7 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAI
 
 pub struct Witness<'a, C: Cycle> {
     pub unified_instance: &'a unified::Instance<C>,
-    pub query_witness: &'a native_query::Witness<C::CircuitField>,
+    pub query_witness: &'a native_query::Witness<C>,
     pub eval_witness: &'a native_eval::Witness<C::CircuitField>,
 }
 
@@ -90,6 +90,17 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
             .nested_f_commitment
             .get(dr, unified_instance)?;
 
+        // Derive (y, z) = H(w, nested_s_prime_commitment).
+        let (y, z) = {
+            let w = unified_output.w.get(dr, unified_instance)?;
+            let nested_s_prime_commitment = unified_output
+                .nested_s_prime_commitment
+                .get(dr, unified_instance)?;
+            transcript::derive_y_z::<_, C>(dr, &w, &nested_s_prime_commitment, self.params)?
+        };
+        unified_output.y.set(y);
+        unified_output.z.set(z.clone());
+
         // Derive (mu, nu) = H(nested_error_commitment).
         let (mu, nu) = {
             let nested_error_commitment = unified_output
@@ -110,7 +121,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
 
         unified_output.mu.set(mu);
         unified_output.nu.set(nu);
-        unified_output.x.set(x);
+        unified_output.x.set(x.clone());
+
+        // Query stage's nested_s_commitment must equal the one in unified output.
+        unified_output
+            .nested_s_commitment
+            .set(query.nested_s_commitment);
 
         // Derive alpha challenge.
         let alpha = {
@@ -139,6 +155,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
             let beta = transcript::derive_beta::<_, C>(dr, &nested_eval_commitment, self.params)?;
             unified_output.beta.set(beta);
         }
+
+        // TODO: what to do with txz? launder out as aux data?
+        let evaluate_txz = Evaluate::new(R::RANK);
+        let _txz = dr.routine(evaluate_txz, (x, z))?;
 
         Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
     }
