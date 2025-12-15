@@ -14,7 +14,7 @@ use crate::{
     internal_circuits::{self, NUM_NATIVE_REVDOT_CLAIMS, stages, unified},
     proof::{
         ABProof, ApplicationProof, ErrorProof, EvalProof, FProof, InternalCircuits, MeshWyProof,
-        Pcd, PreambleProof, Proof, QueryProof, SPrimeProof, SProof,
+        MeshXyProof, Pcd, PreambleProof, Proof, QueryProof, SPrimeProof,
     },
     step::{Step, adapter::Adapter},
 };
@@ -191,14 +191,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let mesh_xy_blind = C::CircuitField::random(&mut *rng);
         let mesh_xy_commitment = mesh_xy.commit(host_generators, mesh_xy_blind);
 
-        let nested_s_rx = stages::nested::s::Stage::<C::HostCurve, R>::rx(mesh_xy_commitment)?;
-        let nested_s_blind = C::ScalarField::random(&mut *rng);
-        let nested_s_commitment = nested_s_rx.commit(nested_generators, nested_s_blind);
-
         // Compute query witness (stubbed for now).
         let query_witness = internal_circuits::stages::native::query::Witness {
             x,
-            nested_s_commitment,
             queries: internal_circuits::stages::native::query::Queries::range()
                 .map(|_| C::CircuitField::ZERO)
                 .collect_fixed()?,
@@ -212,9 +207,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let native_query_commitment = native_query_rx.commit(host_generators, native_query_blind);
 
         let nested_query_rx =
-            internal_circuits::stages::nested::query::Stage::<C::HostCurve, R>::rx(
+            internal_circuits::stages::nested::query::Stage::<C::HostCurve, R, 2>::rx(&[
                 native_query_commitment,
-            )?;
+                mesh_xy_commitment,
+            ])?;
         let nested_query_blind = C::ScalarField::random(&mut *rng);
         let nested_query_commitment = nested_query_rx.commit(nested_generators, nested_query_blind);
 
@@ -275,7 +271,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             c,
             nested_ab_commitment,
             x,
-            nested_s_commitment,
             nested_query_commitment,
             alpha,
             nested_f_commitment,
@@ -374,13 +369,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     nested_ab_blind,
                     nested_ab_commitment,
                 },
-                s: SProof {
+                mesh_xy: MeshXyProof {
                     mesh_xy,
                     mesh_xy_blind,
                     mesh_xy_commitment,
-                    nested_s_rx,
-                    nested_s_blind,
-                    nested_s_commitment,
                 },
                 query: QueryProof {
                     native_query_rx,
