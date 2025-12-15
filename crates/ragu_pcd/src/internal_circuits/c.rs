@@ -76,27 +76,18 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
     where
         Self: 'dr,
     {
-        let (preamble_guard, builder) =
+        let (preamble, builder) =
             builder.add_stage::<native_preamble::Stage<C, R, HEADER_SIZE>>()?;
-        let (error_guard, builder) =
+        let (error, builder) =
             builder.add_stage::<native_error::Stage<C, R, HEADER_SIZE, NUM_REVDOT_CLAIMS>>()?;
         let dr = builder.finish();
 
-        let preamble_output =
-            preamble_guard.enforced(dr, witness.view().map(|w| w.preamble_witness))?;
-        let error_output = error_guard.enforced(dr, witness.view().map(|w| w.error_witness))?;
+        let preamble = preamble.enforced(dr, witness.view().map(|w| w.preamble_witness))?;
+        let error = error.enforced(dr, witness.view().map(|w| w.error_witness))?;
 
         // Check that circuit IDs are valid domain elements.
-        root_of_unity::enforce(
-            dr,
-            preamble_output.left.circuit_id.clone(),
-            self.log2_circuits,
-        )?;
-        root_of_unity::enforce(
-            dr,
-            preamble_output.right.circuit_id.clone(),
-            self.log2_circuits,
-        )?;
+        root_of_unity::enforce(dr, preamble.left.circuit_id.clone(), self.log2_circuits)?;
+        root_of_unity::enforce(dr, preamble.right.circuit_id.clone(), self.log2_circuits)?;
 
         let unified_instance = &witness.view().map(|w| w.unified_instance);
         let mut unified_output = OutputBuilder::new();
@@ -135,7 +126,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
                 dr,
                 &mu,
                 &nu,
-                &error_output.error_terms,
+                &error.error_terms,
                 &ky_values,
             )?;
             unified_output.c.set(c);
@@ -144,7 +135,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
         // Error stage's nested_s_doubleprime_commitment must equal the one in unified output
         unified_output
             .nested_s_doubleprime_commitment
-            .set(error_output.nested_s_doubleprime_commitment);
+            .set(error.nested_s_doubleprime_commitment);
 
         Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
     }
