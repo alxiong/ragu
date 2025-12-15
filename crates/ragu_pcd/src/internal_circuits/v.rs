@@ -1,7 +1,7 @@
 use crate::components::transcript;
 use arithmetic::Cycle;
 use ragu_circuits::{
-    polynomials::Rank,
+    polynomials::{Rank, txz::Evaluate},
     staging::{StageBuilder, Staged, StagedCircuit},
 };
 use ragu_core::{
@@ -39,7 +39,7 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAI
 
 pub struct Witness<'a, C: Cycle> {
     pub unified_instance: &'a unified::Instance<C>,
-    pub query_witness: &'a native_query::Witness<C::CircuitField>,
+    pub query_witness: &'a native_query::Witness<C>,
     pub eval_witness: &'a native_eval::Witness<C::CircuitField>,
 }
 
@@ -80,8 +80,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
         let (eval, builder) = builder.add_stage::<native_eval::Stage<C, R, HEADER_SIZE>>()?;
         let dr = builder.finish();
 
-        // TODO: Currently unused, we're missing alpha enforcement.
-        let _query = query.enforced(dr, witness.view().map(|w| w.query_witness))?;
+        let query = query.enforced(dr, witness.view().map(|w| w.query_witness))?;
         let eval = eval.enforced(dr, witness.view().map(|w| w.eval_witness))?;
 
         let unified_instance = &witness.view().map(|w| w.unified_instance);
@@ -91,8 +90,43 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
             .nested_f_commitment
             .get(dr, unified_instance)?;
 
-        // TODO: Derive mu, nu challenges.
-        // TODO: Derive x challenge.
+        // Derive (y, z) = H(w, nested_s_prime_commitment).
+        let (y, z) = {
+            let w = unified_output.w.get(dr, unified_instance)?;
+            let nested_s_prime_commitment = unified_output
+                .nested_s_prime_commitment
+                .get(dr, unified_instance)?;
+            transcript::derive_y_z::<_, C>(dr, &w, &nested_s_prime_commitment, self.params)?
+        };
+        unified_output.y.set(y);
+        unified_output.z.set(z.clone());
+
+        // Derive (mu, nu) = H(nested_error_commitment).
+        let (mu, nu) = {
+            let nested_error_commitment = unified_output
+                .nested_error_commitment
+                .get(dr, unified_instance)?;
+            transcript::derive_mu_nu::<_, C>(dr, &nested_error_commitment, self.params)?
+        };
+
+        // Derive x = H(nu, nested_ab_commitment) and enforce query stage's x matches.
+        let x = {
+            let nested_ab_commitment = unified_output
+                .nested_ab_commitment
+                .get(dr, unified_instance)?;
+            let x = transcript::derive_x::<_, C>(dr, &nu, &nested_ab_commitment, self.params)?;
+            x.enforce_equal(dr, &query.x)?;
+            x
+        };
+
+        unified_output.mu.set(mu);
+        unified_output.nu.set(nu);
+        unified_output.x.set(x.clone());
+
+        // Query stage's nested_s_commitment must equal the one in unified output.
+        unified_output
+            .nested_s_commitment
+            .set(query.nested_s_commitment);
 
         // Derive alpha challenge.
         let alpha = {
@@ -113,7 +147,18 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, const NUM_REVDOT_CLAIMS: usize
             unified_output.u.set(u);
         }
 
-        // TODO: Derive beta challenge.
+        // Derive beta = H(nested_eval_commitment).
+        {
+            let nested_eval_commitment = unified_output
+                .nested_eval_commitment
+                .get(dr, unified_instance)?;
+            let beta = transcript::derive_beta::<_, C>(dr, &nested_eval_commitment, self.params)?;
+            unified_output.beta.set(beta);
+        }
+
+        // TODO: what to do with txz? launder out as aux data?
+        let evaluate_txz = Evaluate::new(R::RANK);
+        let _txz = dr.routine(evaluate_txz, (x, z))?;
 
         Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
     }

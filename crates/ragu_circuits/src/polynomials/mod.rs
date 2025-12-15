@@ -1,7 +1,7 @@
 //! Representations and views of polynomials used in Ragu's proof system.
 
 pub mod structured;
-mod txz;
+pub mod txz;
 pub mod unstructured;
 
 use ff::Field;

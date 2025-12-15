@@ -31,6 +31,37 @@ pub fn emulate_w<C: Cycle>(
     })
 }
 
+/// Computation of (y, z) = H(w, nested_s_prime_commitment)
+pub fn derive_y_z<'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle>(
+    dr: &mut D,
+    w: &Element<'dr, D>,
+    nested_s_prime_commitment: &Point<'dr, D, C::NestedCurve>,
+    params: &'dr C,
+) -> Result<(Element<'dr, D>, Element<'dr, D>)> {
+    let mut sponge = Sponge::new(dr, params.circuit_poseidon());
+    sponge.absorb(dr, w)?;
+    nested_s_prime_commitment.write(dr, &mut sponge)?;
+    let y = sponge.squeeze(dr)?;
+    let z = sponge.squeeze(dr)?;
+    Ok((y, z))
+}
+
+/// Compute $(y, z)$ challenges using the [`Emulator`] for use outside of circuit
+/// contexts.
+pub fn emulate_y_z<C: Cycle>(
+    w: C::CircuitField,
+    nested_s_prime_commitment: C::NestedCurve,
+    params: &C,
+) -> Result<(C::CircuitField, C::CircuitField)> {
+    Emulator::emulate_wireless((w, nested_s_prime_commitment), |dr, witness| {
+        let (w, comm) = witness.cast();
+        let w_elem = Element::alloc(dr, w)?;
+        let point = Point::alloc(dr, comm)?;
+        let (y, z) = derive_y_z::<_, C>(dr, &w_elem, &point, params)?;
+        Ok((*y.value().take(), *z.value().take()))
+    })
+}
+
 /// Computation of alpha = H(nested_query_commitment)
 pub fn derive_alpha<'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle>(
     dr: &mut D,
@@ -81,5 +112,84 @@ pub fn emulate_u<C: Cycle>(
         Ok(*derive_u::<_, C>(dr, &alpha_elem, &point, params)?
             .value()
             .take())
+    })
+}
+
+/// Computation of (mu, nu) = H(nested_error_commitment)
+pub fn derive_mu_nu<'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle>(
+    dr: &mut D,
+    nested_error_commitment: &Point<'dr, D, C::NestedCurve>,
+    params: &'dr C,
+) -> Result<(Element<'dr, D>, Element<'dr, D>)> {
+    let mut sponge = Sponge::new(dr, params.circuit_poseidon());
+    nested_error_commitment.write(dr, &mut sponge)?;
+    let mu = sponge.squeeze(dr)?;
+    let nu = sponge.squeeze(dr)?;
+    Ok((mu, nu))
+}
+
+/// Compute $(mu, nu)$ challenges using the [`Emulator`] for use outside of circuit
+/// contexts.
+pub fn emulate_mu_nu<C: Cycle>(
+    nested_error_commitment: C::NestedCurve,
+    params: &C,
+) -> Result<(C::CircuitField, C::CircuitField)> {
+    Emulator::emulate_wireless(nested_error_commitment, |dr, comm| {
+        let point = Point::alloc(dr, comm)?;
+        let (mu, nu) = derive_mu_nu::<_, C>(dr, &point, params)?;
+        Ok((*mu.value().take(), *nu.value().take()))
+    })
+}
+
+/// Computation of x = H(mu, nu, nested_ab_commitment)
+pub fn derive_x<'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle>(
+    dr: &mut D,
+    nu: &Element<'dr, D>,
+    nested_ab_commitment: &Point<'dr, D, C::NestedCurve>,
+    params: &'dr C,
+) -> Result<Element<'dr, D>> {
+    let mut sponge = Sponge::new(dr, params.circuit_poseidon());
+    sponge.absorb(dr, nu)?;
+    nested_ab_commitment.write(dr, &mut sponge)?;
+    sponge.squeeze(dr)
+}
+
+/// Compute $x$ challenge using the [`Emulator`] for use outside of circuit
+/// contexts.
+pub fn emulate_x<C: Cycle>(
+    nu: C::CircuitField,
+    nested_ab_commitment: C::NestedCurve,
+    params: &C,
+) -> Result<C::CircuitField> {
+    Emulator::emulate_wireless((nu, nested_ab_commitment), |dr, witness| {
+        let (nu, comm) = witness.cast();
+        let nu_elem = Element::alloc(dr, nu)?;
+        let point = Point::alloc(dr, comm)?;
+        Ok(*derive_x::<_, C>(dr, &nu_elem, &point, params)?
+            .value()
+            .take())
+    })
+}
+
+/// Computation of beta = H(nested_eval_commitment)
+pub fn derive_beta<'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle>(
+    dr: &mut D,
+    nested_eval_commitment: &Point<'dr, D, C::NestedCurve>,
+    params: &'dr C,
+) -> Result<Element<'dr, D>> {
+    let mut sponge = Sponge::new(dr, params.circuit_poseidon());
+    nested_eval_commitment.write(dr, &mut sponge)?;
+    sponge.squeeze(dr)
+}
+
+/// Compute $\beta$ challenge using the [`Emulator`] for use outside of circuit
+/// contexts.
+pub fn emulate_beta<C: Cycle>(
+    nested_eval_commitment: C::NestedCurve,
+    params: &C,
+) -> Result<C::CircuitField> {
+    Emulator::emulate_wireless(nested_eval_commitment, |dr, comm| {
+        let point = Point::alloc(dr, comm)?;
+        Ok(*derive_beta::<_, C>(dr, &point, params)?.value().take())
     })
 }

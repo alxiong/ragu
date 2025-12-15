@@ -1,3 +1,5 @@
+//! Evaluation of the $t(X, Z)$ polynomial.
+
 use ff::Field;
 use ragu_core::{
     Error, Result,
@@ -8,6 +10,7 @@ use ragu_core::{
 };
 use ragu_primitives::Element;
 
+/// Routine for evaluating the TXZ polynomial, t(x, z).
 #[derive(Clone)]
 pub struct Evaluate {
     log2_n: u32,
@@ -15,6 +18,7 @@ pub struct Evaluate {
 }
 
 impl Evaluate {
+    /// Creates a new evaluator for the given log-domain size.
     pub fn new(log2_n: u32) -> Self {
         let n = 1 << log2_n;
 
