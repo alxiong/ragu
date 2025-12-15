@@ -13,8 +13,8 @@ use crate::{
     components::fold_revdot::{self, ErrorTermsLen},
     internal_circuits::{self, NUM_NATIVE_REVDOT_CLAIMS, stages, unified},
     proof::{
-        ABProof, ApplicationProof, ErrorProof, EvalProof, FProof, InternalCircuits, Pcd,
-        PreambleProof, Proof, QueryProof, SDoublePrimeProof, SPrimeProof, SProof,
+        ABProof, ApplicationProof, ErrorProof, EvalProof, FProof, InternalCircuits, MeshWyProof,
+        Pcd, PreambleProof, Proof, QueryProof, SPrimeProof, SProof,
     },
     step::{Step, adapter::Adapter},
 };
@@ -350,7 +350,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     nested_s_prime_blind,
                     nested_s_prime_commitment,
                 },
-                s_doubleprime: SDoublePrimeProof {
+                mesh_wy: MeshWyProof {
                     mesh_wy,
                     mesh_wy_blind,
                     mesh_wy_commitment,

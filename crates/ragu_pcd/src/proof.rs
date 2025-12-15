@@ -26,7 +26,7 @@ use crate::{
 pub struct Proof<C: Cycle, R: Rank> {
     pub(crate) preamble: PreambleProof<C, R>,
     pub(crate) s_prime: SPrimeProof<C, R>,
-    pub(crate) s_doubleprime: SDoublePrimeProof<C, R>,
+    pub(crate) mesh_wy: MeshWyProof<C, R>,
     pub(crate) error: ErrorProof<C, R>,
     pub(crate) ab: ABProof<C, R>,
     pub(crate) s: SProof<C, R>,
@@ -155,10 +155,8 @@ pub(crate) struct SPrimeProof<C: Cycle, R: Rank> {
     pub(crate) nested_s_prime_commitment: C::NestedCurve,
 }
 
-/// S'' stage proof: m(w, X, y) commitment.
-/// The mesh_wy_commitment is included in the native error stage instead of
-/// having a separate nested commitment.
-pub(crate) struct SDoublePrimeProof<C: Cycle, R: Rank> {
+/// Mesh m(w, X, y) commitment (included in nested error stage).
+pub(crate) struct MeshWyProof<C: Cycle, R: Rank> {
     pub(crate) mesh_wy: structured::Polynomial<C::CircuitField, R>,
     pub(crate) mesh_wy_blind: C::CircuitField,
     pub(crate) mesh_wy_commitment: C::HostCurve,
@@ -180,7 +178,7 @@ impl<C: Cycle, R: Rank> Clone for Proof<C, R> {
         Proof {
             preamble: self.preamble.clone(),
             s_prime: self.s_prime.clone(),
-            s_doubleprime: self.s_doubleprime.clone(),
+            mesh_wy: self.mesh_wy.clone(),
             error: self.error.clone(),
             ab: self.ab.clone(),
             s: self.s.clone(),
@@ -235,9 +233,9 @@ impl<C: Cycle, R: Rank> Clone for SPrimeProof<C, R> {
     }
 }
 
-impl<C: Cycle, R: Rank> Clone for SDoublePrimeProof<C, R> {
+impl<C: Cycle, R: Rank> Clone for MeshWyProof<C, R> {
     fn clone(&self) -> Self {
-        SDoublePrimeProof {
+        MeshWyProof {
             mesh_wy: self.mesh_wy.clone(),
             mesh_wy_blind: self.mesh_wy_blind,
             mesh_wy_commitment: self.mesh_wy_commitment,
@@ -437,7 +435,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 nested_s_prime_blind: C::ScalarField::random(&mut *rng),
                 nested_s_prime_commitment: self.params.nested_generators().g()[0],
             },
-            s_doubleprime: SDoublePrimeProof {
+            mesh_wy: MeshWyProof {
                 mesh_wy: structured::Polynomial::new(),
                 mesh_wy_blind: C::CircuitField::random(&mut *rng),
                 mesh_wy_commitment: self.params.host_generators().g()[0],
@@ -581,7 +579,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             self.params,
         )?;
 
-        // S'' = m(w, X, y) mesh commitment.
+        // Given (w, y), we can compute m(w, X, y) and commit to it.
         let mesh_wy = structured::Polynomial::new();
         let mesh_wy_blind = C::CircuitField::random(&mut *rng);
         let mesh_wy_commitment = self.params.host_generators().g()[0];
@@ -820,7 +818,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 nested_s_prime_blind,
                 nested_s_prime_commitment,
             },
-            s_doubleprime: SDoublePrimeProof {
+            mesh_wy: MeshWyProof {
                 mesh_wy,
                 mesh_wy_blind,
                 mesh_wy_commitment,
