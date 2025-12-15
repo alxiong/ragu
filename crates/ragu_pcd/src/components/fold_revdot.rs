@@ -66,7 +66,7 @@ mod tests {
     use ff::Field;
     use ragu_core::{drivers::emulator::Emulator, maybe::Maybe};
     use ragu_pasta::Fp;
-    use ragu_primitives::vec::CollectFixed;
+    use ragu_primitives::{Simulator, vec::CollectFixed};
     use rand::rngs::OsRng;
 
     #[test]
@@ -120,6 +120,35 @@ mod tests {
             *computed_c, expected_c,
             "C routine computed value doesn't match expected"
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_compute_c_constraints() -> Result<()> {
+        fn measure<const M: usize>() -> Result<usize> {
+            let sim = Simulator::simulate((), |dr, _| {
+                let mu = Element::constant(dr, Fp::random(OsRng));
+                let nu = Element::constant(dr, Fp::random(OsRng));
+                let error_terms = (0..ErrorTermsLen::<M>::len())
+                    .map(|_| Element::constant(dr, Fp::random(OsRng)))
+                    .collect_fixed()?;
+                let ky_values = (0..M)
+                    .map(|_| Element::constant(dr, Fp::random(OsRng)))
+                    .collect_fixed()?;
+
+                compute_c::<_, M>(dr, &mu, &nu, &error_terms, &ky_values)?;
+                Ok(())
+            })?;
+
+            Ok(sim.num_multiplications())
+        }
+
+        // Formula: 2*m^2 + m + 2
+        assert_eq!(measure::<5>()?, 57);
+        assert_eq!(measure::<15>()?, 467);
+        assert_eq!(measure::<30>()?, 1832);
+        assert_eq!(measure::<60>()?, 7262);
 
         Ok(())
     }
