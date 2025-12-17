@@ -119,7 +119,8 @@ pub mod nested {
 }
 
 pub mod native {
-    pub mod error;
+    pub mod error_m;
+    pub mod error_n;
     pub mod eval;
     pub mod preamble;
     pub mod query;

@@ -4,9 +4,11 @@ use ragu_circuits::{CircuitExt, polynomials::Rank, staging::StageExt};
 use ragu_core::{Result, drivers::emulator::Emulator, maybe::Maybe};
 use ragu_primitives::{
     Element,
-    vec::{CollectFixed, Len},
+    vec::{CollectFixed, FixedVec, Len},
 };
 use rand::Rng;
+
+use alloc::vec;
 
 use crate::{
     Application, circuit_counts,
@@ -147,62 +149,140 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let nested_s_doubleprime_commitment =
             nested_s_doubleprime_rx.commit(nested_generators, nested_s_doubleprime_blind);
 
-        // Compute error stage first so we can derive mu/nu from
-        // nested_error_commitment. Create error witness with z and error terms.
+        // Compute error_m stage (Layer 1: N instances of M-sized reductions).
         // The inclusion of z binds the error stage to the earlier "transcript".
-        let error_witness = stages::native::error::Witness::<C, NativeParameters> {
+        let error_m_witness = stages::native::error_m::Witness::<C, NativeParameters> {
             z,
             nested_s_doubleprime_commitment,
+            error_terms: <<NativeParameters as Parameters>::N>::range()
+                .map(|_| {
+                    ErrorTermsLen::<<NativeParameters as Parameters>::M>::range()
+                        .map(|_| C::CircuitField::ZERO)
+                        .collect_fixed()
+                })
+                .try_collect_fixed()?,
+        };
+        let native_error_m_rx =
+            stages::native::error_m::Stage::<C, R, HEADER_SIZE, NativeParameters>::rx(
+                &error_m_witness,
+            )?;
+        let native_error_m_blind = C::CircuitField::random(&mut *rng);
+        let native_error_m_commitment =
+            native_error_m_rx.commit(host_generators, native_error_m_blind);
+
+        // Nested error_m commitment
+        let nested_error_m_rx =
+            stages::nested::error::Stage::<C::HostCurve, R>::rx(native_error_m_commitment)?;
+        let nested_error_m_blind = C::ScalarField::random(&mut *rng);
+        let nested_error_m_commitment =
+            nested_error_m_rx.commit(nested_generators, nested_error_m_blind);
+
+        // Derive (mu, nu) = H(nested_error_m_commitment)
+        let (mu, nu) = crate::components::transcript::emulate_mu_nu::<C>(
+            nested_error_m_commitment,
+            self.params,
+        )?;
+
+        // Compute error_n stage (Layer 2: Single N-sized reduction).
+        // error_n includes nu as a binding challenge.
+        let error_n_witness = stages::native::error_n::Witness::<C, NativeParameters> {
+            nu,
             error_terms: ErrorTermsLen::<<NativeParameters as Parameters>::N>::range()
                 .map(|_| C::CircuitField::ZERO)
                 .collect_fixed()?,
         };
-        let native_error_rx =
-            stages::native::error::Stage::<C, R, HEADER_SIZE, NativeParameters>::rx(
-                &error_witness,
+        let native_error_n_rx =
+            stages::native::error_n::Stage::<C, R, HEADER_SIZE, NativeParameters>::rx(
+                &error_n_witness,
             )?;
-        let native_error_blind = C::CircuitField::random(&mut *rng);
-        let native_error_commitment = native_error_rx.commit(host_generators, native_error_blind);
+        let native_error_n_blind = C::CircuitField::random(&mut *rng);
+        let native_error_n_commitment =
+            native_error_n_rx.commit(host_generators, native_error_n_blind);
 
-        // Stubbed nested error rx polynomial
-        let nested_error_rx =
-            stages::nested::error::Stage::<C::HostCurve, R>::rx(native_error_commitment)?;
-        let nested_error_blind = C::ScalarField::random(&mut *rng);
-        let nested_error_commitment = nested_error_rx.commit(nested_generators, nested_error_blind);
+        // Nested error_n commitment
+        let nested_error_n_rx =
+            stages::nested::error::Stage::<C::HostCurve, R>::rx(native_error_n_commitment)?;
+        let nested_error_n_blind = C::ScalarField::random(&mut *rng);
+        let nested_error_n_commitment =
+            nested_error_n_rx.commit(nested_generators, nested_error_n_blind);
 
-        // Derive (mu, nu) = H(nested_error_commitment)
-        let (mu, nu) = crate::components::transcript::emulate_mu_nu::<C>(
-            nested_error_commitment,
+        // Derive (mu', nu') = H(nested_error_n_commitment)
+        let (mu_prime, nu_prime) = crate::components::transcript::emulate_mu_nu::<C>(
+            nested_error_n_commitment,
             self.params,
         )?;
 
-        // Compute c by running the routine in a wireless emulator
-        let c: C::CircuitField =
-            Emulator::emulate_wireless((mu, nu, &error_witness.error_terms), |dr, witness| {
-                let (mu, nu, error_terms) = witness.cast();
+        // Compute c, the folded revdot product claim using two-layer reduction.
+        let c: C::CircuitField = Emulator::emulate_wireless(
+            (
+                mu,
+                nu,
+                mu_prime,
+                nu_prime,
+                &error_m_witness.error_terms,
+                &error_n_witness.error_terms,
+            ),
+            |dr, witness| {
+                let (mu, nu, mu_prime, nu_prime, error_terms_m, error_terms_n) = witness.cast();
 
                 let mu = Element::alloc(dr, mu)?;
                 let nu = Element::alloc(dr, nu)?;
+                let mu_prime = Element::alloc(dr, mu_prime)?;
+                let nu_prime = Element::alloc(dr, nu_prime)?;
 
-                let error_terms = ErrorTermsLen::<<NativeParameters as Parameters>::N>::range()
-                    .map(|i| Element::alloc(dr, error_terms.view().map(|et| et[i])))
+                // Allocate error_m error terms (nested structure)
+                let error_terms_m: FixedVec<
+                    FixedVec<Element<'_, _>, ErrorTermsLen<<NativeParameters as Parameters>::M>>,
+                    <NativeParameters as Parameters>::N,
+                > = <<NativeParameters as Parameters>::N>::range()
+                    .map(|i| {
+                        ErrorTermsLen::<<NativeParameters as Parameters>::M>::range()
+                            .map(|j| Element::alloc(dr, error_terms_m.view().map(|et| et[i][j])))
+                            .try_collect_fixed()
+                    })
                     .try_collect_fixed()?;
 
-                // TODO: Use zeros for ky_values for now.
-                let ky_values = (0..<NativeParameters as Parameters>::N::len())
-                    .map(|_| Element::zero(dr))
-                    .collect_fixed()?;
+                // Allocate error_n error terms
+                let error_terms_n: FixedVec<
+                    Element<'_, _>,
+                    ErrorTermsLen<<NativeParameters as Parameters>::N>,
+                > = ErrorTermsLen::<<NativeParameters as Parameters>::N>::range()
+                    .map(|i| Element::alloc(dr, error_terms_n.view().map(|et| et[i])))
+                    .try_collect_fixed()?;
 
-                Ok(*fold_revdot::compute_c::<_, NativeParameters>(
+                // Layer 1: N instances of M-sized reductions
+                // ky_values stay as zeros for now
+                let ky_values_m: FixedVec<_, <NativeParameters as Parameters>::M> =
+                    <<NativeParameters as Parameters>::M>::range()
+                        .map(|_| Element::zero(dr))
+                        .collect_fixed()?;
+
+                let mut collapsed = vec![];
+                for error_terms_i in error_terms_m.iter() {
+                    let v = fold_revdot::compute_c_m::<_, NativeParameters>(
+                        dr,
+                        &mu,
+                        &nu,
+                        error_terms_i,
+                        &ky_values_m,
+                    )?;
+                    collapsed.push(v);
+                }
+                let collapsed: FixedVec<_, <NativeParameters as Parameters>::N> =
+                    FixedVec::new(collapsed)?;
+
+                // Layer 2: Single N-sized reduction using collapsed as ky_values
+                let c = fold_revdot::compute_c_n::<_, NativeParameters>(
                     dr,
-                    &mu,
-                    &nu,
-                    &error_terms,
-                    &ky_values,
-                )?
-                .value()
-                .take())
-            })?;
+                    &mu_prime,
+                    &nu_prime,
+                    &error_terms_n,
+                    &collapsed,
+                )?;
+
+                Ok(*c.value().take())
+            },
+        )?;
 
         // Compute the A/B polynomials (depend on mu, nu).
         // TODO: For now, stub out fake A and B polynomials.
@@ -220,9 +300,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let nested_ab_blind = C::ScalarField::random(&mut *rng);
         let nested_ab_commitment = nested_ab_rx.commit(nested_generators, nested_ab_blind);
 
-        // Derive x = H(nu, nested_ab_commitment).
-        let x =
-            crate::components::transcript::emulate_x::<C>(nu, nested_ab_commitment, self.params)?;
+        // Derive x = H(nu', nested_ab_commitment).
+        let x = crate::components::transcript::emulate_x::<C>(
+            nu_prime,
+            nested_ab_commitment,
+            self.params,
+        )?;
 
         // Compute commitment to mesh polynomial at (x, y).
         let mesh_xy = self.circuit_mesh.xy(x, y);
@@ -308,9 +391,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             y,
             z,
             nested_s_doubleprime_commitment,
-            nested_error_commitment,
+            nested_error_m_commitment,
             mu,
             nu,
+            nested_error_n_commitment,
+            mu_prime,
+            nu_prime,
             c,
             nested_ab_commitment,
             x,
@@ -332,7 +418,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             internal_circuits::c::Witness {
                 unified_instance,
                 preamble_witness: &preamble_witness,
-                error_witness: &error_witness,
+                error_m_witness: &error_m_witness,
+                error_n_witness: &error_n_witness,
             },
             self.circuit_mesh.get_key(),
         )?;
@@ -395,12 +482,18 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     nested_s_doubleprime_commitment,
                 },
                 error: ErrorProof {
-                    native_error_rx,
-                    native_error_blind,
-                    native_error_commitment,
-                    nested_error_rx,
-                    nested_error_blind,
-                    nested_error_commitment,
+                    native_error_m_rx,
+                    native_error_m_blind,
+                    native_error_m_commitment,
+                    nested_error_m_rx,
+                    nested_error_m_blind,
+                    nested_error_m_commitment,
+                    native_error_n_rx,
+                    native_error_n_blind,
+                    native_error_n_commitment,
+                    nested_error_n_rx,
+                    nested_error_n_blind,
+                    nested_error_n_commitment,
                 },
                 ab: ABProof {
                     a,
@@ -458,6 +551,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     v_rx_blind,
                     mu,
                     nu,
+                    mu_prime,
+                    nu_prime,
                     x,
                     alpha,
                     u,

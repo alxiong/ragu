@@ -1,4 +1,6 @@
-//! Error stage for merge operations.
+//! Error stage (layer 2) for merge operations.
+//!
+//! This stage handles the final N-sized revdot claim reduction.
 
 use arithmetic::Cycle;
 use ragu_circuits::{polynomials::Rank, staging};
@@ -9,41 +11,39 @@ use ragu_core::{
     maybe::Maybe,
 };
 use ragu_primitives::{
-    Element, Point,
+    Element,
     vec::{CollectFixed, FixedVec, Len},
 };
 
 use core::marker::PhantomData;
 
-pub use crate::internal_circuits::InternalCircuitIndex::ErrorStage as STAGING_ID;
+pub use crate::internal_circuits::InternalCircuitIndex::ErrorNStage as STAGING_ID;
 
 use crate::components::fold_revdot::{ErrorTermsLen, Parameters};
 
-/// Witness data for the error stage.
+/// Witness data for the error_n stage (layer 2).
+///
+/// Contains N²-N error terms for the second layer of reduction.
 pub struct Witness<C: Cycle, P: Parameters> {
-    /// The z challenge derived from hashing w and nested_s_prime_commitment.
-    pub z: C::CircuitField,
-    /// The nested s'' commitment point.
-    pub nested_s_doubleprime_commitment: C::NestedCurve,
-    /// Error term elements.
+    /// The nu challenge derived from H(nested_error_m_commitment).
+    /// This binds the error_n stage to the first layer's commitment.
+    pub nu: C::CircuitField,
+    /// Error term elements for layer 2.
     pub error_terms: FixedVec<C::CircuitField, ErrorTermsLen<P::N>>,
 }
 
-/// Output gadget for the error stage.
+/// Output gadget for the error_n stage.
 #[derive(Gadget)]
-pub struct Output<'dr, D: Driver<'dr>, C: Cycle, P: Parameters> {
-    /// The witnessed z challenge element.
+pub struct Output<'dr, D: Driver<'dr>, P: Parameters> {
+    /// The witnessed nu challenge element.
     #[ragu(gadget)]
-    pub z: Element<'dr, D>,
-    /// The nested s'' commitment point.
-    #[ragu(gadget)]
-    pub nested_s_doubleprime_commitment: Point<'dr, D, C::NestedCurve>,
-    /// Error term elements.
+    pub nu: Element<'dr, D>,
+    /// Error term elements for layer 2.
     #[ragu(gadget)]
     pub error_terms: FixedVec<Element<'dr, D>, ErrorTermsLen<P::N>>,
 }
 
-/// The error stage of the merge witness.
+/// The error_n stage (layer 2) of the merge witness.
 #[derive(Default)]
 pub struct Stage<C: Cycle, R, const HEADER_SIZE: usize, P: Parameters> {
     _marker: PhantomData<(C, R, P)>,
@@ -52,13 +52,13 @@ pub struct Stage<C: Cycle, R, const HEADER_SIZE: usize, P: Parameters> {
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, P: Parameters> staging::Stage<C::CircuitField, R>
     for Stage<C, R, HEADER_SIZE, P>
 {
-    type Parent = super::preamble::Stage<C, R, HEADER_SIZE>;
+    type Parent = super::error_m::Stage<C, R, HEADER_SIZE, P>;
     type Witness<'source> = &'source Witness<C, P>;
-    type OutputKind = Kind![C::CircuitField; Output<'_, _, C, P>];
+    type OutputKind = Kind![C::CircuitField; Output<'_, _, P>];
 
     fn values() -> usize {
-        // 1 for z + 2 for S'' + error terms
-        1 + 2 + ErrorTermsLen::<P::N>::len()
+        // 1 for nu + N² - N error terms
+        1 + ErrorTermsLen::<P::N>::len()
     }
 
     fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = C::CircuitField>>(
@@ -69,19 +69,11 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, P: Parameters> staging::Stage<
     where
         Self: 'dr,
     {
-        let z = Element::alloc(dr, witness.view().map(|w| w.z))?;
-        let nested_s_doubleprime_commitment = Point::alloc(
-            dr,
-            witness.view().map(|w| w.nested_s_doubleprime_commitment),
-        )?;
+        let nu = Element::alloc(dr, witness.view().map(|w| w.nu))?;
         let error_terms = ErrorTermsLen::<P::N>::range()
             .map(|i| Element::alloc(dr, witness.view().map(|w| w.error_terms[i])))
             .try_collect_fixed()?;
 
-        Ok(Output {
-            z,
-            nested_s_doubleprime_commitment,
-            error_terms,
-        })
+        Ok(Output { nu, error_terms })
     }
 }

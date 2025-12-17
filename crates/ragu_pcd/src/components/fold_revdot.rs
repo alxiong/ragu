@@ -22,13 +22,13 @@ pub trait Parameters: 'static + Send + Sync + Clone + Copy + Default {
     type M: Len;
 }
 
-/// Default parameters for native revdot folding (N=3, M=1).
+/// Default parameters for native revdot folding (N=3, M=3).
 #[derive(Clone, Copy, Default)]
 pub struct NativeParameters;
 
 impl Parameters for NativeParameters {
     type N = ConstLen<3>;
-    type M = ConstLen<1>;
+    type M = ConstLen<3>;
 }
 
 /// Represents the number of "error" terms produced during a folding operation
@@ -51,13 +51,13 @@ impl<L: Len> Len for ErrorTermsLen<L> {
     }
 }
 
-/// Compute the folded revdot claim `c` from the error terms and ky values.
-pub fn compute_c<'dr, D: Driver<'dr>, P: Parameters>(
+/// Generic internal function to compute folded revdot claim `c` for a given size.
+fn compute_c_impl<'dr, D: Driver<'dr>, S: Len>(
     dr: &mut D,
     mu: &Element<'dr, D>,
     nu: &Element<'dr, D>,
-    error_terms: &FixedVec<Element<'dr, D>, ErrorTermsLen<P::N>>,
-    ky_values: &FixedVec<Element<'dr, D>, P::N>,
+    error_terms: &FixedVec<Element<'dr, D>, ErrorTermsLen<S>>,
+    ky_values: &FixedVec<Element<'dr, D>, S>,
 ) -> Result<Element<'dr, D>> {
     let munu = mu.mul(dr, nu)?;
     let mu_inv = mu.invert(dr)?;
@@ -68,7 +68,7 @@ pub fn compute_c<'dr, D: Driver<'dr>, P: Parameters>(
     let mut result = Element::zero(dr);
     let mut row_power = Element::one();
 
-    let n = P::N::len();
+    let n = S::len();
     for i in 0..n {
         let mut col_power = row_power.clone();
         for j in 0..n {
@@ -88,6 +88,32 @@ pub fn compute_c<'dr, D: Driver<'dr>, P: Parameters>(
     Ok(result)
 }
 
+/// Compute the folded revdot claim `c` for the first layer (M-sized reduction).
+///
+/// Uses P::M as the reduction size for layer 1 of the two-layer reduction.
+pub fn compute_c_m<'dr, D: Driver<'dr>, P: Parameters>(
+    dr: &mut D,
+    mu: &Element<'dr, D>,
+    nu: &Element<'dr, D>,
+    error_terms: &FixedVec<Element<'dr, D>, ErrorTermsLen<P::M>>,
+    ky_values: &FixedVec<Element<'dr, D>, P::M>,
+) -> Result<Element<'dr, D>> {
+    compute_c_impl::<_, P::M>(dr, mu, nu, error_terms, ky_values)
+}
+
+/// Compute the folded revdot claim `c` for the second layer (N-sized reduction).
+///
+/// Uses P::N as the reduction size for layer 2 of the two-layer reduction.
+pub fn compute_c_n<'dr, D: Driver<'dr>, P: Parameters>(
+    dr: &mut D,
+    mu: &Element<'dr, D>,
+    nu: &Element<'dr, D>,
+    error_terms: &FixedVec<Element<'dr, D>, ErrorTermsLen<P::N>>,
+    ky_values: &FixedVec<Element<'dr, D>, P::N>,
+) -> Result<Element<'dr, D>> {
+    compute_c_impl::<_, P::N>(dr, mu, nu, error_terms, ky_values)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -97,20 +123,20 @@ mod tests {
     use ragu_primitives::{Simulator, vec::CollectFixed};
     use rand::rngs::OsRng;
 
-    /// Test parameters with N=3, M=1.
+    /// Test parameters with N=3, M=3.
     #[derive(Clone, Copy, Default)]
     struct TestParams3;
     impl Parameters for TestParams3 {
         type N = ConstLen<3>;
-        type M = ConstLen<1>;
+        type M = ConstLen<3>;
     }
 
-    /// Test parameters with configurable N.
+    /// Test parameters with configurable N (and M=N for testing purposes).
     #[derive(Clone, Copy, Default)]
     struct TestParams<const N: usize>;
     impl<const N: usize> Parameters for TestParams<N> {
         type N = ConstLen<N>;
-        type M = ConstLen<1>;
+        type M = ConstLen<N>;
     }
 
     #[test]
@@ -158,7 +184,7 @@ mod tests {
             .collect_fixed()
             .unwrap();
 
-        let result = compute_c::<_, P>(dr, &mu, &nu, &error_terms, &ky_values)?;
+        let result = compute_c_n::<_, P>(dr, &mu, &nu, &error_terms, &ky_values)?;
         let computed_c = result.value().take();
 
         assert_eq!(
@@ -182,7 +208,7 @@ mod tests {
                     .map(|_| Element::constant(dr, Fp::random(OsRng)))
                     .collect_fixed()?;
 
-                compute_c::<_, P>(dr, &mu, &nu, &error_terms, &ky_values)?;
+                compute_c_n::<_, P>(dr, &mu, &nu, &error_terms, &ky_values)?;
                 Ok(())
             })?;
 
@@ -214,7 +240,7 @@ mod tests {
 
                 let mut collapsed = vec![];
                 for _ in 0..PN::N::len() {
-                    let v = compute_c::<_, PM>(dr, &mu, &nu, &error_terms, &ky_values)?;
+                    let v = compute_c_m::<_, PM>(dr, &mu, &nu, &error_terms, &ky_values)?;
                     collapsed.push(v);
                 }
                 let collapsed = FixedVec::new(collapsed)?;
@@ -222,7 +248,7 @@ mod tests {
                     .map(|_| Element::alloc(dr, rng.view_mut().map(Fp::random)))
                     .try_collect_fixed()?;
 
-                compute_c::<_, PN>(dr, &mu, &nu, &error_terms, &collapsed)?;
+                compute_c_n::<_, PN>(dr, &mu, &nu, &error_terms, &collapsed)?;
 
                 Ok(())
             })?;

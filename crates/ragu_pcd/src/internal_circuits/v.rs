@@ -90,26 +90,23 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, P: Parameters> StagedCircuit<C
             .nested_f_commitment
             .get(dr, unified_instance)?;
 
-        // Derive (mu, nu) = H(nested_error_commitment).
-        let (mu, nu) = {
-            let nested_error_commitment = unified_output
-                .nested_error_commitment
-                .get(dr, unified_instance)?;
-            transcript::derive_mu_nu::<_, C>(dr, &nested_error_commitment, self.params)?
-        };
+        // Get (mu, nu, mu', nu') from unified instance (derived by c circuit from error commitments).
+        let _mu = unified_output.mu.get(dr, unified_instance)?;
+        let _nu = unified_output.nu.get(dr, unified_instance)?;
+        let _mu_prime = unified_output.mu_prime.get(dr, unified_instance)?;
+        let nu_prime = unified_output.nu_prime.get(dr, unified_instance)?;
 
-        // Derive x = H(nu, nested_ab_commitment) and enforce query stage's x matches.
+        // Derive x = H(nu', nested_ab_commitment) and enforce query stage's x matches.
         let x = {
             let nested_ab_commitment = unified_output
                 .nested_ab_commitment
                 .get(dr, unified_instance)?;
-            let x = transcript::derive_x::<_, C>(dr, &nu, &nested_ab_commitment, self.params)?;
+            let x =
+                transcript::derive_x::<_, C>(dr, &nu_prime, &nested_ab_commitment, self.params)?;
             x.enforce_equal(dr, &query.x)?;
             x
         };
 
-        unified_output.mu.set(mu);
-        unified_output.nu.set(nu);
         unified_output.x.set(x.clone());
 
         // Query stage's nested_s_commitment must equal the one in unified output.
