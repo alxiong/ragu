@@ -34,9 +34,13 @@ pub enum SaveError {
     NothingAbsorbed,
 }
 
-struct T<F: Field, P: arithmetic::PoseidonPermutation<F>>(F, P);
+/// A type-level length marker for the Poseidon state size (`P::T`).
+///
+/// This type implements [`Len`] and is used to parameterize [`FixedVec`]
+/// containers holding sponge state elements.
+pub struct PoseidonStateLen<F: Field, P: arithmetic::PoseidonPermutation<F>>(PhantomData<(F, P)>);
 
-impl<F: Field, P: arithmetic::PoseidonPermutation<F>> Len for T<F, P> {
+impl<F: Field, P: arithmetic::PoseidonPermutation<F>> Len for PoseidonStateLen<F, P> {
     fn len() -> usize {
         P::T
     }
@@ -220,10 +224,23 @@ impl<'dr, D: Driver<'dr>, P: arithmetic::PoseidonPermutation<D::F>> Sponge<'dr, 
 #[derive(Gadget, Write)]
 pub struct SpongeState<'dr, D: Driver<'dr>, P: arithmetic::PoseidonPermutation<D::F>> {
     #[ragu(gadget)]
-    values: FixedVec<Element<'dr, D>, T<D::F, P>>,
+    values: FixedVec<Element<'dr, D>, PoseidonStateLen<D::F, P>>,
 }
 
 impl<'dr, D: Driver<'dr>, P: arithmetic::PoseidonPermutation<D::F>> SpongeState<'dr, D, P> {
+    /// Create a [`SpongeState`] from a [`FixedVec`] of [`Element`]s.
+    ///
+    /// The vector must have exactly `P::T` elements (enforced by the
+    /// [`PoseidonStateLen`] type parameter).
+    pub fn from_elements(values: FixedVec<Element<'dr, D>, PoseidonStateLen<D::F, P>>) -> Self {
+        Self { values }
+    }
+
+    /// Consume this [`SpongeState`] and return the raw [`Element`]s.
+    pub fn into_elements(self) -> FixedVec<Element<'dr, D>, PoseidonStateLen<D::F, P>> {
+        self.values
+    }
+
     fn get_rate(&self) -> Vec<Element<'dr, D>> {
         let mut tmp = self.values.clone().into_inner();
         tmp.truncate(P::RATE);
