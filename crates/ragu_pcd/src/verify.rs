@@ -77,6 +77,24 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             internal_circuits::v::STAGED_ID,
         );
 
+        // Internal circuit ky stage verification
+        let ky_stage_valid = verifier.check_stage(
+            &pcd.proof.internal_circuits.ky_rx,
+            internal_circuits::ky::STAGED_ID,
+        );
+
+        // Internal circuit hashes_1 stage verification
+        let hashes_1_stage_valid = verifier.check_stage(
+            &pcd.proof.internal_circuits.hashes_1_rx,
+            internal_circuits::hashes_1::STAGED_ID,
+        );
+
+        // Internal circuit hashes_2 stage verification
+        let hashes_2_stage_valid = verifier.check_stage(
+            &pcd.proof.internal_circuits.hashes_2_rx,
+            internal_circuits::hashes_2::STAGED_ID,
+        );
+
         let unified_instance = internal_circuits::unified::Instance {
             nested_preamble_commitment: pcd.proof.preamble.nested_preamble_commitment,
             w: pcd.proof.internal_circuits.w,
@@ -136,6 +154,51 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             )
         };
 
+        // Hashes_1 circuit verification with ky.
+        // Hashes_1's final stage is error_n, so combine preamble_rx + error_m_rx + error_n_rx with hashes_1_rx.
+        let hashes_1_valid = {
+            let mut hashes_1_combined_rx = pcd.proof.preamble.native_preamble_rx.clone();
+            hashes_1_combined_rx.add_assign(&pcd.proof.error.native_error_m_rx);
+            hashes_1_combined_rx.add_assign(&pcd.proof.error.native_error_n_rx);
+            hashes_1_combined_rx.add_assign(&pcd.proof.internal_circuits.hashes_1_rx);
+
+            verifier.check_internal_circuit(
+                &hashes_1_combined_rx,
+                internal_circuits::hashes_1::CIRCUIT_ID,
+                unified_ky,
+            )
+        };
+
+        // Hashes_2 circuit verification with ky.
+        // Hashes_2's final stage is error_n, so combine preamble_rx + error_m_rx + error_n_rx with hashes_2_rx.
+        let hashes_2_valid = {
+            let mut hashes_2_combined_rx = pcd.proof.preamble.native_preamble_rx.clone();
+            hashes_2_combined_rx.add_assign(&pcd.proof.error.native_error_m_rx);
+            hashes_2_combined_rx.add_assign(&pcd.proof.error.native_error_n_rx);
+            hashes_2_combined_rx.add_assign(&pcd.proof.internal_circuits.hashes_2_rx);
+
+            verifier.check_internal_circuit(
+                &hashes_2_combined_rx,
+                internal_circuits::hashes_2::CIRCUIT_ID,
+                unified_ky,
+            )
+        };
+
+        // Ky circuit verification with ky.
+        // Ky's final stage is error_n, so combine preamble_rx + error_m_rx + error_n_rx with ky_rx.
+        let ky_circuit_valid = {
+            let mut ky_combined_rx = pcd.proof.preamble.native_preamble_rx.clone();
+            ky_combined_rx.add_assign(&pcd.proof.error.native_error_m_rx);
+            ky_combined_rx.add_assign(&pcd.proof.error.native_error_n_rx);
+            ky_combined_rx.add_assign(&pcd.proof.internal_circuits.ky_rx);
+
+            verifier.check_internal_circuit(
+                &ky_combined_rx,
+                internal_circuits::ky::CIRCUIT_ID,
+                unified_ky,
+            )
+        };
+
         // Application verification
         let left_header = FixedVec::<_, ConstLen<HEADER_SIZE>>::try_from(
             pcd.proof.application.left_header.clone(),
@@ -165,8 +228,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             && eval_valid
             && c_stage_valid
             && v_stage_valid
+            && ky_stage_valid
+            && hashes_1_stage_valid
+            && hashes_2_stage_valid
             && c_circuit_valid
             && v_circuit_valid
+            && hashes_1_valid
+            && hashes_2_valid
+            && ky_circuit_valid
             && application_valid)
     }
 }

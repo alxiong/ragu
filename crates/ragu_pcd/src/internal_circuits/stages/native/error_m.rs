@@ -12,7 +12,7 @@ use ragu_core::{
 };
 use ragu_primitives::{
     Element,
-    vec::{CollectFixed, FixedVec, Len},
+    vec::{FixedVec, Len},
 };
 
 use core::marker::PhantomData;
@@ -25,8 +25,6 @@ use crate::components::fold_revdot::{ErrorTermsLen, Parameters};
 ///
 /// Contains N sets of M-sized error terms for the first layer of reduction.
 pub struct Witness<C: Cycle, P: Parameters> {
-    /// The z challenge derived from hashing w and nested_s_prime_commitment.
-    pub z: C::CircuitField,
     /// Error term elements for layer 1.
     /// Outer: N claims, Inner: M²-M error terms per claim.
     pub error_terms: FixedVec<FixedVec<C::CircuitField, ErrorTermsLen<P::M>>, P::N>,
@@ -35,9 +33,6 @@ pub struct Witness<C: Cycle, P: Parameters> {
 /// Output gadget for the error_m stage.
 #[derive(Gadget)]
 pub struct Output<'dr, D: Driver<'dr>, P: Parameters> {
-    /// The witnessed z challenge element.
-    #[ragu(gadget)]
-    pub z: Element<'dr, D>,
     /// Error term elements for layer 1.
     /// Outer: N claims, Inner: M²-M error terms per claim.
     #[ragu(gadget)]
@@ -58,10 +53,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, P: Parameters> staging::Stage<
     type OutputKind = Kind![C::CircuitField; Output<'_, _, P>];
 
     fn values() -> usize {
-        // 1 for z + N * (M² - M) error terms
+        // N * (M² - M) error terms
         let error_terms_per_claim = ErrorTermsLen::<P::M>::len();
-        let total_error_terms = P::N::len() * error_terms_per_claim;
-        1 + total_error_terms
+        P::N::len() * error_terms_per_claim
     }
 
     fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = C::CircuitField>>(
@@ -72,20 +66,13 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, P: Parameters> staging::Stage<
     where
         Self: 'dr,
     {
-        let z = Element::alloc(dr, witness.view().map(|w| w.z))?;
-
         // Allocate nested error terms
-        let error_terms: FixedVec<FixedVec<Element<'dr, D>, ErrorTermsLen<P::M>>, P::N> =
-            P::N::range()
-                .map(|i| {
-                    ErrorTermsLen::<P::M>::range()
-                        .map(|j| Element::alloc(dr, witness.view().map(|w| w.error_terms[i][j])))
-                        .try_collect_fixed()
-                })
-                .collect::<Result<alloc::vec::Vec<_>>>()?
-                .into_iter()
-                .collect_fixed()?;
+        let error_terms = FixedVec::try_from_fn(|i| {
+            FixedVec::try_from_fn(|j| {
+                Element::alloc(dr, witness.view().map(|w| w.error_terms[i][j]))
+            })
+        })?;
 
-        Ok(Output { z, error_terms })
+        Ok(Output { error_terms })
     }
 }
