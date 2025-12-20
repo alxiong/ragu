@@ -723,12 +723,15 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 let mu = Element::alloc(dr, mu)?;
                 let nu = Element::alloc(dr, nu)?;
                 // TODO: compute ky_values properly
-                let ky_values = FixedVec::from_fn(|_| Element::todo(dr));
+                let mut ky_values = vec![Element::todo(dr)].into_iter();
 
                 FixedVec::try_from_fn(|i| {
                     let errors = FixedVec::try_from_fn(|j| {
                         Element::alloc(dr, error_terms_m.view().map(|et| et[i][j]))
                     })?;
+                    let ky_values = FixedVec::from_fn(|_| {
+                        ky_values.next().unwrap_or_else(|| Element::zero(dr))
+                    });
                     let v = fold_revdot::compute_c_m::<_, NativeParameters>(
                         dr, &mu, &nu, &errors, &ky_values,
                     )?;

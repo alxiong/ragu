@@ -19,6 +19,7 @@ use ragu_core::{
 };
 use ragu_primitives::{Element, vec::FixedVec};
 
+use alloc::vec;
 use core::marker::PhantomData;
 
 use super::{
@@ -118,9 +119,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
         let nu = unified_output.nu.get(dr, unified_instance)?;
 
         // TODO: Compute ky values properly based on the preamble
-        let ky_values = FixedVec::from_fn(|_| Element::todo(dr));
+        let mut ky_values = vec![Element::todo(dr)].into_iter();
 
         for (i, error_terms) in error_m.error_terms.iter().enumerate() {
+            let ky_values =
+                FixedVec::from_fn(|_| ky_values.next().unwrap_or_else(|| Element::zero(dr)));
+
             fold_revdot::compute_c_m::<_, FP>(dr, &mu, &nu, error_terms, &ky_values)?
                 .enforce_equal(dr, &error_n.collapsed[i])?;
         }
