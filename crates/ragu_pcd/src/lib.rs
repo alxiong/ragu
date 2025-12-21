@@ -169,18 +169,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     /// This is the entry point for creating leaf nodes in a PCD tree.
     /// Internally creates minimal trivial proofs and merges them with
     /// the provided step to produce a valid proof.
-    pub fn base_step<'source, RNG: Rng, S: Step<C>>(
+    pub fn base_step<'source, RNG: Rng, S: Step<C, Left = (), Right = ()>>(
         &self,
         rng: &mut RNG,
         step: S,
         witness: S::Witness<'source>,
-    ) -> Result<(Proof<C, R>, S::Aux<'source>)>
-    where
-        S::Left: Header<C::CircuitField, Data<'source> = ()>,
-        S::Right: Header<C::CircuitField, Data<'source> = ()>,
-    {
-        let left_trivial = self.trivial_internal().carry::<S::Left>(());
-        let right_trivial = self.trivial_internal().carry::<S::Right>(());
+    ) -> Result<(Proof<C, R>, S::Aux<'source>)> {
+        let left_trivial = self.trivial_internal().carry::<()>(());
+        let right_trivial = self.trivial_internal().carry::<()>(());
 
         self.merge(rng, step, witness, left_trivial, right_trivial)
     }
