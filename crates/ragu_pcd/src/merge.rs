@@ -202,29 +202,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let mesh_xy = self.compute_mesh_xy(rng, x, y);
 
         // Compute query witness (stubbed for now).
-        let query_witness = internal_circuits::stages::native::query::Witness {
-            queries: FixedVec::from_fn(|_| C::CircuitField::todo()),
-        };
-
-        let native_query_rx =
-            internal_circuits::stages::native::query::Stage::<C, R, HEADER_SIZE>::rx(
-                &query_witness,
-            )?;
-        let native_query_blind = C::CircuitField::random(&mut *rng);
-        let native_query_commitment = native_query_rx.commit(host_generators, native_query_blind);
-
-        // Nested query commitment (includes both native_query_commitment and mesh_xy_commitment)
-        let nested_query_witness = stages::nested::query::Witness {
-            native_query: native_query_commitment,
-            mesh_xy: mesh_xy.mesh_xy_commitment,
-        };
-        let nested_query_rx =
-            stages::nested::query::Stage::<C::HostCurve, R>::rx(&nested_query_witness)?;
-        let nested_query_blind = C::ScalarField::random(&mut *rng);
-        let nested_query_commitment = nested_query_rx.commit(nested_generators, nested_query_blind);
+        let query = self.compute_query(rng, mesh_xy.mesh_xy_commitment)?;
 
         // Derive challenge alpha = H(nested_query_commitment).
-        Point::constant(&mut dr, nested_query_commitment)?.write(&mut dr, &mut sponge)?;
+        Point::constant(&mut dr, query.nested_query_commitment)?.write(&mut dr, &mut sponge)?;
         let alpha = *sponge.squeeze(&mut dr)?.value().take();
 
         // Compute the F polynomial commitment (stubbed for now).
@@ -283,7 +264,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             c,
             nested_ab_commitment: ab.nested_ab_commitment,
             x,
-            nested_query_commitment,
+            nested_query_commitment: query.nested_query_commitment,
             alpha,
             nested_f_commitment,
             u,
@@ -392,14 +373,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 },
                 ab,
                 mesh_xy,
-                query: QueryProof {
-                    native_query_rx,
-                    native_query_blind,
-                    native_query_commitment,
-                    nested_query_rx,
-                    nested_query_blind,
-                    nested_query_commitment,
-                },
+                query,
                 f: FProof {
                     native_f_rx,
                     native_f_blind,
@@ -967,5 +941,45 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             mesh_xy_blind,
             mesh_xy_commitment,
         }
+    }
+
+    /// Compute query proof.
+    fn compute_query<RNG: Rng>(
+        &self,
+        rng: &mut RNG,
+        mesh_xy_commitment: C::HostCurve,
+    ) -> Result<QueryProof<C, R>> {
+        let host_generators = self.params.host_generators();
+        let nested_generators = self.params.nested_generators();
+
+        let query_witness = internal_circuits::stages::native::query::Witness {
+            queries: FixedVec::from_fn(|_| C::CircuitField::todo()),
+        };
+
+        let native_query_rx =
+            internal_circuits::stages::native::query::Stage::<C, R, HEADER_SIZE>::rx(
+                &query_witness,
+            )?;
+        let native_query_blind = C::CircuitField::random(&mut *rng);
+        let native_query_commitment = native_query_rx.commit(host_generators, native_query_blind);
+
+        // Nested query commitment (includes both native_query_commitment and mesh_xy_commitment)
+        let nested_query_witness = stages::nested::query::Witness {
+            native_query: native_query_commitment,
+            mesh_xy: mesh_xy_commitment,
+        };
+        let nested_query_rx =
+            stages::nested::query::Stage::<C::HostCurve, R>::rx(&nested_query_witness)?;
+        let nested_query_blind = C::ScalarField::random(&mut *rng);
+        let nested_query_commitment = nested_query_rx.commit(nested_generators, nested_query_blind);
+
+        Ok(QueryProof {
+            native_query_rx,
+            native_query_blind,
+            native_query_commitment,
+            nested_query_rx,
+            nested_query_blind,
+            nested_query_commitment,
+        })
     }
 }
