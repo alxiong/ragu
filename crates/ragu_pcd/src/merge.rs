@@ -152,56 +152,16 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let nu = *sponge.squeeze(&mut dr)?.value().take();
 
         // Compute collapsed values (layer 1 folding) now that mu, nu are known.
-        let collapsed = Emulator::emulate_wireless(
-            (
-                mu,
-                nu,
-                &error_m_witness.error_terms,
-                left_application_ky,
-                right_application_ky,
-                left_unified_ky,
-                right_unified_ky,
-                left_bridge_ky,
-                right_bridge_ky,
-            ),
-            |dr, witness| {
-                let (
-                    mu,
-                    nu,
-                    error_terms_m,
-                    left_application_ky,
-                    right_application_ky,
-                    left_unified_ky,
-                    right_unified_ky,
-                    left_bridge_ky,
-                    right_bridge_ky,
-                ) = witness.cast();
-                let mu = Element::alloc(dr, mu)?;
-                let nu = Element::alloc(dr, nu)?;
-                let mut ky_values = vec![
-                    Element::alloc(dr, left_application_ky)?,
-                    Element::alloc(dr, right_application_ky)?,
-                    Element::alloc(dr, left_unified_ky)?,
-                    Element::alloc(dr, right_unified_ky)?,
-                    Element::alloc(dr, left_bridge_ky)?,
-                    Element::alloc(dr, right_bridge_ky)?,
-                ]
-                .into_iter();
-
-                let fold_c = fold_revdot::FoldC::new(dr, &mu, &nu)?;
-
-                FixedVec::try_from_fn(|i| {
-                    let errors = FixedVec::try_from_fn(|j| {
-                        Element::alloc(dr, error_terms_m.view().map(|et| et[i][j]))
-                    })?;
-                    let ky_values = FixedVec::from_fn(|_| {
-                        ky_values.next().unwrap_or_else(|| Element::zero(dr))
-                    });
-
-                    let v = fold_c.compute_m::<NativeParameters>(dr, &errors, &ky_values)?;
-                    Ok(*v.value().take())
-                })
-            },
+        let collapsed = self.compute_collapsed(
+            &error_m_witness,
+            left_application_ky,
+            right_application_ky,
+            left_unified_ky,
+            right_unified_ky,
+            left_bridge_ky,
+            right_bridge_ky,
+            mu,
+            nu,
         )?;
 
         // Compute error_n stage (Layer 2: Single N-sized reduction).
@@ -847,5 +807,72 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             ),
             error_m_witness,
         ))
+    }
+
+    /// Compute collapsed values from layer 1 folding.
+    fn compute_collapsed(
+        &self,
+        error_m_witness: &stages::native::error_m::Witness<C, NativeParameters>,
+        left_application_ky: C::CircuitField,
+        right_application_ky: C::CircuitField,
+        left_unified_ky: C::CircuitField,
+        right_unified_ky: C::CircuitField,
+        left_bridge_ky: C::CircuitField,
+        right_bridge_ky: C::CircuitField,
+        mu: C::CircuitField,
+        nu: C::CircuitField,
+    ) -> Result<FixedVec<C::CircuitField, <NativeParameters as fold_revdot::Parameters>::N>> {
+        Emulator::emulate_wireless(
+            (
+                mu,
+                nu,
+                &error_m_witness.error_terms,
+                left_application_ky,
+                right_application_ky,
+                left_unified_ky,
+                right_unified_ky,
+                left_bridge_ky,
+                right_bridge_ky,
+            ),
+            |dr, witness| {
+                let (
+                    mu,
+                    nu,
+                    error_terms_m,
+                    left_application_ky,
+                    right_application_ky,
+                    left_unified_ky,
+                    right_unified_ky,
+                    left_bridge_ky,
+                    right_bridge_ky,
+                ) = witness.cast();
+                let mu = Element::alloc(dr, mu)?;
+                let nu = Element::alloc(dr, nu)?;
+
+                let mut ky_values = vec![
+                    Element::alloc(dr, left_application_ky)?,
+                    Element::alloc(dr, right_application_ky)?,
+                    Element::alloc(dr, left_unified_ky)?,
+                    Element::alloc(dr, right_unified_ky)?,
+                    Element::alloc(dr, left_bridge_ky)?,
+                    Element::alloc(dr, right_bridge_ky)?,
+                ]
+                .into_iter();
+
+                let fold_c = fold_revdot::FoldC::new(dr, &mu, &nu)?;
+
+                FixedVec::try_from_fn(|i| {
+                    let errors = FixedVec::try_from_fn(|j| {
+                        Element::alloc(dr, error_terms_m.view().map(|et| et[i][j]))
+                    })?;
+                    let ky_values = FixedVec::from_fn(|_| {
+                        ky_values.next().unwrap_or_else(|| Element::zero(dr))
+                    });
+
+                    let v = fold_c.compute_m::<NativeParameters>(dr, &errors, &ky_values)?;
+                    Ok(*v.value().take())
+                })
+            },
+        )
     }
 }
