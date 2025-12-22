@@ -118,9 +118,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         ) = self.compute_ky_values(&preamble_witness, y)?;
 
         // Given (w, y), we can compute m(w, X, y) and commit to it.
-        let mesh_wy = self.circuit_mesh.wy(w, y);
-        let mesh_wy_blind = C::CircuitField::random(&mut *rng);
-        let mesh_wy_commitment = mesh_wy.commit(host_generators, mesh_wy_blind);
+        let mesh_wy = self.compute_mesh_wy(rng, w, y);
 
         // Compute error_m stage (Layer 1: N instances of M-sized reductions).
         let error_m_witness = stages::native::error_m::Witness::<C, NativeParameters> {
@@ -137,7 +135,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         // Nested error_m commitment (includes both native_error_m_commitment and mesh_wy_commitment)
         let nested_error_m_witness = stages::nested::error_m::Witness {
             native_error_m: native_error_m_commitment,
-            mesh_wy: mesh_wy_commitment,
+            mesh_wy: mesh_wy.mesh_wy_commitment,
         };
         let nested_error_m_rx =
             stages::nested::error_m::Stage::<C::HostCurve, R>::rx(&nested_error_m_witness)?;
@@ -490,11 +488,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             Proof {
                 preamble,
                 s_prime,
-                mesh_wy: MeshWyProof {
-                    mesh_wy,
-                    mesh_wy_blind,
-                    mesh_wy_commitment,
-                },
+                mesh_wy,
                 error: ErrorProof {
                     native_error_m_rx,
                     native_error_m_blind,
@@ -790,5 +784,25 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 *right_bridge.value().take(),
             ))
         })
+    }
+
+    /// Compute mesh_wy proof.
+    fn compute_mesh_wy<RNG: Rng>(
+        &self,
+        rng: &mut RNG,
+        w: C::CircuitField,
+        y: C::CircuitField,
+    ) -> MeshWyProof<C, R> {
+        let host_generators = self.params.host_generators();
+
+        let mesh_wy = self.circuit_mesh.wy(w, y);
+        let mesh_wy_blind = C::CircuitField::random(&mut *rng);
+        let mesh_wy_commitment = mesh_wy.commit(host_generators, mesh_wy_blind);
+
+        MeshWyProof {
+            mesh_wy,
+            mesh_wy_blind,
+            mesh_wy_commitment,
+        }
     }
 }
