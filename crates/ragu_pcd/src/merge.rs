@@ -284,6 +284,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 right_application_ky,
                 left_unified_ky,
                 right_unified_ky,
+                left_bridge_ky,
+                right_bridge_ky,
             ),
             |dr, witness| {
                 let (
@@ -294,6 +296,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     right_application_ky,
                     left_unified_ky,
                     right_unified_ky,
+                    left_bridge_ky,
+                    right_bridge_ky,
                 ) = witness.cast();
                 let mu = Element::alloc(dr, mu)?;
                 let nu = Element::alloc(dr, nu)?;
@@ -302,6 +306,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     Element::alloc(dr, right_application_ky)?,
                     Element::alloc(dr, left_unified_ky)?,
                     Element::alloc(dr, right_unified_ky)?,
+                    Element::alloc(dr, left_bridge_ky)?,
+                    Element::alloc(dr, right_bridge_ky)?,
                 ]
                 .into_iter();
 

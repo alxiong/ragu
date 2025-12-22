@@ -685,22 +685,23 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let y = *sponge.squeeze(&mut dr)?.value().take();
         let z = *sponge.squeeze(&mut dr)?.value().take();
 
-        // Compute k(y) values for the trivial proof.
-        // The ky circuit computes k(y) from the preamble headers (left_header,
-        // right_header, output_header). For a trivial proof, all headers are zeros,
-        // so k(y) = 1 (just the constant term from Horner's method finish).
-        let app_ky = C::CircuitField::ONE;
-
         // For the unified circuit, k(y) encodes the dummy_proof's commitments and challenges.
         // Use ProofInputs::alloc with zero output header (trivial proof has all-zero headers).
         // TODO: this is garbage, let's fix this properly later
-        let unified_ky = {
+        let (unified_ky, app_ky, bridge_ky) = {
             let zero_header = FixedVec::from_fn(|_| C::CircuitField::ZERO);
             Emulator::emulate_wireless((&dummy_proof, &zero_header, y), |dr, witness| {
                 let (proof, header, y) = witness.cast();
                 let y = Element::alloc(dr, y)?;
                 let proof_inputs = ProofInputs::<_, C, HEADER_SIZE>::alloc(dr, proof, header)?;
-                Ok(*proof_inputs.unified_ky(dr, &y)?.value().take())
+
+                let (app_ky, bridge_ky) = proof_inputs.application_and_bridge_ky(dr, &y)?;
+
+                Ok((
+                    *proof_inputs.unified_ky(dr, &y)?.value().take(),
+                    *app_ky.value().take(),
+                    *bridge_ky.value().take(),
+                ))
             })?
         };
 
@@ -766,6 +767,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 app_ky,
                 unified_ky,
                 unified_ky,
+                bridge_ky,
+                bridge_ky,
             ),
             |dr, witness| {
                 let (
@@ -776,6 +779,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     right_application_ky,
                     left_unified_ky,
                     right_unified_ky,
+                    left_bridge_ky,
+                    right_bridge_ky,
                 ) = witness.cast();
                 let mu = Element::alloc(dr, mu)?;
                 let nu = Element::alloc(dr, nu)?;
@@ -784,6 +789,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     Element::alloc(dr, right_application_ky)?,
                     Element::alloc(dr, left_unified_ky)?,
                     Element::alloc(dr, right_unified_ky)?,
+                    Element::alloc(dr, left_bridge_ky)?,
+                    Element::alloc(dr, right_bridge_ky)?,
                 ]
                 .into_iter();
 
