@@ -88,8 +88,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             internal_circuits::hashes_2::STAGED_ID,
         );
 
-        // Compute both unified k(Y) and application k(Y) from a single ProofInputs.
-        let (unified_ky, application_ky) = Emulator::emulate_wireless(
+        // Internal circuit bridge stage verification
+        let bridge_stage_valid = verifier.check_stage(
+            &pcd.proof.internal_circuits.bridge_rx,
+            internal_circuits::bridge::STAGED_ID,
+        );
+
+        // Compute unified k(Y), application k(Y), and bridge k(Y).
+        let (unified_ky, application_ky, bridge_ky) = Emulator::emulate_wireless(
             (&pcd.proof, pcd.data.clone(), verifier.y),
             |dr, witness| {
                 let (proof, data, y) = witness.cast();
@@ -99,8 +105,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
 
                 let unified_ky = *proof_inputs.unified_ky(dr, &y)?.value().take();
                 let application_ky = *proof_inputs.application_ky(dr, &y)?.value().take();
+                let bridge_ky = *proof_inputs.bridge_ky(dr, &y)?.value().take();
 
-                Ok((unified_ky, application_ky))
+                Ok((unified_ky, application_ky, bridge_ky))
             },
         )?;
 
@@ -167,6 +174,18 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             )
         };
 
+        // Bridge circuit verification with bridge_ky.
+        let bridge_circuit_valid = {
+            let mut bridge_combined_rx = pcd.proof.preamble.native_preamble_rx.clone();
+            bridge_combined_rx.add_assign(&pcd.proof.internal_circuits.bridge_rx);
+
+            verifier.check_internal_circuit(
+                &bridge_combined_rx,
+                internal_circuits::bridge::CIRCUIT_ID,
+                bridge_ky,
+            )
+        };
+
         // Application verification (application_ky was computed earlier with unified_ky)
         let application_valid = verifier.check_circuit(
             &pcd.proof.application.rx,
@@ -184,11 +203,13 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             && ky_stage_valid
             && hashes_1_stage_valid
             && hashes_2_stage_valid
+            && bridge_stage_valid
             && c_circuit_valid
             && v_circuit_valid
             && hashes_1_valid
             && hashes_2_valid
             && ky_circuit_valid
+            && bridge_circuit_valid
             && application_valid)
     }
 }

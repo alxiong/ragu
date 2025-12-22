@@ -83,6 +83,9 @@ pub(crate) struct InternalCircuits<C: Cycle, R: Rank> {
     pub(crate) ky_rx: structured::Polynomial<C::CircuitField, R>,
     pub(crate) ky_rx_blind: C::CircuitField,
     pub(crate) ky_rx_commitment: C::HostCurve,
+    pub(crate) bridge_rx: structured::Polynomial<C::CircuitField, R>,
+    pub(crate) bridge_rx_blind: C::CircuitField,
+    pub(crate) bridge_rx_commitment: C::HostCurve,
     pub(crate) mu: C::CircuitField,
     pub(crate) nu: C::CircuitField,
     pub(crate) mu_prime: C::CircuitField,
@@ -328,6 +331,9 @@ impl<C: Cycle, R: Rank> Clone for InternalCircuits<C, R> {
             ky_rx: self.ky_rx.clone(),
             ky_rx_blind: self.ky_rx_blind,
             ky_rx_commitment: self.ky_rx_commitment,
+            bridge_rx: self.bridge_rx.clone(),
+            bridge_rx_blind: self.bridge_rx_blind,
+            bridge_rx_commitment: self.bridge_rx_commitment,
             mu: self.mu,
             nu: self.nu,
             mu_prime: self.mu_prime,
@@ -469,6 +475,15 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let ky_rx_dummy_commitment =
             ky_rx_dummy_rx.commit(self.params.host_generators(), ky_rx_dummy_blind);
 
+        // Dummy bridge_rx commitment
+        let bridge_rx_dummy_rx = dummy::Circuit
+            .rx((), self.circuit_mesh.get_key())
+            .expect("should not fail")
+            .0;
+        let bridge_rx_dummy_blind = C::CircuitField::random(&mut *rng);
+        let bridge_rx_dummy_commitment =
+            bridge_rx_dummy_rx.commit(self.params.host_generators(), bridge_rx_dummy_blind);
+
         // Create a dummy proof to use for preamble witness.
         // The preamble witness needs proof references, but we're creating a trivial proof
         // from scratch, so we construct a dummy with placeholder values.
@@ -549,6 +564,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 ky_rx: ky_rx_dummy_rx.clone(),
                 ky_rx_blind: ky_rx_dummy_blind,
                 ky_rx_commitment: ky_rx_dummy_commitment,
+                bridge_rx: bridge_rx_dummy_rx.clone(),
+                bridge_rx_blind: bridge_rx_dummy_blind,
+                bridge_rx_commitment: bridge_rx_dummy_commitment,
                 mu: C::CircuitField::random(&mut *rng),
                 nu: C::CircuitField::random(&mut *rng),
                 mu_prime: C::CircuitField::random(&mut *rng),
@@ -625,6 +643,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             right_hashes_1: hashes_1_rx_dummy_commitment,
             left_hashes_2: hashes_2_rx_dummy_commitment,
             right_hashes_2: hashes_2_rx_dummy_commitment,
+            // placeholder for bridge circuit commitments
+            left_bridge: bridge_rx_dummy_commitment,
+            right_bridge: bridge_rx_dummy_commitment,
         };
 
         // Nested preamble rx polynomial
@@ -790,6 +811,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             right_application_ky: app_ky,
             left_unified_ky: unified_ky,
             right_unified_ky: unified_ky,
+            // Bridge k(y) for zero headers evaluates to ONE
+            left_bridge_ky: C::CircuitField::ONE,
+            right_bridge_ky: C::CircuitField::ONE,
             sponge_state_elements,
         };
         let native_error_n_rx =
@@ -1040,6 +1064,17 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let ky_rx_blind = C::CircuitField::random(&mut *rng);
         let ky_rx_commitment = ky_rx.commit(self.params.host_generators(), ky_rx_blind);
 
+        // Compute bridge_rx using the bridge circuit
+        let internal_circuit_bridge =
+            internal_circuits::bridge::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new();
+        let internal_circuit_bridge_witness = internal_circuits::bridge::Witness {
+            preamble_witness: &preamble_witness,
+        };
+        let (bridge_rx, _) = internal_circuit_bridge
+            .rx::<R>(internal_circuit_bridge_witness, self.circuit_mesh.get_key())?;
+        let bridge_rx_blind = C::CircuitField::random(&mut *rng);
+        let bridge_rx_commitment = bridge_rx.commit(self.params.host_generators(), bridge_rx_blind);
+
         Ok(Proof {
             preamble: PreambleProof {
                 native_preamble_rx,
@@ -1115,6 +1150,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 ky_rx,
                 ky_rx_blind,
                 ky_rx_commitment,
+                bridge_rx,
+                bridge_rx_blind,
+                bridge_rx_commitment,
                 mu,
                 nu,
                 mu_prime,

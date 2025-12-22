@@ -41,6 +41,10 @@ pub struct Witness<C: Cycle, FP: fold_revdot::Parameters> {
     pub left_unified_ky: C::CircuitField,
     /// k(y) for right unified circuit.
     pub right_unified_ky: C::CircuitField,
+    /// k(y) for left bridge circuit.
+    pub left_bridge_ky: C::CircuitField,
+    /// k(y) for right bridge circuit.
+    pub right_bridge_ky: C::CircuitField,
     /// Sponge state elements saved after absorbing nested_error_m_commitment.
     /// Used to bridge the Fiat-Shamir transcript between hashes_1 and hashes_2.
     pub sponge_state_elements:
@@ -73,6 +77,12 @@ pub struct Output<
     /// k(y) for right unified circuit.
     #[ragu(gadget)]
     pub right_unified_ky: Element<'dr, D>,
+    /// k(y) for left bridge circuit.
+    #[ragu(gadget)]
+    pub left_bridge_ky: Element<'dr, D>,
+    /// k(y) for right bridge circuit.
+    #[ragu(gadget)]
+    pub right_bridge_ky: Element<'dr, D>,
     /// Sponge state saved after absorbing nested_error_m_commitment.
     /// Used to bridge the Fiat-Shamir transcript between hashes_1 and hashes_2.
     #[ragu(gadget)]
@@ -93,10 +103,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
     type OutputKind = Kind![C::CircuitField; Output<'_, _, FP, C::CircuitPoseidon>];
 
     fn values() -> usize {
-        // N² - N error terms + N collapsed values + 4 ky values + sponge state elements
+        // N² - N error terms + N collapsed values + 6 ky values + sponge state elements
         ErrorTermsLen::<FP::N>::len()
             + FP::N::len()
-            + 4
+            + 6
             + PoseidonStateLen::<C::CircuitField, C::CircuitPoseidon>::len()
     }
 
@@ -120,6 +130,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
             Element::alloc(dr, witness.view().map(|w| w.right_application_ky))?;
         let left_unified_ky = Element::alloc(dr, witness.view().map(|w| w.left_unified_ky))?;
         let right_unified_ky = Element::alloc(dr, witness.view().map(|w| w.right_unified_ky))?;
+        let left_bridge_ky = Element::alloc(dr, witness.view().map(|w| w.left_bridge_ky))?;
+        let right_bridge_ky = Element::alloc(dr, witness.view().map(|w| w.right_bridge_ky))?;
         let sponge_state = SpongeState::from_elements(FixedVec::try_from_fn(|i| {
             Element::alloc(dr, witness.view().map(|w| w.sponge_state_elements[i]))
         })?);
@@ -131,6 +143,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
             right_application_ky,
             left_unified_ky,
             right_unified_ky,
+            left_bridge_ky,
+            right_bridge_ky,
             sponge_state,
         })
     }

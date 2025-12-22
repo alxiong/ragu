@@ -85,6 +85,18 @@ impl<'dr, D: Driver<'dr>, C: Cycle, const HEADER_SIZE: usize> ProofInputs<'dr, D
         Element::zero(dr).write(dr, &mut ky)?;
         ky.finish(dr)
     }
+
+    /// Compute k(y) for bridge circuit instance.
+    ///
+    /// The bridge instance is `(left_header, right_header, 0)` where the zero
+    /// discriminant prevents substitution with application circuits.
+    pub fn bridge_ky(&self, dr: &mut D, y: &Element<'dr, D>) -> Result<Element<'dr, D>> {
+        let mut ky = Ky::new(dr, y);
+        self.left_header.write(dr, &mut ky)?;
+        self.right_header.write(dr, &mut ky)?;
+        Element::zero(dr).write(dr, &mut ky)?;
+        ky.finish(dr)
+    }
 }
 
 impl<'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle, const HEADER_SIZE: usize>

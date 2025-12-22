@@ -21,14 +21,14 @@ impl<'a, 'dr, D: Driver<'dr>> Ky<'a, 'dr, D> {
     /// Returns the final k(y) value.
     pub fn finish(self, dr: &mut D) -> Result<Element<'dr, D>> {
         // Final Horner step: result = result * y + 1
-        Ok(self.result.mul(dr, &self.y)?.add(dr, &Element::one()))
+        Ok(self.result.mul(dr, self.y)?.add(dr, &Element::one()))
     }
 }
 
 impl<'a, 'dr, D: Driver<'dr>> Buffer<'dr, D> for Ky<'a, 'dr, D> {
     fn write(&mut self, dr: &mut D, value: &Element<'dr, D>) -> Result<()> {
         // Horner's step: result = result * y + value.
-        self.result = self.result.mul(dr, &self.y)?.add(dr, value);
+        self.result = self.result.mul(dr, self.y)?.add(dr, value);
 
         Ok(())
     }

@@ -130,6 +130,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             right_hashes_1: right.internal_circuits.hashes_1_rx_commitment,
             left_hashes_2: left.internal_circuits.hashes_2_rx_commitment,
             right_hashes_2: right.internal_circuits.hashes_2_rx_commitment,
+            left_bridge: left.internal_circuits.bridge_rx_commitment,
+            right_bridge: right.internal_circuits.bridge_rx_commitment,
         };
 
         // Compute the stage polynomial that commits to the `C::HostCurve`
@@ -187,7 +189,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let z = *sponge.squeeze(&mut dr)?.value().take();
 
         // Compute k(y) values for the folding claims
-        let (left_application_ky, right_application_ky, left_unified_ky, right_unified_ky) = {
+        let (
+            left_application_ky,
+            right_application_ky,
+            left_unified_ky,
+            right_unified_ky,
+            left_bridge_ky,
+            right_bridge_ky,
+        ) = {
             use ragu_circuits::staging::Stage;
 
             let preamble = Emulator::emulate_wireless(&preamble_witness, |dr, witness| {
@@ -202,6 +211,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     *preamble.right.application_ky(dr, &y)?.value().take(),
                     *preamble.left.unified_ky(dr, &y)?.value().take(),
                     *preamble.right.unified_ky(dr, &y)?.value().take(),
+                    *preamble.left.bridge_ky(dr, &y)?.value().take(),
+                    *preamble.right.bridge_ky(dr, &y)?.value().take(),
                 ))
             })?
         };
@@ -313,6 +324,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             right_application_ky,
             left_unified_ky,
             right_unified_ky,
+            left_bridge_ky,
+            right_bridge_ky,
             sponge_state_elements,
         };
         let native_error_n_rx =
@@ -553,6 +566,18 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let ky_rx_blind = C::CircuitField::random(&mut *rng);
         let ky_rx_commitment = ky_rx.commit(host_generators, ky_rx_blind);
 
+        // Bridge staged circuit.
+        let (bridge_rx, _) =
+            internal_circuits::bridge::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new()
+                .rx::<R>(
+                    internal_circuits::bridge::Witness {
+                        preamble_witness: &preamble_witness,
+                    },
+                    self.circuit_mesh.get_key(),
+                )?;
+        let bridge_rx_blind = C::CircuitField::random(&mut *rng);
+        let bridge_rx_commitment = bridge_rx.commit(host_generators, bridge_rx_blind);
+
         Ok((
             Proof {
                 preamble: PreambleProof {
@@ -653,6 +678,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     ky_rx,
                     ky_rx_blind,
                     ky_rx_commitment,
+                    bridge_rx,
+                    bridge_rx_blind,
+                    bridge_rx_commitment,
                     mu,
                     nu,
                     mu_prime,
