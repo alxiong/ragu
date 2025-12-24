@@ -180,6 +180,16 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
                 .right
                 .unified_ky(dr, &y)?
                 .enforce_equal(dr, &error_n.right_unified_ky)?;
+
+            preamble
+                .left
+                .unified_bridge_ky(dr, &y)?
+                .enforce_equal(dr, &error_n.left_unified_bridge_ky)?;
+
+            preamble
+                .right
+                .unified_bridge_ky(dr, &y)?
+                .enforce_equal(dr, &error_n.right_unified_bridge_ky)?;
         }
 
         // Absorb nested_error_m_commitment and verify saved sponge state

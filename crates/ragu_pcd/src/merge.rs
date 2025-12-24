@@ -88,8 +88,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let z = *sponge.squeeze(&mut dr)?.value().take();
 
         // Phase 4: K(y) values for the folding claims.
-        let (left_application_ky, right_application_ky, left_unified_ky, right_unified_ky) =
-            self.compute_ky_values(&preamble_witness, y)?;
+        let (
+            left_application_ky,
+            right_application_ky,
+            left_unified_ky,
+            right_unified_ky,
+            left_unified_bridge_ky,
+            right_unified_bridge_ky,
+        ) = self.compute_ky_values(&preamble_witness, y)?;
 
         // Phase 5: Mesh WY.
         let mesh_wy = self.compute_mesh_wy(rng, w, y);
@@ -132,6 +138,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             right_application_ky,
             left_unified_ky,
             right_unified_ky,
+            left_unified_bridge_ky,
+            right_unified_bridge_ky,
             mu,
             nu,
         )?;
@@ -148,6 +156,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             right_application_ky,
             left_unified_ky,
             right_unified_ky,
+            left_unified_bridge_ky,
+            right_unified_bridge_ky,
             sponge_state_elements,
         )?;
 
@@ -451,6 +461,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         C::CircuitField,
         C::CircuitField,
         C::CircuitField,
+        C::CircuitField,
+        C::CircuitField,
     )> {
         let preamble = Emulator::emulate_wireless(preamble_witness, |dr, witness| {
             stages::native::preamble::Stage::<C, R, HEADER_SIZE>::default().witness(dr, witness)
@@ -467,6 +479,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 *right_application.value().take(),
                 *preamble.left.unified_ky(dr, &y)?.value().take(),
                 *preamble.right.unified_ky(dr, &y)?.value().take(),
+                *preamble.left.unified_bridge_ky(dr, &y)?.value().take(),
+                *preamble.right.unified_bridge_ky(dr, &y)?.value().take(),
             ))
         })
     }
@@ -555,6 +569,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         right_application_ky: C::CircuitField,
         left_unified_ky: C::CircuitField,
         right_unified_ky: C::CircuitField,
+        left_unified_bridge_ky: C::CircuitField,
+        right_unified_bridge_ky: C::CircuitField,
         mu: C::CircuitField,
         nu: C::CircuitField,
     ) -> Result<FixedVec<C::CircuitField, <NativeParameters as fold_revdot::Parameters>::N>> {
@@ -567,6 +583,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 right_application_ky,
                 left_unified_ky,
                 right_unified_ky,
+                left_unified_bridge_ky,
+                right_unified_bridge_ky,
             ),
             |dr, witness| {
                 let (
@@ -577,6 +595,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     right_application_ky,
                     left_unified_ky,
                     right_unified_ky,
+                    left_unified_bridge_ky,
+                    right_unified_bridge_ky,
                 ) = witness.cast();
                 let mu = Element::alloc(dr, mu)?;
                 let nu = Element::alloc(dr, nu)?;
@@ -586,6 +606,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     Element::alloc(dr, right_application_ky)?,
                     Element::alloc(dr, left_unified_ky)?,
                     Element::alloc(dr, right_unified_ky)?,
+                    Element::alloc(dr, left_unified_bridge_ky)?,
+                    Element::alloc(dr, right_unified_bridge_ky)?,
                 ]
                 .into_iter();
 
@@ -615,6 +637,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         right_application_ky: C::CircuitField,
         left_unified_ky: C::CircuitField,
         right_unified_ky: C::CircuitField,
+        left_unified_bridge_ky: C::CircuitField,
+        right_unified_bridge_ky: C::CircuitField,
         sponge_state_elements: FixedVec<
             C::CircuitField,
             ragu_primitives::poseidon::PoseidonStateLen<C::CircuitField, C::CircuitPoseidon>,
@@ -639,6 +663,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             right_application_ky,
             left_unified_ky,
             right_unified_ky,
+            left_unified_bridge_ky,
+            right_unified_bridge_ky,
             sponge_state_elements,
         };
         let native_error_n_rx =

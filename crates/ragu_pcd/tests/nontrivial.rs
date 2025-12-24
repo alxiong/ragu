@@ -158,7 +158,9 @@ fn various_merging_operations() -> Result<()> {
         Fp::from(42u64),
     )?;
     let leaf1 = leaf1.0.carry(leaf1.1);
-    assert!(app.verify(&leaf1, &mut rng)?);
+    let result = app.verify(&leaf1, &mut rng)?;
+    println!("leaf1 verify result: {}", result);
+    assert!(result);
 
     let leaf2 = app.seed(
         &mut rng,
