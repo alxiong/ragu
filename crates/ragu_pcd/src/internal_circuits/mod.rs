@@ -20,22 +20,22 @@ pub use crate::components::fold_revdot::NativeParameters;
 #[derive(Clone, Copy, Debug)]
 #[repr(usize)]
 pub enum InternalCircuitIndex {
-    DummyCircuit = 0,
-    // Final stage objects
-    ErrorNFinalStaged = 1,
-    EvalFinalStaged = 2,
-    // Actual circuits
-    Hashes1Circuit = 3,
-    Hashes2Circuit = 4,
-    FoldCircuit = 5,
-    ComputeCCircuit = 6,
-    ComputeVCircuit = 7,
     // Native stages
-    PreambleStage = 8,
-    ErrorMStage = 9,
-    ErrorNStage = 10,
-    QueryStage = 11,
-    EvalStage = 12,
+    PreambleStage = 0,
+    ErrorMStage = 1,
+    ErrorNStage = 2,
+    QueryStage = 3,
+    EvalStage = 4,
+    // Final stage objects
+    ErrorNFinalStaged = 5,
+    EvalFinalStaged = 6,
+    // Actual circuits
+    DummyCircuit = 7,
+    Hashes1Circuit = 8,
+    Hashes2Circuit = 9,
+    FoldCircuit = 10,
+    ComputeCCircuit = 11,
+    ComputeVCircuit = 12,
 }
 
 /// The number of internal circuits registered by [`register_all`],
@@ -64,51 +64,6 @@ pub fn register_all<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>(
     log2_circuits: u32,
 ) -> Result<MeshBuilder<'params, C::CircuitField, R>> {
     let initial_num_circuits = mesh.num_circuits();
-
-    // Insert the dummy circuit.
-    mesh = mesh.register_circuit(dummy::Circuit)?;
-
-    // Insert the "final stage polynomials" for each stage.
-    //
-    // These are sometimes shared by multiple circuits. Each unique `Final`
-    // stage is only registered once here.
-    {
-        // preamble -> error_m -> error_n -> [CIRCUIT]
-        mesh = mesh.register_circuit_object(stages::native::error_n::Stage::<
-            C,
-            R,
-            HEADER_SIZE,
-            NativeParameters,
-        >::final_into_object()?)?;
-
-        // preamble -> query -> eval -> [CIRCUIT]
-        mesh = mesh.register_circuit_object(
-            stages::native::eval::Stage::<C, R, HEADER_SIZE>::final_into_object()?,
-        )?;
-    }
-
-    // Insert the internal circuits.
-    {
-        // hashes_1
-        mesh = mesh.register_circuit(
-            hashes_1::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new(params, log2_circuits),
-        )?;
-
-        // hashes_2
-        mesh = mesh.register_circuit(
-            hashes_2::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new(params),
-        )?;
-
-        // fold
-        mesh = mesh.register_circuit(fold::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new())?;
-
-        // compute_c
-        mesh = mesh
-            .register_circuit(compute_c::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new())?;
-
-        // compute_v
-        mesh = mesh.register_circuit(compute_v::Circuit::<C, R, HEADER_SIZE>::new())?;
-    }
 
     // Insert the stages.
     {
@@ -142,6 +97,51 @@ pub fn register_all<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>(
         mesh = mesh.register_circuit_object(
             stages::native::eval::Stage::<C, R, HEADER_SIZE>::into_object()?,
         )?;
+    }
+
+    // Insert the "final stage polynomials" for each stage.
+    //
+    // These are sometimes shared by multiple circuits. Each unique `Final`
+    // stage is only registered once here.
+    {
+        // preamble -> error_m -> error_n -> [CIRCUIT]
+        mesh = mesh.register_circuit_object(stages::native::error_n::Stage::<
+            C,
+            R,
+            HEADER_SIZE,
+            NativeParameters,
+        >::final_into_object()?)?;
+
+        // preamble -> query -> eval -> [CIRCUIT]
+        mesh = mesh.register_circuit_object(
+            stages::native::eval::Stage::<C, R, HEADER_SIZE>::final_into_object()?,
+        )?;
+    }
+
+    // Insert the internal circuits.
+    {
+        // dummy
+        mesh = mesh.register_circuit(dummy::Circuit)?;
+
+        // hashes_1
+        mesh = mesh.register_circuit(
+            hashes_1::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new(params, log2_circuits),
+        )?;
+
+        // hashes_2
+        mesh = mesh.register_circuit(
+            hashes_2::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new(params),
+        )?;
+
+        // fold
+        mesh = mesh.register_circuit(fold::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new())?;
+
+        // compute_c
+        mesh = mesh
+            .register_circuit(compute_c::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new())?;
+
+        // compute_v
+        mesh = mesh.register_circuit(compute_v::Circuit::<C, R, HEADER_SIZE>::new())?;
     }
 
     // Verify we registered the expected number of circuits.
