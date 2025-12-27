@@ -105,16 +105,16 @@ pub mod nested {
         native_preamble: C,
         left_application: C,
         right_application: C,
+        left_hashes_1: C,
+        right_hashes_1: C,
+        left_hashes_2: C,
+        right_hashes_2: C,
         left_partial_collapse: C,
         right_partial_collapse: C,
         left_full_collapse: C,
         right_full_collapse: C,
         left_compute_v: C,
         right_compute_v: C,
-        left_hashes_1: C,
-        right_hashes_1: C,
-        left_hashes_2: C,
-        right_hashes_2: C,
     });
 
     define_nested_stage!(s_prime, parent = (), fields = {

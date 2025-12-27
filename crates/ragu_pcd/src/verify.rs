@@ -58,24 +58,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             internal_circuits::stages::native::eval::STAGING_ID,
         );
 
-        // Internal circuit full_collapse verification
-        let full_collapse_stage_valid = verifier.check_stage(
-            &pcd.proof.circuits.full_collapse_rx,
-            internal_circuits::full_collapse::STAGED_ID,
-        );
-
-        // Internal circuit compute_v verification
-        let v_stage_valid = verifier.check_stage(
-            &pcd.proof.circuits.compute_v_rx,
-            internal_circuits::compute_v::STAGED_ID,
-        );
-
-        // Internal circuit partial collapse stage verification
-        let partial_collapse_stage_valid = verifier.check_stage(
-            &pcd.proof.circuits.partial_collapse_rx,
-            internal_circuits::partial_collapse::STAGED_ID,
-        );
-
         // Internal circuit hashes_1 stage verification
         let hashes_1_stage_valid = verifier.check_stage(
             &pcd.proof.circuits.hashes_1_rx,
@@ -86,6 +68,24 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let hashes_2_stage_valid = verifier.check_stage(
             &pcd.proof.circuits.hashes_2_rx,
             internal_circuits::hashes_2::STAGED_ID,
+        );
+
+        // Internal circuit partial_collapse stage verification
+        let partial_collapse_stage_valid = verifier.check_stage(
+            &pcd.proof.circuits.partial_collapse_rx,
+            internal_circuits::partial_collapse::STAGED_ID,
+        );
+
+        // Internal circuit full_collapse verification
+        let full_collapse_stage_valid = verifier.check_stage(
+            &pcd.proof.circuits.full_collapse_rx,
+            internal_circuits::full_collapse::STAGED_ID,
+        );
+
+        // Internal circuit compute_v verification
+        let v_stage_valid = verifier.check_stage(
+            &pcd.proof.circuits.compute_v_rx,
+            internal_circuits::compute_v::STAGED_ID,
         );
 
         // Compute unified k(Y), unified_bridge k(Y), and application k(Y).
@@ -190,16 +190,16 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             && error_n_valid
             && query_valid
             && eval_valid
-            && full_collapse_stage_valid
-            && v_stage_valid
-            && partial_collapse_stage_valid
             && hashes_1_stage_valid
             && hashes_2_stage_valid
-            && full_collapse_circuit_valid
-            && v_circuit_valid
+            && partial_collapse_stage_valid
+            && full_collapse_stage_valid
+            && v_stage_valid
             && hashes_1_circuit_valid
             && hashes_2_circuit_valid
             && partial_collapse_circuit_valid
+            && full_collapse_circuit_valid
+            && v_circuit_valid
             && application_circuit_valid)
     }
 }
