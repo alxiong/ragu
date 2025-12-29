@@ -9,7 +9,6 @@ use ragu_core::{
     gadgets::{Gadget, GadgetKind},
     maybe::Maybe,
 };
-use ragu_primitives::Element;
 
 use core::marker::PhantomData;
 
@@ -105,14 +104,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
             let computed_c =
                 fold_c.compute_n::<FP>(dr, &error_n.error_terms, &error_n.collapsed)?;
 
-            // Get the witnessed C from the instance.
-            let witnessed_c = Element::alloc(dr, unified_instance.view().map(|i| i.c))?;
+            // Get the witnessed C from the instance (fills the slot).
+            let witnessed_c = unified_output.c.get(dr, unified_instance)?;
 
             // Base case bypass: when both children are trivial, allow prover to substitute a C value.
             let c = is_base.conditional_select(dr, &witnessed_c, &computed_c)?;
-            c.enforce_equal(dr, &witnessed_c)?;
-
-            unified_output.c.set(witnessed_c);
+            c.enforce_equal(dr, &computed_c)?;
         }
 
         Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
