@@ -164,6 +164,10 @@ struct Denominators<'dr, D: Driver<'dr>> {
     internal_partial_collapse_circuit: Element<'dr, D>,
     internal_full_collapse_circuit: Element<'dr, D>,
     internal_compute_v_circuit: Element<'dr, D>,
+
+    // Child proof circuit_id denominators
+    left_circuit_id: Element<'dr, D>,
+    right_circuit_id: Element<'dr, D>,
 }
 
 impl<'dr, D: Driver<'dr>> Denominators<'dr, D> {
@@ -209,6 +213,8 @@ impl<'dr, D: Driver<'dr>> Denominators<'dr, D> {
             internal_partial_collapse_circuit: internal_denom(dr, PartialCollapseCircuit)?,
             internal_full_collapse_circuit:    internal_denom(dr, FullCollapseCircuit)?,
             internal_compute_v_circuit:        internal_denom(dr, ComputeVCircuit)?,
+            left_circuit_id:  u.sub(dr, &preamble.left.circuit_id).invert(dr)?,
+            right_circuit_id: u.sub(dr, &preamble.right.circuit_id).invert(dr)?,
         })
     }
 }
@@ -252,6 +258,9 @@ fn poly_queries<'a, 'dr, D: Driver<'dr>, C: Cycle, const HEADER_SIZE: usize>(
         (&eval.mesh_xy,            &query.fixed_mesh.partial_collapse_circuit, &d.internal_partial_collapse_circuit),
         (&eval.mesh_xy,            &query.fixed_mesh.full_collapse_circuit,    &d.internal_full_collapse_circuit),
         (&eval.mesh_xy,            &query.fixed_mesh.compute_v_circuit,        &d.internal_compute_v_circuit),
+        // Verify new_mesh_xy at child proof circuit_ids
+        (&eval.mesh_xy,            &query.left.new_mesh_xy_at_old_circuit_id,  &d.left_circuit_id),
+        (&eval.mesh_xy,            &query.right.new_mesh_xy_at_old_circuit_id, &d.right_circuit_id),
     ]
     .into_iter()
 }

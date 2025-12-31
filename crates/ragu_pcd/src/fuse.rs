@@ -1093,6 +1093,15 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 omega_j(FullCollapseCircuit),
             ),
             factor_iter(query.mesh_xy_poly.iter_coeffs(), omega_j(ComputeVCircuit)),
+            // Mesh polynomial queries at child proof circuit_ids
+            factor_iter(
+                query.mesh_xy_poly.iter_coeffs(),
+                left.application.circuit_id.omega_j(),
+            ),
+            factor_iter(
+                query.mesh_xy_poly.iter_coeffs(),
+                right.application.circuit_id.omega_j(),
+            ),
         ];
 
         let mut coeffs = Vec::new();
