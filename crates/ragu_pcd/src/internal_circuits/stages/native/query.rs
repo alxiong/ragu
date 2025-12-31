@@ -1,43 +1,289 @@
 //! Query stage for fuse operations.
 
 use arithmetic::Cycle;
-use ragu_circuits::{polynomials::Rank, staging};
+use ff::PrimeField;
+use ragu_circuits::{
+    polynomials::{Rank, structured, unstructured},
+    staging,
+};
 use ragu_core::{
     Result,
     drivers::{Driver, DriverValue},
     gadgets::{Gadget, GadgetKind, Kind},
     maybe::Maybe,
 };
-use ragu_primitives::{
-    Element,
-    vec::{CollectFixed, FixedVec, Len},
-};
+use ragu_primitives::{Element, io::Write};
 
 use core::marker::PhantomData;
 
+use crate::{internal_circuits::NUM_INTERNAL_CIRCUITS, proof::Proof};
+
 pub use crate::internal_circuits::InternalCircuitIndex::QueryStage as STAGING_ID;
 
-/// The number of query elements in the query stage.
-pub struct Queries;
+/// Number of polynomial evaluations per child proof.
+const NUM_EVALS_PER_CHILD: usize = 22;
 
-impl Len for Queries {
-    fn len() -> usize {
-        5
+/// Pre-computed evaluations of mesh_xy at each internal circuit's omega^j.
+pub struct FixedMeshWitness<F> {
+    pub preamble_stage: F,
+    pub error_m_stage: F,
+    pub error_n_stage: F,
+    pub query_stage: F,
+    pub eval_stage: F,
+    pub error_n_final_staged: F,
+    pub eval_final_staged: F,
+    pub hashes_1_circuit: F,
+    pub hashes_2_circuit: F,
+    pub partial_collapse_circuit: F,
+    pub full_collapse_circuit: F,
+    pub compute_v_circuit: F,
+}
+
+/// Witness for a child proof's polynomial evaluations.
+pub struct ChildEvaluationsWitness<F> {
+    pub preamble_at_x: F,
+    pub error_m_at_x: F,
+    pub error_n_at_x: F,
+    pub query_at_x: F,
+    pub eval_at_x: F,
+    pub a_poly_at_x: F,
+    pub b_poly_at_x: F,
+    pub old_mesh_xy_at_new_w: F,
+    pub new_mesh_xy_at_old_circuit_id: F,
+    pub new_mesh_wy_at_old_x: F,
+    pub application_at_x: F,
+    pub hashes_1_at_x: F,
+    pub hashes_2_at_x: F,
+    pub partial_collapse_at_x: F,
+    pub full_collapse_at_x: F,
+    pub compute_v_at_x: F,
+    pub application_at_xz: F,
+    pub hashes_1_at_xz: F,
+    pub hashes_2_at_xz: F,
+    pub partial_collapse_at_xz: F,
+    pub full_collapse_at_xz: F,
+    pub compute_v_at_xz: F,
+}
+
+impl<F: PrimeField> ChildEvaluationsWitness<F> {
+    /// Create child evaluations witness from a proof evaluated at the given points.
+    pub fn from_proof<C: Cycle<CircuitField = F>, R: Rank>(
+        proof: &Proof<C, R>,
+        w: F,
+        x: F,
+        xz: F,
+        mesh_xy: &unstructured::Polynomial<F, R>,
+        mesh_wy: &structured::Polynomial<F, R>,
+    ) -> Self {
+        ChildEvaluationsWitness {
+            preamble_at_x: proof.preamble.stage_rx.eval(x),
+            error_m_at_x: proof.error_m.stage_rx.eval(x),
+            error_n_at_x: proof.error_n.stage_rx.eval(x),
+            query_at_x: proof.query.stage_rx.eval(x),
+            eval_at_x: proof.eval.stage_rx.eval(x),
+            a_poly_at_x: proof.ab.a_poly.eval(x),
+            b_poly_at_x: proof.ab.b_poly.eval(x),
+            old_mesh_xy_at_new_w: proof.query.mesh_xy_poly.eval(w),
+            new_mesh_xy_at_old_circuit_id: mesh_xy.eval(proof.application.circuit_id.omega_j()),
+            new_mesh_wy_at_old_x: mesh_wy.eval(proof.challenges.x),
+            application_at_x: proof.application.rx.eval(x),
+            hashes_1_at_x: proof.circuits.hashes_1_rx.eval(x),
+            hashes_2_at_x: proof.circuits.hashes_2_rx.eval(x),
+            partial_collapse_at_x: proof.circuits.partial_collapse_rx.eval(x),
+            full_collapse_at_x: proof.circuits.full_collapse_rx.eval(x),
+            compute_v_at_x: proof.circuits.compute_v_rx.eval(x),
+            application_at_xz: proof.application.rx.eval(xz),
+            hashes_1_at_xz: proof.circuits.hashes_1_rx.eval(xz),
+            hashes_2_at_xz: proof.circuits.hashes_2_rx.eval(xz),
+            partial_collapse_at_xz: proof.circuits.partial_collapse_rx.eval(xz),
+            full_collapse_at_xz: proof.circuits.full_collapse_rx.eval(xz),
+            compute_v_at_xz: proof.circuits.compute_v_rx.eval(xz),
+        }
     }
 }
 
 /// Witness data for the query stage.
 pub struct Witness<C: Cycle> {
-    /// Query elements.
-    pub queries: FixedVec<C::CircuitField, Queries>,
+    /// Pre-computed mesh_xy evaluations at each internal circuit's omega^j.
+    pub fixed_mesh: FixedMeshWitness<C::CircuitField>,
+    /// m(w, x, y) - verifies mesh_xy/mesh_wy consistency at current coordinates.
+    pub mesh_wxy: C::CircuitField,
+    /// Left child proof polynomial evaluations.
+    pub left: ChildEvaluationsWitness<C::CircuitField>,
+    /// Right child proof polynomial evaluations.
+    pub right: ChildEvaluationsWitness<C::CircuitField>,
+}
+
+/// Evaluations of mesh_xy at each internal circuit's circuit_id (omega^j).
+#[derive(Gadget, Write)]
+pub struct FixedMeshEvaluations<'dr, D: Driver<'dr>> {
+    #[ragu(gadget)]
+    pub preamble_stage: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub error_m_stage: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub error_n_stage: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub query_stage: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub eval_stage: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub error_n_final_staged: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub eval_final_staged: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub hashes_1_circuit: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub hashes_2_circuit: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub partial_collapse_circuit: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub full_collapse_circuit: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub compute_v_circuit: Element<'dr, D>,
+}
+
+impl<'dr, D: Driver<'dr>> FixedMeshEvaluations<'dr, D> {
+    /// Allocate fixed mesh evaluations from pre-computed witness values.
+    pub fn alloc(dr: &mut D, witness: DriverValue<D, &FixedMeshWitness<D::F>>) -> Result<Self> {
+        Ok(FixedMeshEvaluations {
+            preamble_stage: Element::alloc(dr, witness.view().map(|w| w.preamble_stage))?,
+            error_m_stage: Element::alloc(dr, witness.view().map(|w| w.error_m_stage))?,
+            error_n_stage: Element::alloc(dr, witness.view().map(|w| w.error_n_stage))?,
+            query_stage: Element::alloc(dr, witness.view().map(|w| w.query_stage))?,
+            eval_stage: Element::alloc(dr, witness.view().map(|w| w.eval_stage))?,
+            error_n_final_staged: Element::alloc(
+                dr,
+                witness.view().map(|w| w.error_n_final_staged),
+            )?,
+            eval_final_staged: Element::alloc(dr, witness.view().map(|w| w.eval_final_staged))?,
+            hashes_1_circuit: Element::alloc(dr, witness.view().map(|w| w.hashes_1_circuit))?,
+            hashes_2_circuit: Element::alloc(dr, witness.view().map(|w| w.hashes_2_circuit))?,
+            partial_collapse_circuit: Element::alloc(
+                dr,
+                witness.view().map(|w| w.partial_collapse_circuit),
+            )?,
+            full_collapse_circuit: Element::alloc(
+                dr,
+                witness.view().map(|w| w.full_collapse_circuit),
+            )?,
+            compute_v_circuit: Element::alloc(dr, witness.view().map(|w| w.compute_v_circuit))?,
+        })
+    }
+}
+
+/// Gadget for a child proof's polynomial evaluations.
+#[derive(Gadget, Write)]
+pub struct ChildEvaluations<'dr, D: Driver<'dr>> {
+    #[ragu(gadget)]
+    pub preamble_at_x: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub error_m_at_x: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub error_n_at_x: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub query_at_x: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub eval_at_x: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub a_poly_at_x: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub b_poly_at_x: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub old_mesh_xy_at_new_w: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub new_mesh_xy_at_old_circuit_id: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub new_mesh_wy_at_old_x: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub application_at_x: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub hashes_1_at_x: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub hashes_2_at_x: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub partial_collapse_at_x: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub full_collapse_at_x: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub compute_v_at_x: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub application_at_xz: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub hashes_1_at_xz: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub hashes_2_at_xz: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub partial_collapse_at_xz: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub full_collapse_at_xz: Element<'dr, D>,
+    #[ragu(gadget)]
+    pub compute_v_at_xz: Element<'dr, D>,
+}
+
+impl<'dr, D: Driver<'dr>> ChildEvaluations<'dr, D> {
+    /// Allocate child evaluations from pre-computed witness values.
+    pub fn alloc(
+        dr: &mut D,
+        witness: DriverValue<D, &ChildEvaluationsWitness<D::F>>,
+    ) -> Result<Self> {
+        Ok(ChildEvaluations {
+            preamble_at_x: Element::alloc(dr, witness.view().map(|w| w.preamble_at_x))?,
+            error_m_at_x: Element::alloc(dr, witness.view().map(|w| w.error_m_at_x))?,
+            error_n_at_x: Element::alloc(dr, witness.view().map(|w| w.error_n_at_x))?,
+            query_at_x: Element::alloc(dr, witness.view().map(|w| w.query_at_x))?,
+            eval_at_x: Element::alloc(dr, witness.view().map(|w| w.eval_at_x))?,
+            a_poly_at_x: Element::alloc(dr, witness.view().map(|w| w.a_poly_at_x))?,
+            b_poly_at_x: Element::alloc(dr, witness.view().map(|w| w.b_poly_at_x))?,
+            old_mesh_xy_at_new_w: Element::alloc(
+                dr,
+                witness.view().map(|w| w.old_mesh_xy_at_new_w),
+            )?,
+            new_mesh_xy_at_old_circuit_id: Element::alloc(
+                dr,
+                witness.view().map(|w| w.new_mesh_xy_at_old_circuit_id),
+            )?,
+            new_mesh_wy_at_old_x: Element::alloc(
+                dr,
+                witness.view().map(|w| w.new_mesh_wy_at_old_x),
+            )?,
+            application_at_x: Element::alloc(dr, witness.view().map(|w| w.application_at_x))?,
+            hashes_1_at_x: Element::alloc(dr, witness.view().map(|w| w.hashes_1_at_x))?,
+            hashes_2_at_x: Element::alloc(dr, witness.view().map(|w| w.hashes_2_at_x))?,
+            partial_collapse_at_x: Element::alloc(
+                dr,
+                witness.view().map(|w| w.partial_collapse_at_x),
+            )?,
+            full_collapse_at_x: Element::alloc(dr, witness.view().map(|w| w.full_collapse_at_x))?,
+            compute_v_at_x: Element::alloc(dr, witness.view().map(|w| w.compute_v_at_x))?,
+            application_at_xz: Element::alloc(dr, witness.view().map(|w| w.application_at_xz))?,
+            hashes_1_at_xz: Element::alloc(dr, witness.view().map(|w| w.hashes_1_at_xz))?,
+            hashes_2_at_xz: Element::alloc(dr, witness.view().map(|w| w.hashes_2_at_xz))?,
+            partial_collapse_at_xz: Element::alloc(
+                dr,
+                witness.view().map(|w| w.partial_collapse_at_xz),
+            )?,
+            full_collapse_at_xz: Element::alloc(dr, witness.view().map(|w| w.full_collapse_at_xz))?,
+            compute_v_at_xz: Element::alloc(dr, witness.view().map(|w| w.compute_v_at_xz))?,
+        })
+    }
 }
 
 /// Output gadget for the query stage.
-#[derive(Gadget)]
+#[derive(Gadget, Write)]
 pub struct Output<'dr, D: Driver<'dr>> {
-    /// Query elements.
+    /// Fixed mesh evaluations at each internal circuit's omega^j.
     #[ragu(gadget)]
-    pub queries: FixedVec<Element<'dr, D>, Queries>,
+    pub fixed_mesh: FixedMeshEvaluations<'dr, D>,
+    /// m(w, x, y) - verifies mesh_xy/mesh_wy consistency at current coordinates.
+    #[ragu(gadget)]
+    pub mesh_wxy: Element<'dr, D>,
+    /// Left child proof polynomial evaluations.
+    #[ragu(gadget)]
+    pub left: ChildEvaluations<'dr, D>,
+    /// Right child proof polynomial evaluations.
+    #[ragu(gadget)]
+    pub right: ChildEvaluations<'dr, D>,
 }
 
 /// The query stage of the fuse witness.
@@ -54,7 +300,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> staging::Stage<C::CircuitField
     type OutputKind = Kind![C::CircuitField; Output<'_, _>];
 
     fn values() -> usize {
-        Queries::len()
+        NUM_INTERNAL_CIRCUITS + 1 + 2 * NUM_EVALS_PER_CHILD
     }
 
     fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = C::CircuitField>>(
@@ -65,9 +311,15 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> staging::Stage<C::CircuitField
     where
         Self: 'dr,
     {
-        let queries = Queries::range()
-            .map(|i| Element::alloc(dr, witness.view().map(|w| w.queries[i])))
-            .try_collect_fixed()?;
-        Ok(Output { queries })
+        let fixed_mesh = FixedMeshEvaluations::alloc(dr, witness.view().map(|w| &w.fixed_mesh))?;
+        let mesh_wxy = Element::alloc(dr, witness.view().map(|w| w.mesh_wxy))?;
+        let left = ChildEvaluations::alloc(dr, witness.view().map(|w| &w.left))?;
+        let right = ChildEvaluations::alloc(dr, witness.view().map(|w| &w.right))?;
+        Ok(Output {
+            fixed_mesh,
+            mesh_wxy,
+            left,
+            right,
+        })
     }
 }

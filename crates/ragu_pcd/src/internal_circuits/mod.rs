@@ -223,7 +223,7 @@ mod test_params {
         check_constraints!(Hashes2Circuit,         mul = 2047, lin = 2952);
         check_constraints!(PartialCollapseCircuit, mul = 1891, lin = 2650);
         check_constraints!(FullCollapseCircuit,    mul = 1876, lin = 2620);
-        check_constraints!(ComputeVCircuit,        mul = 331,  lin = 347);
+        check_constraints!(ComputeVCircuit,        mul = 357,  lin = 347);
     }
 
     #[rustfmt::skip]
@@ -239,8 +239,8 @@ mod test_params {
         check_stage!(Preamble, skip =   0, num = 141);
         check_stage!(ErrorM,   skip = 141, num = 270);
         check_stage!(ErrorN,   skip = 411, num = 168);
-        check_stage!(Query,    skip = 141, num =   3);
-        check_stage!(Eval,     skip = 144, num =  18);
+        check_stage!(Query,    skip = 141, num =  29);
+        check_stage!(Eval,     skip = 170, num =  18);
     }
 
     /// Helper test to print current constraint counts in copy-pasteable format.

@@ -1,4 +1,4 @@
-use arithmetic::{Cycle, PrimeFieldExt};
+use arithmetic::Cycle;
 use ff::{Field, PrimeField};
 use ragu_circuits::{
     CircuitExt,
@@ -230,7 +230,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         Point::constant(&mut dr, ab.nested_commitment)?.write(&mut dr, &mut transcript)?;
         let x = transcript.squeeze(&mut dr)?;
 
-        let (query, query_witness) = self.compute_query(rng, &x, &y)?;
+        let (query, query_witness) =
+            self.compute_query(rng, &w, &x, &y, &z, &error_m, &left, &right)?;
         Point::constant(&mut dr, query.nested_commitment)?.write(&mut dr, &mut transcript)?;
         let alpha = transcript.squeeze(&mut dr)?;
 
@@ -924,8 +925,13 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     fn compute_query<'dr, D, RNG: Rng>(
         &self,
         rng: &mut RNG,
+        w: &Element<'dr, D>,
         x: &Element<'dr, D>,
         y: &Element<'dr, D>,
+        z: &Element<'dr, D>,
+        error_m: &ErrorMProof<C, R>,
+        left: &Proof<C, R>,
+        right: &Proof<C, R>,
     ) -> Result<(
         QueryProof<C, R>,
         internal_circuits::stages::native::query::Witness<C>,
@@ -933,8 +939,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     where
         D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
     {
+        use InternalCircuitIndex::*;
+        use internal_circuits::stages::native::query;
+
+        let w = *w.value().take();
         let x = *x.value().take();
         let y = *y.value().take();
+        let z = *z.value().take();
+        let xz = x * z;
 
         // Compute mesh_xy components
         let mesh_xy_poly = self.circuit_mesh.xy(x, y);
@@ -942,14 +954,47 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let mesh_xy_commitment =
             mesh_xy_poly.commit(C::host_generators(self.params), mesh_xy_blind);
 
-        // Query stage commitment
-        let query_witness = internal_circuits::stages::native::query::Witness {
-            queries: FixedVec::from_fn(|_| C::CircuitField::todo()),
+        // Compute mesh_xy evaluations at each internal circuit's omega^j
+        let mesh_at = |idx: InternalCircuitIndex| -> C::CircuitField {
+            let circuit_id = idx.circuit_index(self.num_application_steps);
+            mesh_xy_poly.eval(circuit_id.omega_j())
         };
 
-        let stage_rx = internal_circuits::stages::native::query::Stage::<C, R, HEADER_SIZE>::rx(
-            &query_witness,
-        )?;
+        let query_witness = query::Witness {
+            fixed_mesh: query::FixedMeshWitness {
+                preamble_stage: mesh_at(PreambleStage),
+                error_m_stage: mesh_at(ErrorMStage),
+                error_n_stage: mesh_at(ErrorNStage),
+                query_stage: mesh_at(QueryStage),
+                eval_stage: mesh_at(EvalStage),
+                error_n_final_staged: mesh_at(ErrorNFinalStaged),
+                eval_final_staged: mesh_at(EvalFinalStaged),
+                hashes_1_circuit: mesh_at(Hashes1Circuit),
+                hashes_2_circuit: mesh_at(Hashes2Circuit),
+                partial_collapse_circuit: mesh_at(PartialCollapseCircuit),
+                full_collapse_circuit: mesh_at(FullCollapseCircuit),
+                compute_v_circuit: mesh_at(ComputeVCircuit),
+            },
+            mesh_wxy: mesh_xy_poly.eval(w),
+            left: query::ChildEvaluationsWitness::from_proof(
+                left,
+                w,
+                x,
+                xz,
+                &mesh_xy_poly,
+                &error_m.mesh_wy_poly,
+            ),
+            right: query::ChildEvaluationsWitness::from_proof(
+                right,
+                w,
+                x,
+                xz,
+                &mesh_xy_poly,
+                &error_m.mesh_wy_poly,
+            ),
+        };
+
+        let stage_rx = query::Stage::<C, R, HEADER_SIZE>::rx(&query_witness)?;
         let stage_blind = C::CircuitField::random(&mut *rng);
         let stage_commitment = stage_rx.commit(C::host_generators(self.params), stage_blind);
 
