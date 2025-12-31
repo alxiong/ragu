@@ -243,7 +243,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         Point::constant(&mut dr, eval.nested_commitment)?.write(&mut dr, &mut transcript)?;
         let beta = transcript.squeeze(&mut dr)?;
 
-        let p = self.compute_p(rng, &u)?;
+        let p = self.compute_p(
+            rng, &beta, &u, &left, &right, &s_prime, &error_m, &ab, &query,
+        )?;
 
         let challenges = Challenges::new(
             &w, &y, &z, &mu, &nu, &mu_prime, &nu_prime, &x, &alpha, &u, &beta,
@@ -784,24 +786,65 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     }
 
     /// Compute the $P$ polynomial proof.
-    ///
-    /// Creates a random polynomial $p(X)$, commits it with native and nested
-    /// layers, and computes $v = p(u)$.
     fn compute_p<'dr, D, RNG: Rng>(
         &self,
         rng: &mut RNG,
+        beta: &Element<'dr, D>,
         u: &Element<'dr, D>,
+        left: &Proof<C, R>,
+        right: &Proof<C, R>,
+        s_prime: &SPrimeProof<C, R>,
+        error_m: &ErrorMProof<C, R>,
+        ab: &ABProof<C, R>,
+        query: &QueryProof<C, R>,
     ) -> Result<PProof<C, R>>
     where
         D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
     {
-        // Create random polynomial p(X)
-        let poly = unstructured::Polynomial::<C::CircuitField, R>::random(&mut *rng);
+        let beta = *beta.value().take();
+        let u = *u.value().take();
+
+        let mut poly = unstructured::Polynomial::new();
+
+        let acc_s = |p: &mut unstructured::Polynomial<_, _>, term| {
+            p.scale(beta);
+            p.add_structured(term);
+        };
+        let acc_u = |p: &mut unstructured::Polynomial<_, _>, term| {
+            p.scale(beta);
+            p.add_assign(term);
+        };
+
+        for proof in [left, right] {
+            acc_s(&mut poly, &proof.application.rx);
+            acc_s(&mut poly, &proof.preamble.stage_rx);
+            acc_s(&mut poly, &proof.error_m.stage_rx);
+            acc_s(&mut poly, &proof.error_n.stage_rx);
+            acc_s(&mut poly, &proof.ab.a_poly);
+            acc_s(&mut poly, &proof.ab.b_poly);
+            acc_s(&mut poly, &proof.query.stage_rx);
+            acc_u(&mut poly, &proof.query.mesh_xy_poly);
+            acc_s(&mut poly, &proof.eval.stage_rx);
+            acc_u(&mut poly, &proof.p.poly);
+            acc_s(&mut poly, &proof.circuits.hashes_1_rx);
+            acc_s(&mut poly, &proof.circuits.hashes_2_rx);
+            acc_s(&mut poly, &proof.circuits.partial_collapse_rx);
+            acc_s(&mut poly, &proof.circuits.full_collapse_rx);
+            acc_s(&mut poly, &proof.circuits.compute_v_rx);
+        }
+
+        acc_u(&mut poly, &s_prime.mesh_wx0_poly);
+        acc_u(&mut poly, &s_prime.mesh_wx1_poly);
+        acc_s(&mut poly, &error_m.mesh_wy_poly);
+        acc_s(&mut poly, &ab.a_poly);
+        acc_s(&mut poly, &ab.b_poly);
+        acc_u(&mut poly, &query.mesh_xy_poly);
+
         let blind = C::CircuitField::random(&mut *rng);
         let commitment = poly.commit(C::host_generators(self.params), blind);
 
         // Compute v = p(u)
-        let v = poly.eval(*u.value().take());
+        let v = poly.eval(u);
 
         Ok(PProof {
             poly,
