@@ -238,7 +238,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         Point::constant(&mut dr, f.nested_commitment)?.write(&mut dr, &mut transcript)?;
         let u = transcript.squeeze(&mut dr)?;
 
-        let (eval, eval_witness) = self.compute_eval(rng)?;
+        let (eval, eval_witness) =
+            self.compute_eval(rng, &u, &left, &right, &s_prime, &error_m, &ab, &query)?;
         Point::constant(&mut dr, eval.nested_commitment)?.write(&mut dr, &mut transcript)?;
         let beta = transcript.squeeze(&mut dr)?;
 
@@ -958,16 +959,32 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         })
     }
 
-    /// Compute the eval proof.
-    fn compute_eval<RNG: Rng>(
+    /// Commit to the evaluations of various polynomials at point $u$.
+    fn compute_eval<'a, 'dr, D, RNG: Rng>(
         &self,
         rng: &mut RNG,
+        u: &Element<'dr, D>,
+        left: &'a Proof<C, R>,
+        right: &'a Proof<C, R>,
+        s_prime: &'a SPrimeProof<C, R>,
+        error_m: &'a ErrorMProof<C, R>,
+        ab: &'a ABProof<C, R>,
+        query: &'a QueryProof<C, R>,
     ) -> Result<(
         EvalProof<C, R>,
-        internal_circuits::stages::native::eval::Witness<C::CircuitField>,
-    )> {
+        internal_circuits::stages::native::eval::Witness<'a, C, R>,
+    )>
+    where
+        D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
+    {
         let eval_witness = internal_circuits::stages::native::eval::Witness {
-            evals: FixedVec::from_fn(|_| C::CircuitField::todo()),
+            u: *u.value().take(),
+            left,
+            right,
+            s_prime,
+            error_m,
+            ab,
+            query,
         };
         let stage_rx =
             internal_circuits::stages::native::eval::Stage::<C, R, HEADER_SIZE>::rx(&eval_witness)?;
@@ -1013,7 +1030,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         error_m_witness: &stages::native::error_m::Witness<C, NativeParameters>,
         error_n_witness: &stages::native::error_n::Witness<C, NativeParameters>,
         query_witness: &internal_circuits::stages::native::query::Witness<C>,
-        eval_witness: &internal_circuits::stages::native::eval::Witness<C::CircuitField>,
+        eval_witness: &internal_circuits::stages::native::eval::Witness<'_, C, R>,
         challenges: &Challenges<C>,
     ) -> Result<CircuitCommitments<C, R>> {
         // Build unified instance from proof structs and challenges.
