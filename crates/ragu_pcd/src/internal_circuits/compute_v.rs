@@ -12,6 +12,7 @@ use ragu_core::{
 use ragu_primitives::{Element, GadgetExt, vec::Len};
 
 use alloc::vec::Vec;
+use core::borrow::Borrow;
 use core::marker::PhantomData;
 
 use crate::components::fold_revdot::{NativeParameters, Parameters};
@@ -407,10 +408,7 @@ impl<'dr, D: Driver<'dr>> SourceBuilder<'dr, D> {
         ax_evals: impl IntoIterator<Item = &'b Element<'dr, D>>,
         bx_evals: impl IntoIterator<Item = &'b Element<'dr, D>>,
         bx_mesh: &'b Element<'dr, D>,
-    ) where
-        'dr: 'b,
-        D: 'b,
-    {
+    ) {
         use core::iter;
         self.ax.push(Element::sum(dr, ax_evals));
         self.bx.push(Element::sum(
@@ -421,11 +419,9 @@ impl<'dr, D: Driver<'dr>> SourceBuilder<'dr, D> {
         ));
     }
 
-    fn stage<'b, I>(&mut self, dr: &mut D, ax_evals: I, bx_mesh: &Element<'dr, D>) -> Result<()>
+    fn stage<I>(&mut self, dr: &mut D, ax_evals: I, bx_mesh: &Element<'dr, D>) -> Result<()>
     where
-        'dr: 'b,
-        D: 'b,
-        I: IntoIterator<Item = &'b Element<'dr, D>>,
+        I: IntoIterator<Item: Borrow<Element<'dr, D>>>,
         I::IntoIter: DoubleEndedIterator,
     {
         self.ax
