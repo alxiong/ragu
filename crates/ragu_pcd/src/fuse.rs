@@ -1036,7 +1036,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         alpha: &Element<'dr, D>,
         s_prime: &SPrimeProof<C, R>,
         error_m: &ErrorMProof<C, R>,
-        _ab: &ABProof<C, R>,
+        ab: &ABProof<C, R>,
         query: &QueryProof<C, R>,
         left: &Proof<C, R>,
         right: &Proof<C, R>,
@@ -1108,6 +1108,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             factor_iter(left.ab.b_poly.iter_coeffs(), x),
             factor_iter(right.ab.a_poly.iter_coeffs(), x),
             factor_iter(right.ab.b_poly.iter_coeffs(), x),
+            // Current step A/B polynomial queries at x
+            factor_iter(ab.a_poly.iter_coeffs(), x),
+            factor_iter(ab.b_poly.iter_coeffs(), x),
             // Left child proof stage/circuit polynomials
             factor_iter(left.preamble.stage_rx.iter_coeffs(), x),
             factor_iter(left.preamble.stage_rx.iter_coeffs(), xz),

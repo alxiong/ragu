@@ -9,9 +9,12 @@ use ragu_core::{
     gadgets::GadgetKind,
     maybe::Maybe,
 };
-use ragu_primitives::{Element, GadgetExt};
+use ragu_primitives::{Element, GadgetExt, vec::Len};
 
+use alloc::vec::Vec;
 use core::marker::PhantomData;
+
+use crate::components::fold_revdot::{NativeParameters, Parameters};
 
 use super::{
     stages::native::{eval as native_eval, preamble as native_preamble, query as native_query},
@@ -96,12 +99,37 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> StagedCircuit<C::CircuitField,
         let z = unified_output.z.get(dr, unified_instance)?;
         let x = unified_output.x.get(dr, unified_instance)?;
 
-        let _txz = dr.routine(Evaluate::new(R::RANK), (x.clone(), z.clone()))?;
+        // TODO: make Evaluate take a Rank parameter, so that it internally
+        // calls log2_n() instead of allowing the caller to accidentally supply
+        // the wrong value.
+        let txz = dr.routine(Evaluate::new(R::log2_n()), (x.clone(), z.clone()))?;
 
         // Enforce the claimed value `v` in the unified instance is correctly
         // computed based on committed evaluation claims and verifier
         // challenges.
         {
+            let (computed_ax, computed_bx) = {
+                let mu = unified_output.mu.get(dr, unified_instance)?;
+                let nu = unified_output.nu.get(dr, unified_instance)?;
+                let mu_prime = unified_output.mu_prime.get(dr, unified_instance)?;
+                let nu_prime = unified_output.nu_prime.get(dr, unified_instance)?;
+                let mu_inv = mu.invert(dr)?;
+                let mu_prime_inv = mu_prime.invert(dr)?;
+                let munu = mu.mul(dr, &nu)?;
+                let mu_prime_nu_prime = mu_prime.mul(dr, &nu_prime)?;
+
+                compute_axbx::<_, NativeParameters>(
+                    dr,
+                    &query,
+                    &z,
+                    &txz,
+                    &mu_inv,
+                    &mu_prime_inv,
+                    &munu,
+                    &mu_prime_nu_prime,
+                )?
+            };
+
             // Compute expected f(u)
             let fu = {
                 let alpha = unified_output.alpha.get(dr, unified_instance)?;
@@ -117,7 +145,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> StagedCircuit<C::CircuitField,
                     self.num_application_steps,
                 )?;
                 let mut horner = Horner::new(dr, &alpha);
-                for (pu, v, denominator) in poly_queries(&eval, &query, &preamble, &denominators) {
+                for (pu, v, denominator) in poly_queries(
+                    &eval,
+                    &query,
+                    &preamble,
+                    &denominators,
+                    &computed_ax,
+                    &computed_bx,
+                ) {
                     pu.sub(dr, v).mul(dr, denominator)?.write(dr, &mut horner)?;
                 }
                 horner.finish()
@@ -234,6 +269,244 @@ impl<'dr, D: Driver<'dr>> Denominators<'dr, D> {
     }
 }
 
+fn fold_two_layer<'dr, D: Driver<'dr>, P: Parameters>(
+    dr: &mut D,
+    sources: &[Element<'dr, D>],
+    layer1_scale: &Element<'dr, D>,
+    layer2_scale: &Element<'dr, D>,
+) -> Result<Element<'dr, D>> {
+    let mut results = Vec::with_capacity(P::N::len());
+
+    for chunk in sources.chunks(P::M::len()) {
+        results.push(Element::fold(dr, chunk.iter(), layer1_scale)?);
+    }
+
+    while results.len() < P::N::len() {
+        results.push(Element::zero(dr));
+    }
+
+    Element::fold(dr, results.iter(), layer2_scale)
+}
+
+struct SourceBuilder<'dr, D: Driver<'dr>> {
+    z: Element<'dr, D>,
+    txz: Element<'dr, D>,
+    ax: Vec<Element<'dr, D>>,
+    bx: Vec<Element<'dr, D>>,
+}
+
+impl<'dr, D: Driver<'dr>> SourceBuilder<'dr, D> {
+    fn new(z: Element<'dr, D>, txz: Element<'dr, D>) -> Self {
+        Self {
+            z,
+            txz,
+            ax: Vec::new(),
+            bx: Vec::new(),
+        }
+    }
+
+    fn child(
+        &mut self,
+        dr: &mut D,
+        fixed_mesh: &native_query::FixedMeshEvaluations<'dr, D>,
+        child: &native_query::ChildEvaluations<'dr, D>,
+    ) {
+        self.direct(&child.a_poly_at_x, &child.b_poly_at_x);
+        self.application(
+            dr,
+            &child.application_at_x,
+            &child.application_at_xz,
+            &child.new_mesh_xy_at_old_circuit_id,
+        );
+        self.internal(
+            dr,
+            [
+                &child.hashes_1_at_x,
+                &child.preamble_at_x,
+                &child.error_n_at_x,
+            ],
+            [
+                &child.hashes_1_at_xz,
+                &child.preamble_at_xz,
+                &child.error_n_at_xz,
+            ],
+            &fixed_mesh.hashes_1_circuit,
+        );
+        self.internal(
+            dr,
+            [&child.hashes_2_at_x, &child.error_n_at_x],
+            [&child.hashes_2_at_xz, &child.error_n_at_xz],
+            &fixed_mesh.hashes_2_circuit,
+        );
+        self.internal(
+            dr,
+            [
+                &child.partial_collapse_at_x,
+                &child.preamble_at_x,
+                &child.error_m_at_x,
+                &child.error_n_at_x,
+            ],
+            [
+                &child.partial_collapse_at_xz,
+                &child.preamble_at_xz,
+                &child.error_m_at_xz,
+                &child.error_n_at_xz,
+            ],
+            &fixed_mesh.partial_collapse_circuit,
+        );
+        self.internal(
+            dr,
+            [
+                &child.full_collapse_at_x,
+                &child.preamble_at_x,
+                &child.error_m_at_x,
+                &child.error_n_at_x,
+            ],
+            [
+                &child.full_collapse_at_xz,
+                &child.preamble_at_xz,
+                &child.error_m_at_xz,
+                &child.error_n_at_xz,
+            ],
+            &fixed_mesh.full_collapse_circuit,
+        );
+        self.internal(
+            dr,
+            [
+                &child.compute_v_at_x,
+                &child.preamble_at_x,
+                &child.query_at_x,
+                &child.eval_at_x,
+            ],
+            [
+                &child.compute_v_at_xz,
+                &child.preamble_at_xz,
+                &child.query_at_xz,
+                &child.eval_at_xz,
+            ],
+            &fixed_mesh.compute_v_circuit,
+        );
+    }
+
+    fn direct(&mut self, ax_eval: &Element<'dr, D>, bx_eval: &Element<'dr, D>) {
+        self.ax.push(ax_eval.clone());
+        self.bx.push(bx_eval.clone());
+    }
+
+    fn application(
+        &mut self,
+        dr: &mut D,
+        ax_eval: &Element<'dr, D>,
+        bx_eval: &Element<'dr, D>,
+        bx_mesh: &Element<'dr, D>,
+    ) {
+        self.ax.push(ax_eval.clone());
+        self.bx.push(bx_eval.add(dr, bx_mesh).add(dr, &self.txz));
+    }
+
+    fn internal<'b>(
+        &'b mut self,
+        dr: &mut D,
+        ax_evals: impl IntoIterator<Item = &'b Element<'dr, D>>,
+        bx_evals: impl IntoIterator<Item = &'b Element<'dr, D>>,
+        bx_mesh: &'b Element<'dr, D>,
+    ) where
+        'dr: 'b,
+        D: 'b,
+    {
+        use core::iter;
+        self.ax.push(Element::sum(dr, ax_evals));
+        self.bx.push(Element::sum(
+            dr,
+            bx_evals
+                .into_iter()
+                .chain(iter::once(bx_mesh).chain(iter::once(&self.txz))),
+        ));
+    }
+
+    fn stage<'b, I>(&mut self, dr: &mut D, ax_evals: I, bx_mesh: &Element<'dr, D>) -> Result<()>
+    where
+        'dr: 'b,
+        D: 'b,
+        I: IntoIterator<Item = &'b Element<'dr, D>>,
+        I::IntoIter: DoubleEndedIterator,
+    {
+        self.ax
+            .push(Element::fold(dr, ax_evals.into_iter(), &self.z)?);
+        self.bx.push(bx_mesh.clone());
+        Ok(())
+    }
+
+    fn build(self) -> (Vec<Element<'dr, D>>, Vec<Element<'dr, D>>) {
+        (self.ax, self.bx)
+    }
+}
+
+fn compute_axbx<'dr, D: Driver<'dr>, P: Parameters>(
+    dr: &mut D,
+    query: &native_query::Output<'dr, D>,
+    z: &Element<'dr, D>,
+    txz: &Element<'dr, D>,
+    mu_inv: &Element<'dr, D>,
+    mu_prime_inv: &Element<'dr, D>,
+    munu: &Element<'dr, D>,
+    mu_prime_nu_prime: &Element<'dr, D>,
+) -> Result<(Element<'dr, D>, Element<'dr, D>)> {
+    let mut builder = SourceBuilder::new(z.clone(), txz.clone());
+
+    builder.child(dr, &query.fixed_mesh, &query.left);
+    builder.child(dr, &query.fixed_mesh, &query.right);
+    builder.stage(
+        dr,
+        [
+            &query.left.hashes_1_at_x,
+            &query.left.hashes_2_at_x,
+            &query.left.partial_collapse_at_x,
+            &query.left.full_collapse_at_x,
+            &query.right.hashes_1_at_x,
+            &query.right.hashes_2_at_x,
+            &query.right.partial_collapse_at_x,
+            &query.right.full_collapse_at_x,
+        ],
+        &query.fixed_mesh.error_n_final_staged,
+    )?;
+    builder.stage(
+        dr,
+        [&query.left.compute_v_at_x, &query.right.compute_v_at_x],
+        &query.fixed_mesh.eval_final_staged,
+    )?;
+    builder.stage(
+        dr,
+        [&query.left.preamble_at_x, &query.right.preamble_at_x],
+        &query.fixed_mesh.preamble_stage,
+    )?;
+    builder.stage(
+        dr,
+        [&query.left.error_m_at_x, &query.right.error_m_at_x],
+        &query.fixed_mesh.error_m_stage,
+    )?;
+    builder.stage(
+        dr,
+        [&query.left.error_n_at_x, &query.right.error_n_at_x],
+        &query.fixed_mesh.error_n_stage,
+    )?;
+    builder.stage(
+        dr,
+        [&query.left.query_at_x, &query.right.query_at_x],
+        &query.fixed_mesh.query_stage,
+    )?;
+    builder.stage(
+        dr,
+        [&query.left.eval_at_x, &query.right.eval_at_x],
+        &query.fixed_mesh.eval_stage,
+    )?;
+
+    let (ax_sources, bx_sources) = builder.build();
+    let ax = fold_two_layer::<_, P>(dr, &ax_sources, mu_inv, mu_prime_inv)?;
+    let bx = fold_two_layer::<_, P>(dr, &bx_sources, munu, mu_prime_nu_prime)?;
+    Ok((ax, bx))
+}
+
 /// Returns an iterator over the queries.
 ///
 /// Each yielded element represents $(p(u), v, (u - x_i)^{-1})$ where $v = p(x_i)$
@@ -244,6 +517,8 @@ fn poly_queries<'a, 'dr, D: Driver<'dr>, C: Cycle, const HEADER_SIZE: usize>(
     query: &'a native_query::Output<'dr, D>,
     preamble: &'a native_preamble::Output<'dr, D, C, HEADER_SIZE>,
     d: &'a Denominators<'dr, D>,
+    computed_ax: &'a Element<'dr, D>,
+    computed_bx: &'a Element<'dr, D>,
 ) -> impl Iterator<Item = (&'a Element<'dr, D>, &'a Element<'dr, D>, &'a Element<'dr, D>)> {
     [
         // Check p(X) accumulator
@@ -281,6 +556,9 @@ fn poly_queries<'a, 'dr, D: Driver<'dr>, C: Cycle, const HEADER_SIZE: usize>(
         (&eval.left.b_poly,           &query.left.b_poly_at_x,           &d.x),
         (&eval.right.a_poly,          &query.right.a_poly_at_x,          &d.x),
         (&eval.right.b_poly,          &query.right.b_poly_at_x,          &d.x),
+        // Current step A/B polynomial queries at x
+        (&eval.a_poly,                computed_ax,                 &d.x),
+        (&eval.b_poly,                computed_bx,                 &d.x),
         // Left child proof stage/circuit polynomials
         (&eval.left.preamble,         &query.left.preamble_at_x,         &d.x),
         (&eval.left.preamble,         &query.left.preamble_at_xz,        &d.xz),

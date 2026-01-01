@@ -309,6 +309,36 @@ impl<'dr, D: Driver<'dr>> Element<'dr, D> {
         let diff = self.sub(dr, other);
         diff.is_zero(dr)
     }
+
+    /// Folds an iterator of elements into a single element with successive
+    /// powers of the provided scale factor.
+    pub fn fold<'a>(
+        dr: &mut D,
+        elements: impl DoubleEndedIterator<Item = &'a Element<'dr, D>>,
+        scale: &Element<'dr, D>,
+    ) -> Result<Self>
+    where
+        'dr: 'a,
+        D: 'a,
+    {
+        elements.rev().try_fold(Element::zero(dr), |acc, elem| {
+            acc.mul(dr, scale).map(|scaled| scaled.add(dr, elem))
+        })
+    }
+
+    /// Sums an iterator of elements.
+    ///
+    /// This is more efficient than [`Element::fold`] with scale=1 because it
+    /// avoids multiplication constraints.
+    pub fn sum<'a>(dr: &mut D, elements: impl IntoIterator<Item = &'a Element<'dr, D>>) -> Self
+    where
+        'dr: 'a,
+        D: 'a,
+    {
+        elements
+            .into_iter()
+            .fold(Element::zero(dr), |acc, elem| acc.add(dr, elem))
+    }
 }
 
 impl<F: Field> Write<F> for Kind![F; @Element<'_, _>] {
