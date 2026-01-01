@@ -1,9 +1,9 @@
-use arithmetic::{Cycle, PrimeFieldExt};
+use arithmetic::Cycle;
 use ff::{Field, PrimeField};
 use ragu_circuits::{
     CircuitExt,
     mesh::{CircuitIndex, Mesh},
-    polynomials::{Rank, structured},
+    polynomials::{Rank, structured, unstructured},
     staging::{Stage, StageExt},
 };
 use ragu_core::{
@@ -22,17 +22,14 @@ use alloc::{borrow::Cow, vec::Vec};
 use core::iter::{once, repeat_n};
 
 use crate::{
-    Application,
+    Application, Pcd, Proof,
     components::fold_revdot::{self, NativeParameters},
     internal_circuits::{
         self, InternalCircuitIndex,
         stages::{self, native::error_n::KyValues},
         total_circuit_counts, unified,
     },
-    proof::{
-        ABProof, ApplicationProof, Challenges, CircuitCommitments, ErrorMProof, ErrorNProof,
-        EvalProof, FProof, Pcd, PreambleProof, Proof, QueryProof, SPrimeProof,
-    },
+    proof,
     step::{Step, adapter::Adapter},
 };
 
@@ -132,7 +129,7 @@ impl<'m, 'rx, F: PrimeField, R: Rank> ProverContext<'m, 'rx, F, R> {
 
     /// Add a raw claim without any mesh polynomial transformation.
     ///
-    /// Used for ABProof claims where k(y) = c (the revdot product).
+    /// Used for proof::AB claims where k(y) = c (the revdot product).
     fn raw_claim(
         &mut self,
         a: &'rx structured::Polynomial<F, R>,
@@ -230,21 +227,27 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         Point::constant(&mut dr, ab.nested_commitment)?.write(&mut dr, &mut transcript)?;
         let x = transcript.squeeze(&mut dr)?;
 
-        let query = self.compute_query(rng, &x, &y)?;
+        let (query, query_witness) =
+            self.compute_query(rng, &w, &x, &y, &z, &error_m, &left, &right)?;
         Point::constant(&mut dr, query.nested_commitment)?.write(&mut dr, &mut transcript)?;
         let alpha = transcript.squeeze(&mut dr)?;
 
-        let f = self.compute_f(rng)?;
+        let f = self.compute_f(
+            rng, &w, &y, &z, &x, &alpha, &s_prime, &error_m, &ab, &query, &left, &right,
+        )?;
         Point::constant(&mut dr, f.nested_commitment)?.write(&mut dr, &mut transcript)?;
         let u = transcript.squeeze(&mut dr)?;
 
-        let eval = self.compute_eval(rng)?;
+        let (eval, eval_witness) =
+            self.compute_eval(rng, &u, &left, &right, &s_prime, &error_m, &ab, &query)?;
         Point::constant(&mut dr, eval.nested_commitment)?.write(&mut dr, &mut transcript)?;
         let beta = transcript.squeeze(&mut dr)?;
 
-        let v = Self::compute_v(&mut dr, &x, &z)?;
+        let p = self.compute_p(
+            rng, &beta, &u, &left, &right, &s_prime, &error_m, &ab, &query, &f,
+        )?;
 
-        let challenges = Challenges::new(
+        let challenges = proof::Challenges::new(
             &w, &y, &z, &mu, &nu, &mu_prime, &nu_prime, &x, &alpha, &u, &beta,
         );
 
@@ -258,11 +261,13 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             &query,
             &f,
             &eval,
+            &p,
             &preamble_witness,
             &error_m_witness,
             &error_n_witness,
+            &query_witness,
+            &eval_witness,
             &challenges,
-            v,
         )?;
 
         Ok((
@@ -276,9 +281,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 query,
                 f,
                 eval,
+                p,
                 challenges,
                 circuits,
-                v,
             },
             // We return the application auxiliary data for potential use by the
             // caller.
@@ -307,7 +312,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     ) -> Result<(
         Proof<C, R>,
         Proof<C, R>,
-        ApplicationProof<C, R>,
+        proof::Application<C, R>,
         S::Aux<'source>,
     )> {
         let circuit_id = S::INDEX.circuit_index(self.num_application_steps)?;
@@ -323,7 +328,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         Ok((
             left.proof,
             right.proof,
-            ApplicationProof {
+            proof::Application {
                 circuit_id,
                 left_header: left_header.into_inner(),
                 right_header: right_header.into_inner(),
@@ -347,9 +352,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         rng: &mut RNG,
         left: &'a Proof<C, R>,
         right: &'a Proof<C, R>,
-        application: &ApplicationProof<C, R>,
+        application: &proof::Application<C, R>,
     ) -> Result<(
-        PreambleProof<C, R>,
+        proof::Preamble<C, R>,
         stages::native::preamble::Witness<'a, C, R, HEADER_SIZE>,
     )> {
         // Let's assemble the witness needed to generate the preamble stage.
@@ -401,7 +406,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let nested_commitment = nested_rx.commit(C::nested_generators(self.params), nested_blind);
 
         Ok((
-            PreambleProof {
+            proof::Preamble {
                 stage_rx,
                 stage_blind,
                 stage_commitment,
@@ -424,7 +429,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         w: &Element<'dr, D>,
         left: &Proof<C, R>,
         right: &Proof<C, R>,
-    ) -> Result<SPrimeProof<C, R>>
+    ) -> Result<proof::SPrime<C, R>>
     where
         D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
     {
@@ -452,7 +457,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let nested_s_prime_commitment =
             nested_s_prime_rx.commit(C::nested_generators(self.params), nested_s_prime_blind);
 
-        Ok(SPrimeProof {
+        Ok(proof::SPrime {
             mesh_wx0_poly,
             mesh_wx0_blind,
             mesh_wx0_commitment,
@@ -482,7 +487,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         left: &'rx Proof<C, R>,
         right: &'rx Proof<C, R>,
     ) -> Result<(
-        ErrorMProof<C, R>,
+        proof::ErrorM<C, R>,
         stages::native::error_m::Witness<C, NativeParameters>,
         ProverContext<'_, 'rx, C::CircuitField, R>,
     )>
@@ -502,7 +507,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         // Assemble a/b polynomials from both proofs for error term computation.
         let mut ctx = ProverContext::new(&self.circuit_mesh, self.num_application_steps, y, z);
         for proof in [left, right] {
-            // Child ABProof claim (k(y) = child's c)
+            // Child proof::AB claim (k(y) = child's c)
             ctx.raw_claim(&proof.ab.a_poly, &proof.ab.b_poly);
 
             // Application circuit (uses application k(y))
@@ -543,7 +548,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             );
             ctx.internal_circuit(
                 internal_circuits::compute_v::CIRCUIT_ID,
-                &[&proof.circuits.compute_v_rx],
+                &[
+                    &proof.circuits.compute_v_rx,
+                    &proof.preamble.stage_rx,
+                    &proof.query.stage_rx,
+                    &proof.eval.stage_rx,
+                ],
             );
         }
 
@@ -609,7 +619,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let nested_commitment = nested_rx.commit(C::nested_generators(self.params), nested_blind);
 
         Ok((
-            ErrorMProof {
+            proof::ErrorM {
                 mesh_wy_poly,
                 mesh_wy_blind,
                 mesh_wy_commitment,
@@ -646,7 +656,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             ragu_primitives::poseidon::PoseidonStateLen<C::CircuitField, C::CircuitPoseidon>,
         >,
     ) -> Result<(
-        ErrorNProof<C, R>,
+        proof::ErrorN<C, R>,
         stages::native::error_n::Witness<C, NativeParameters>,
         FixedVec<
             structured::Polynomial<C::CircuitField, R>,
@@ -761,7 +771,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let nested_commitment = nested_rx.commit(C::nested_generators(self.params), nested_blind);
 
         Ok((
-            ErrorNProof {
+            proof::ErrorN {
                 stage_rx,
                 stage_blind,
                 stage_commitment,
@@ -775,20 +785,74 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         ))
     }
 
-    /// TODO
-    fn compute_v<'dr, D>(
-        dr: &mut D,
-        x: &Element<'dr, D>,
-        z: &Element<'dr, D>,
-    ) -> Result<C::CircuitField>
+    /// Compute the $P$ polynomial proof.
+    fn compute_p<'dr, D, RNG: Rng>(
+        &self,
+        rng: &mut RNG,
+        beta: &Element<'dr, D>,
+        u: &Element<'dr, D>,
+        left: &Proof<C, R>,
+        right: &Proof<C, R>,
+        s_prime: &proof::SPrime<C, R>,
+        error_m: &proof::ErrorM<C, R>,
+        ab: &proof::AB<C, R>,
+        query: &proof::Query<C, R>,
+        f: &proof::F<C, R>,
+    ) -> Result<proof::P<C, R>>
     where
         D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
     {
-        let txz = dr.routine(
-            ragu_circuits::polynomials::txz::Evaluate::new(R::RANK),
-            (x.clone(), z.clone()),
-        )?;
-        Ok(*txz.value().take())
+        let beta = *beta.value().take();
+        let u = *u.value().take();
+
+        let mut poly = f.poly.clone();
+
+        let acc_s = |p: &mut unstructured::Polynomial<_, _>, term| {
+            p.scale(beta);
+            p.add_structured(term);
+        };
+        let acc_u = |p: &mut unstructured::Polynomial<_, _>, term| {
+            p.scale(beta);
+            p.add_assign(term);
+        };
+
+        for proof in [left, right] {
+            acc_s(&mut poly, &proof.application.rx);
+            acc_s(&mut poly, &proof.preamble.stage_rx);
+            acc_s(&mut poly, &proof.error_m.stage_rx);
+            acc_s(&mut poly, &proof.error_n.stage_rx);
+            acc_s(&mut poly, &proof.ab.a_poly);
+            acc_s(&mut poly, &proof.ab.b_poly);
+            acc_s(&mut poly, &proof.query.stage_rx);
+            acc_u(&mut poly, &proof.query.mesh_xy_poly);
+            acc_s(&mut poly, &proof.eval.stage_rx);
+            acc_u(&mut poly, &proof.p.poly);
+            acc_s(&mut poly, &proof.circuits.hashes_1_rx);
+            acc_s(&mut poly, &proof.circuits.hashes_2_rx);
+            acc_s(&mut poly, &proof.circuits.partial_collapse_rx);
+            acc_s(&mut poly, &proof.circuits.full_collapse_rx);
+            acc_s(&mut poly, &proof.circuits.compute_v_rx);
+        }
+
+        acc_u(&mut poly, &s_prime.mesh_wx0_poly);
+        acc_u(&mut poly, &s_prime.mesh_wx1_poly);
+        acc_s(&mut poly, &error_m.mesh_wy_poly);
+        acc_s(&mut poly, &ab.a_poly);
+        acc_s(&mut poly, &ab.b_poly);
+        acc_u(&mut poly, &query.mesh_xy_poly);
+
+        let blind = C::CircuitField::random(&mut *rng);
+        let commitment = poly.commit(C::host_generators(self.params), blind);
+
+        // Compute v = p(u)
+        let v = poly.eval(u);
+
+        Ok(proof::P {
+            poly,
+            blind,
+            commitment,
+            v,
+        })
     }
 
     /// Compute the A/B polynomials proof.
@@ -808,7 +872,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         >,
         mu_prime: &Element<'dr, D>,
         nu_prime: &Element<'dr, D>,
-    ) -> Result<ABProof<C, R>>
+    ) -> Result<proof::AB<C, R>>
     where
         D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
     {
@@ -839,7 +903,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let nested_blind = C::ScalarField::random(&mut *rng);
         let nested_commitment = nested_rx.commit(C::nested_generators(self.params), nested_blind);
 
-        Ok(ABProof {
+        Ok(proof::AB {
             a_poly,
             a_blind,
             a_commitment,
@@ -860,14 +924,28 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     fn compute_query<'dr, D, RNG: Rng>(
         &self,
         rng: &mut RNG,
+        w: &Element<'dr, D>,
         x: &Element<'dr, D>,
         y: &Element<'dr, D>,
-    ) -> Result<QueryProof<C, R>>
+        z: &Element<'dr, D>,
+        error_m: &proof::ErrorM<C, R>,
+        left: &Proof<C, R>,
+        right: &Proof<C, R>,
+    ) -> Result<(
+        proof::Query<C, R>,
+        internal_circuits::stages::native::query::Witness<C>,
+    )>
     where
         D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
     {
+        use InternalCircuitIndex::*;
+        use internal_circuits::stages::native::query;
+
+        let w = *w.value().take();
         let x = *x.value().take();
         let y = *y.value().take();
+        let z = *z.value().take();
+        let xz = x * z;
 
         // Compute mesh_xy components
         let mesh_xy_poly = self.circuit_mesh.xy(x, y);
@@ -875,14 +953,47 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let mesh_xy_commitment =
             mesh_xy_poly.commit(C::host_generators(self.params), mesh_xy_blind);
 
-        // Query stage commitment
-        let query_witness = internal_circuits::stages::native::query::Witness {
-            queries: FixedVec::from_fn(|_| C::CircuitField::todo()),
+        // Compute mesh_xy evaluations at each internal circuit's omega^j
+        let mesh_at = |idx: InternalCircuitIndex| -> C::CircuitField {
+            let circuit_id = idx.circuit_index(self.num_application_steps);
+            mesh_xy_poly.eval(circuit_id.omega_j())
         };
 
-        let stage_rx = internal_circuits::stages::native::query::Stage::<C, R, HEADER_SIZE>::rx(
-            &query_witness,
-        )?;
+        let query_witness = query::Witness {
+            fixed_mesh: query::FixedMeshWitness {
+                preamble_stage: mesh_at(PreambleStage),
+                error_m_stage: mesh_at(ErrorMStage),
+                error_n_stage: mesh_at(ErrorNStage),
+                query_stage: mesh_at(QueryStage),
+                eval_stage: mesh_at(EvalStage),
+                error_n_final_staged: mesh_at(ErrorNFinalStaged),
+                eval_final_staged: mesh_at(EvalFinalStaged),
+                hashes_1_circuit: mesh_at(Hashes1Circuit),
+                hashes_2_circuit: mesh_at(Hashes2Circuit),
+                partial_collapse_circuit: mesh_at(PartialCollapseCircuit),
+                full_collapse_circuit: mesh_at(FullCollapseCircuit),
+                compute_v_circuit: mesh_at(ComputeVCircuit),
+            },
+            mesh_wxy: mesh_xy_poly.eval(w),
+            left: query::ChildEvaluationsWitness::from_proof(
+                left,
+                w,
+                x,
+                xz,
+                &mesh_xy_poly,
+                &error_m.mesh_wy_poly,
+            ),
+            right: query::ChildEvaluationsWitness::from_proof(
+                right,
+                w,
+                x,
+                xz,
+                &mesh_xy_poly,
+                &error_m.mesh_wy_poly,
+            ),
+        };
+
+        let stage_rx = query::Stage::<C, R, HEADER_SIZE>::rx(&query_witness)?;
         let stage_blind = C::CircuitField::random(&mut *rng);
         let stage_commitment = stage_rx.commit(C::host_generators(self.params), stage_blind);
 
@@ -895,34 +1006,177 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let nested_blind = C::ScalarField::random(&mut *rng);
         let nested_commitment = nested_rx.commit(C::nested_generators(self.params), nested_blind);
 
-        Ok(QueryProof {
-            mesh_xy_poly,
-            mesh_xy_blind,
-            mesh_xy_commitment,
-            stage_rx,
-            stage_blind,
-            stage_commitment,
-            nested_rx,
-            nested_blind,
-            nested_commitment,
-        })
+        Ok((
+            proof::Query {
+                mesh_xy_poly,
+                mesh_xy_blind,
+                mesh_xy_commitment,
+                stage_rx,
+                stage_blind,
+                stage_commitment,
+                nested_rx,
+                nested_blind,
+                nested_commitment,
+            },
+            query_witness,
+        ))
     }
 
     /// Compute the F polynomial proof.
-    fn compute_f<RNG: Rng>(&self, rng: &mut RNG) -> Result<FProof<C, R>> {
-        let poly = ragu_circuits::polynomials::structured::Polynomial::<C::CircuitField, R>::new();
+    fn compute_f<'dr, D, RNG: Rng>(
+        &self,
+        rng: &mut RNG,
+        w: &Element<'dr, D>,
+        y: &Element<'dr, D>,
+        z: &Element<'dr, D>,
+        x: &Element<'dr, D>,
+        alpha: &Element<'dr, D>,
+        s_prime: &proof::SPrime<C, R>,
+        error_m: &proof::ErrorM<C, R>,
+        ab: &proof::AB<C, R>,
+        query: &proof::Query<C, R>,
+        left: &Proof<C, R>,
+        right: &Proof<C, R>,
+    ) -> Result<proof::F<C, R>>
+    where
+        D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
+    {
+        use InternalCircuitIndex::*;
+        use arithmetic::factor_iter;
+        use internal_circuits::stages::nested::f;
+
+        let w = *w.value().take();
+        let y = *y.value().take();
+        let z = *z.value().take();
+        let x = *x.value().take();
+        let xz = x * z;
+        let alpha = *alpha.value().take();
+
+        let omega_j = |idx: InternalCircuitIndex| -> C::CircuitField {
+            idx.circuit_index(self.num_application_steps).omega_j()
+        };
+
+        // List of each query of every polynomial in this fuse step.
+        let mut iters = [
+            // Check p(X) accumulator
+            factor_iter(left.p.poly.iter_coeffs(), left.challenges.u),
+            factor_iter(right.p.poly.iter_coeffs(), right.challenges.u),
+            // Consistency checks for mesh polynomials
+            factor_iter(left.query.mesh_xy_poly.iter_coeffs(), w),
+            factor_iter(right.query.mesh_xy_poly.iter_coeffs(), w),
+            factor_iter(s_prime.mesh_wx0_poly.iter_coeffs(), left.challenges.y),
+            factor_iter(s_prime.mesh_wx1_poly.iter_coeffs(), right.challenges.y),
+            factor_iter(s_prime.mesh_wx0_poly.iter_coeffs(), y),
+            factor_iter(s_prime.mesh_wx1_poly.iter_coeffs(), y),
+            factor_iter(error_m.mesh_wy_poly.iter_coeffs(), left.challenges.x),
+            factor_iter(error_m.mesh_wy_poly.iter_coeffs(), right.challenges.x),
+            factor_iter(error_m.mesh_wy_poly.iter_coeffs(), x),
+            factor_iter(query.mesh_xy_poly.iter_coeffs(), w),
+            // Fixed mesh polynomial queries at internal circuit omega^j points
+            factor_iter(query.mesh_xy_poly.iter_coeffs(), omega_j(PreambleStage)),
+            factor_iter(query.mesh_xy_poly.iter_coeffs(), omega_j(ErrorMStage)),
+            factor_iter(query.mesh_xy_poly.iter_coeffs(), omega_j(ErrorNStage)),
+            factor_iter(query.mesh_xy_poly.iter_coeffs(), omega_j(QueryStage)),
+            factor_iter(query.mesh_xy_poly.iter_coeffs(), omega_j(EvalStage)),
+            factor_iter(query.mesh_xy_poly.iter_coeffs(), omega_j(ErrorNFinalStaged)),
+            factor_iter(query.mesh_xy_poly.iter_coeffs(), omega_j(EvalFinalStaged)),
+            factor_iter(query.mesh_xy_poly.iter_coeffs(), omega_j(Hashes1Circuit)),
+            factor_iter(query.mesh_xy_poly.iter_coeffs(), omega_j(Hashes2Circuit)),
+            factor_iter(
+                query.mesh_xy_poly.iter_coeffs(),
+                omega_j(PartialCollapseCircuit),
+            ),
+            factor_iter(
+                query.mesh_xy_poly.iter_coeffs(),
+                omega_j(FullCollapseCircuit),
+            ),
+            factor_iter(query.mesh_xy_poly.iter_coeffs(), omega_j(ComputeVCircuit)),
+            // Mesh polynomial queries at child proof circuit_ids
+            factor_iter(
+                query.mesh_xy_poly.iter_coeffs(),
+                left.application.circuit_id.omega_j(),
+            ),
+            factor_iter(
+                query.mesh_xy_poly.iter_coeffs(),
+                right.application.circuit_id.omega_j(),
+            ),
+            // Child A/B polynomial queries at current x
+            factor_iter(left.ab.a_poly.iter_coeffs(), x),
+            factor_iter(left.ab.b_poly.iter_coeffs(), x),
+            factor_iter(right.ab.a_poly.iter_coeffs(), x),
+            factor_iter(right.ab.b_poly.iter_coeffs(), x),
+            // Current step A/B polynomial queries at x
+            factor_iter(ab.a_poly.iter_coeffs(), x),
+            factor_iter(ab.b_poly.iter_coeffs(), x),
+            // Left child proof stage/circuit polynomials
+            factor_iter(left.preamble.stage_rx.iter_coeffs(), x),
+            factor_iter(left.preamble.stage_rx.iter_coeffs(), xz),
+            factor_iter(left.error_m.stage_rx.iter_coeffs(), x),
+            factor_iter(left.error_m.stage_rx.iter_coeffs(), xz),
+            factor_iter(left.error_n.stage_rx.iter_coeffs(), x),
+            factor_iter(left.error_n.stage_rx.iter_coeffs(), xz),
+            factor_iter(left.query.stage_rx.iter_coeffs(), x),
+            factor_iter(left.query.stage_rx.iter_coeffs(), xz),
+            factor_iter(left.eval.stage_rx.iter_coeffs(), x),
+            factor_iter(left.eval.stage_rx.iter_coeffs(), xz),
+            factor_iter(left.application.rx.iter_coeffs(), x),
+            factor_iter(left.application.rx.iter_coeffs(), xz),
+            factor_iter(left.circuits.hashes_1_rx.iter_coeffs(), x),
+            factor_iter(left.circuits.hashes_1_rx.iter_coeffs(), xz),
+            factor_iter(left.circuits.hashes_2_rx.iter_coeffs(), x),
+            factor_iter(left.circuits.hashes_2_rx.iter_coeffs(), xz),
+            factor_iter(left.circuits.partial_collapse_rx.iter_coeffs(), x),
+            factor_iter(left.circuits.partial_collapse_rx.iter_coeffs(), xz),
+            factor_iter(left.circuits.full_collapse_rx.iter_coeffs(), x),
+            factor_iter(left.circuits.full_collapse_rx.iter_coeffs(), xz),
+            factor_iter(left.circuits.compute_v_rx.iter_coeffs(), x),
+            factor_iter(left.circuits.compute_v_rx.iter_coeffs(), xz),
+            // Right child proof stage/circuit polynomials
+            factor_iter(right.preamble.stage_rx.iter_coeffs(), x),
+            factor_iter(right.preamble.stage_rx.iter_coeffs(), xz),
+            factor_iter(right.error_m.stage_rx.iter_coeffs(), x),
+            factor_iter(right.error_m.stage_rx.iter_coeffs(), xz),
+            factor_iter(right.error_n.stage_rx.iter_coeffs(), x),
+            factor_iter(right.error_n.stage_rx.iter_coeffs(), xz),
+            factor_iter(right.query.stage_rx.iter_coeffs(), x),
+            factor_iter(right.query.stage_rx.iter_coeffs(), xz),
+            factor_iter(right.eval.stage_rx.iter_coeffs(), x),
+            factor_iter(right.eval.stage_rx.iter_coeffs(), xz),
+            factor_iter(right.application.rx.iter_coeffs(), x),
+            factor_iter(right.application.rx.iter_coeffs(), xz),
+            factor_iter(right.circuits.hashes_1_rx.iter_coeffs(), x),
+            factor_iter(right.circuits.hashes_1_rx.iter_coeffs(), xz),
+            factor_iter(right.circuits.hashes_2_rx.iter_coeffs(), x),
+            factor_iter(right.circuits.hashes_2_rx.iter_coeffs(), xz),
+            factor_iter(right.circuits.partial_collapse_rx.iter_coeffs(), x),
+            factor_iter(right.circuits.partial_collapse_rx.iter_coeffs(), xz),
+            factor_iter(right.circuits.full_collapse_rx.iter_coeffs(), x),
+            factor_iter(right.circuits.full_collapse_rx.iter_coeffs(), xz),
+            factor_iter(right.circuits.compute_v_rx.iter_coeffs(), x),
+            factor_iter(right.circuits.compute_v_rx.iter_coeffs(), xz),
+        ];
+
+        let mut coeffs = Vec::new();
+        while let Some(first) = iters[0].next() {
+            let c = iters[1..]
+                .iter_mut()
+                .fold(first, |acc, iter| alpha * acc + iter.next().unwrap());
+            coeffs.push(c);
+        }
+        coeffs.reverse();
+
+        let poly = unstructured::Polynomial::from_coeffs(coeffs);
         let blind = C::CircuitField::random(&mut *rng);
         let commitment = poly.commit(C::host_generators(self.params), blind);
 
-        let nested_f_witness = internal_circuits::stages::nested::f::Witness {
+        let nested_f_witness = f::Witness {
             native_f: commitment,
         };
-        let nested_rx =
-            internal_circuits::stages::nested::f::Stage::<C::HostCurve, R>::rx(&nested_f_witness)?;
+        let nested_rx = f::Stage::<C::HostCurve, R>::rx(&nested_f_witness)?;
         let nested_blind = C::ScalarField::random(&mut *rng);
         let nested_commitment = nested_rx.commit(C::nested_generators(self.params), nested_blind);
 
-        Ok(FProof {
+        Ok(proof::F {
             poly,
             blind,
             commitment,
@@ -932,10 +1186,37 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         })
     }
 
-    /// Compute the eval proof.
-    fn compute_eval<RNG: Rng>(&self, rng: &mut RNG) -> Result<EvalProof<C, R>> {
+    /// Commit to the evaluations of various polynomials at point $u$.
+    fn compute_eval<'dr, D, RNG: Rng>(
+        &self,
+        rng: &mut RNG,
+        u: &Element<'dr, D>,
+        left: &Proof<C, R>,
+        right: &Proof<C, R>,
+        s_prime: &proof::SPrime<C, R>,
+        error_m: &proof::ErrorM<C, R>,
+        ab: &proof::AB<C, R>,
+        query: &proof::Query<C, R>,
+    ) -> Result<(
+        proof::Eval<C, R>,
+        internal_circuits::stages::native::eval::Witness<C::CircuitField>,
+    )>
+    where
+        D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
+    {
+        let u = *u.value().take();
+
         let eval_witness = internal_circuits::stages::native::eval::Witness {
-            evals: FixedVec::from_fn(|_| C::CircuitField::todo()),
+            left: stages::native::eval::ChildEvaluationsWitness::from_proof(left, u),
+            right: stages::native::eval::ChildEvaluationsWitness::from_proof(right, u),
+            current: stages::native::eval::CurrentStepWitness {
+                mesh_wx0: s_prime.mesh_wx0_poly.eval(u),
+                mesh_wx1: s_prime.mesh_wx1_poly.eval(u),
+                mesh_wy: error_m.mesh_wy_poly.eval(u),
+                a_poly: ab.a_poly.eval(u),
+                b_poly: ab.b_poly.eval(u),
+                mesh_xy: query.mesh_xy_poly.eval(u),
+            },
         };
         let stage_rx =
             internal_circuits::stages::native::eval::Stage::<C, R, HEADER_SIZE>::rx(&eval_witness)?;
@@ -951,34 +1232,39 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let nested_blind = C::ScalarField::random(&mut *rng);
         let nested_commitment = nested_rx.commit(C::nested_generators(self.params), nested_blind);
 
-        Ok(EvalProof {
-            stage_rx,
-            stage_blind,
-            stage_commitment,
-            nested_rx,
-            nested_blind,
-            nested_commitment,
-        })
+        Ok((
+            proof::Eval {
+                stage_rx,
+                stage_blind,
+                stage_commitment,
+                nested_rx,
+                nested_blind,
+                nested_commitment,
+            },
+            eval_witness,
+        ))
     }
 
     /// Compute internal circuits.
     fn compute_internal_circuits<RNG: Rng>(
         &self,
         rng: &mut RNG,
-        preamble: &PreambleProof<C, R>,
-        s_prime: &SPrimeProof<C, R>,
-        error_m: &ErrorMProof<C, R>,
-        error_n: &ErrorNProof<C, R>,
-        ab: &ABProof<C, R>,
-        query: &QueryProof<C, R>,
-        f: &FProof<C, R>,
-        eval: &EvalProof<C, R>,
+        preamble: &proof::Preamble<C, R>,
+        s_prime: &proof::SPrime<C, R>,
+        error_m: &proof::ErrorM<C, R>,
+        error_n: &proof::ErrorN<C, R>,
+        ab: &proof::AB<C, R>,
+        query: &proof::Query<C, R>,
+        f: &proof::F<C, R>,
+        eval: &proof::Eval<C, R>,
+        p: &proof::P<C, R>,
         preamble_witness: &stages::native::preamble::Witness<'_, C, R, HEADER_SIZE>,
         error_m_witness: &stages::native::error_m::Witness<C, NativeParameters>,
         error_n_witness: &stages::native::error_n::Witness<C, NativeParameters>,
-        challenges: &Challenges<C>,
-        v: C::CircuitField,
-    ) -> Result<CircuitCommitments<C, R>> {
+        query_witness: &internal_circuits::stages::native::query::Witness<C>,
+        eval_witness: &internal_circuits::stages::native::eval::Witness<C::CircuitField>,
+        challenges: &proof::Challenges<C>,
+    ) -> Result<proof::InternalCircuits<C, R>> {
         // Build unified instance from proof structs and challenges.
         let unified_instance = &unified::Instance {
             nested_preamble_commitment: preamble.nested_commitment,
@@ -1001,7 +1287,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             u: challenges.u,
             nested_eval_commitment: eval.nested_commitment,
             beta: challenges.beta,
-            v,
+            v: p.v,
         };
 
         // hashes_1 staged circuit.
@@ -1075,16 +1361,23 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             full_collapse_rx.commit(C::host_generators(self.params), full_collapse_rx_blind);
 
         // compute_v staged circuit.
-        let (compute_v_rx, _) = internal_circuits::compute_v::Circuit::<C, R, HEADER_SIZE>::new()
-            .rx::<R>(
-            internal_circuits::compute_v::Witness { unified_instance },
+        let (compute_v_rx, _) = internal_circuits::compute_v::Circuit::<C, R, HEADER_SIZE>::new(
+            self.num_application_steps,
+        )
+        .rx::<R>(
+            internal_circuits::compute_v::Witness {
+                unified_instance,
+                preamble_witness,
+                query_witness,
+                eval_witness,
+            },
             self.circuit_mesh.get_key(),
         )?;
         let compute_v_rx_blind = C::CircuitField::random(&mut *rng);
         let compute_v_rx_commitment =
             compute_v_rx.commit(C::host_generators(self.params), compute_v_rx_blind);
 
-        Ok(CircuitCommitments {
+        Ok(proof::InternalCircuits {
             hashes_1_rx,
             hashes_1_blind: hashes_1_rx_blind,
             hashes_1_commitment: hashes_1_rx_commitment,

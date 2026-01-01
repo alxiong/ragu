@@ -9,6 +9,7 @@ use ragu_core::{
 };
 
 use alloc::vec::Vec;
+use core::borrow::Borrow;
 
 use crate::{
     Boolean,
@@ -308,6 +309,40 @@ impl<'dr, D: Driver<'dr>> Element<'dr, D> {
     pub fn is_equal(&self, dr: &mut D, other: &Self) -> Result<Boolean<'dr, D>> {
         let diff = self.sub(dr, other);
         diff.is_zero(dr)
+    }
+
+    /// Folds an iterator of elements into a single element with successive
+    /// powers of the provided scale factor.
+    // TODO: This should require the caller to provide the higher degree terms
+    // first, rather than taking a DoubleEndedIterator and reversing it
+    // internally. This is a less strict requirement for the API, but also helps
+    // force us to rewrite the protocols to use a consistent ordering later.
+    pub fn fold<E: Borrow<Element<'dr, D>>>(
+        dr: &mut D,
+        elements: impl DoubleEndedIterator<Item = E>,
+        scale: &Element<'dr, D>,
+    ) -> Result<Self> {
+        let mut iter = elements.rev();
+        let Some(first) = iter.next() else {
+            return Ok(Element::zero(dr));
+        };
+        iter.try_fold(first.borrow().clone(), |acc, elem| {
+            acc.mul(dr, scale)
+                .map(|scaled| scaled.add(dr, elem.borrow()))
+        })
+    }
+
+    /// Sums an iterator of elements.
+    ///
+    /// This is more efficient than [`Element::fold`] with scale=1 because it
+    /// avoids multiplication constraints.
+    pub fn sum<E: Borrow<Element<'dr, D>>>(
+        dr: &mut D,
+        elements: impl IntoIterator<Item = E>,
+    ) -> Self {
+        elements
+            .into_iter()
+            .fold(Element::zero(dr), |acc, elem| acc.add(dr, elem.borrow()))
     }
 }
 

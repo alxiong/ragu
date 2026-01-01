@@ -14,9 +14,7 @@ use ragu_primitives::{
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
-use crate::{
-    components::ky::Ky, header::Header, internal_circuits::unified, proof::Proof, step::padded,
-};
+use crate::{Proof, components::ky::Ky, header::Header, internal_circuits::unified, step::padded};
 
 pub use crate::internal_circuits::InternalCircuitIndex::PreambleStage as STAGING_ID;
 
@@ -80,7 +78,7 @@ impl<'dr, D: Driver<'dr>, C: Cycle, const HEADER_SIZE: usize> ProofInputs<'dr, D
         dr: &mut D,
         y: &Element<'dr, D>,
     ) -> Result<(Element<'dr, D>, Element<'dr, D>)> {
-        let mut ky = Ky::new(dr, y);
+        let mut ky = Ky::new(y);
         self.unified.write(dr, &mut ky)?;
 
         Ok((
@@ -102,7 +100,7 @@ impl<'dr, D: Driver<'dr>, C: Cycle, const HEADER_SIZE: usize> ProofInputs<'dr, D
     ///
     /// Returns `application_ky` = k(y) for `(left_header, right_header, output_header)`.
     pub fn application_ky(&self, dr: &mut D, y: &Element<'dr, D>) -> Result<Element<'dr, D>> {
-        let mut ky = Ky::new(dr, y);
+        let mut ky = Ky::new(y);
         self.left_header.write(dr, &mut ky)?;
         self.right_header.write(dr, &mut ky)?;
         self.output_header.write(dr, &mut ky)?;
@@ -201,6 +199,15 @@ pub struct Output<'dr, D: Driver<'dr>, C: Cycle, const HEADER_SIZE: usize> {
     pub right: ProofInputs<'dr, D, C, HEADER_SIZE>,
 }
 
+impl<'dr, D: Driver<'dr>, C: Cycle, const HEADER_SIZE: usize> Output<'dr, D, C, HEADER_SIZE> {
+    /// Returns true if both child proofs are trivial proofs.
+    pub fn is_base_case(&self, dr: &mut D) -> Result<Boolean<'dr, D>> {
+        let left_is_trivial = self.left.is_trivial(dr)?;
+        let right_is_trivial = self.right.is_trivial(dr)?;
+        left_is_trivial.and(dr, &right_is_trivial)
+    }
+}
+
 #[derive(Default)]
 pub struct Stage<C: Cycle, R, const HEADER_SIZE: usize> {
     _marker: PhantomData<(C, R)>,
@@ -239,5 +246,19 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> staging::Stage<C::CircuitField
         )?;
 
         Ok(Output { left, right })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::internal_circuits::stages::native::tests::{
+        TEST_HEADER_SIZE, TestR, assert_stage_values,
+    };
+    use ragu_pasta::Pasta;
+
+    #[test]
+    fn stage_values_matches_wire_count() {
+        assert_stage_values(&Stage::<Pasta, TestR, { TEST_HEADER_SIZE }>::default());
     }
 }

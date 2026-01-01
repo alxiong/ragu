@@ -60,6 +60,7 @@ pub fn register_all<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>(
     mut mesh: MeshBuilder<'params, C::CircuitField, R>,
     params: &'params C::Params,
     log2_circuits: u32,
+    num_application_steps: usize,
 ) -> Result<MeshBuilder<'params, C::CircuitField, R>> {
     let initial_num_circuits = mesh.num_circuits();
 
@@ -143,7 +144,9 @@ pub fn register_all<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>(
             )?;
 
         // compute_v
-        mesh = mesh.register_circuit(compute_v::Circuit::<C, R, HEADER_SIZE>::new())?;
+        mesh = mesh.register_circuit(compute_v::Circuit::<C, R, HEADER_SIZE>::new(
+            num_application_steps,
+        ))?;
     }
 
     // Verify we registered the expected number of circuits.
@@ -157,7 +160,7 @@ pub fn register_all<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>(
 }
 
 #[cfg(test)]
-mod test_params {
+pub(crate) mod test_params {
     use super::*;
     use crate::*;
     use ragu_circuits::polynomials::R;
@@ -168,7 +171,7 @@ mod test_params {
     // When changing HEADER_SIZE, update the constraint counts by running:
     //   cargo test -p ragu_pcd --release print_internal_circuit -- --nocapture
     // Then copy-paste the output into the check_constraints! calls in the test below.
-    const HEADER_SIZE: usize = 37;
+    pub(crate) const HEADER_SIZE: usize = 37;
 
     // Number of dummy application circuits to register before testing internal
     // circuits. This ensures the tests work correctly even when application
@@ -219,11 +222,11 @@ mod test_params {
             }};
         }
 
-        check_constraints!(Hashes1Circuit,         mul = 1937, lin = 2815);
+        check_constraints!(Hashes1Circuit,         mul = 1933, lin = 2807);
         check_constraints!(Hashes2Circuit,         mul = 2047, lin = 2952);
         check_constraints!(PartialCollapseCircuit, mul = 1891, lin = 2650);
         check_constraints!(FullCollapseCircuit,    mul = 1876, lin = 2620);
-        check_constraints!(ComputeVCircuit,        mul = 266,  lin = 248);
+        check_constraints!(ComputeVCircuit,        mul = 604,  lin = 831);
     }
 
     #[rustfmt::skip]
@@ -239,8 +242,8 @@ mod test_params {
         check_stage!(Preamble, skip =   0, num = 141);
         check_stage!(ErrorM,   skip = 141, num = 270);
         check_stage!(ErrorN,   skip = 411, num = 168);
-        check_stage!(Query,    skip = 141, num =   3);
-        check_stage!(Eval,     skip = 144, num =   3);
+        check_stage!(Query,    skip = 141, num =  34);
+        check_stage!(Eval,     skip = 175, num =  18);
     }
 
     /// Helper test to print current constraint counts in copy-pasteable format.

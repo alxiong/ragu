@@ -99,7 +99,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             );
             verifier.internal_circuit(
                 internal_circuits::compute_v::CIRCUIT_ID,
-                &[&pcd.proof.circuits.compute_v_rx],
+                &[
+                    &pcd.proof.circuits.compute_v_rx,
+                    &pcd.proof.preamble.stage_rx,
+                    &pcd.proof.query.stage_rx,
+                    &pcd.proof.eval.stage_rx,
+                ],
             );
         }
 
@@ -156,7 +161,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 .all(|(ky, (a, b))| a.revdot(b) == ky)
         };
 
-        Ok(revdot_claims)
+        // Check polynomial evaluation claim.
+        let p_eval_claim = pcd.proof.p.poly.eval(pcd.proof.challenges.u) == pcd.proof.p.v;
+
+        Ok(revdot_claims && p_eval_claim)
     }
 }
 
