@@ -266,17 +266,23 @@ fn fold_two_layer<'dr, D: Driver<'dr>, P: Parameters>(
     layer1_scale: &Element<'dr, D>,
     layer2_scale: &Element<'dr, D>,
 ) -> Result<Element<'dr, D>> {
-    let mut results = Vec::with_capacity(P::N::len());
+    let m = P::M::len();
+    let mut results = alloc::vec::Vec::with_capacity(P::N::len());
 
-    for chunk in sources.chunks(P::M::len()) {
-        results.push(Element::fold(dr, chunk.iter().rev(), layer1_scale)?);
+    let zero = Element::zero(dr);
+    for chunk in sources.chunks(m) {
+        results.push(Element::fold(
+            dr,
+            chunk.iter().chain(iter::repeat_n(&zero, m - chunk.len())),
+            layer1_scale,
+        )?);
     }
 
     while results.len() < P::N::len() {
-        results.push(Element::zero(dr));
+        results.push(zero.clone());
     }
 
-    Element::fold(dr, results.iter().rev(), layer2_scale)
+    Element::fold(dr, results.iter(), layer2_scale)
 }
 
 struct SourceBuilder<'dr, D: Driver<'dr>> {
@@ -333,8 +339,7 @@ impl<'dr, D: Driver<'dr>> SourceBuilder<'dr, D> {
         I: IntoIterator<Item: Borrow<Element<'dr, D>>>,
         I::IntoIter: DoubleEndedIterator,
     {
-        self.ax
-            .push(Element::fold(dr, ax_evals.into_iter().rev(), &self.z)?);
+        self.ax.push(Element::fold(dr, ax_evals, &self.z)?);
         self.bx.push(bx_mesh.clone());
         Ok(())
     }

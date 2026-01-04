@@ -58,9 +58,7 @@ impl<L: Len> Len for ErrorTermsLen<L> {
 
 /// Returns an iterator over off-diagonal (i, j) pairs where i != j.
 fn off_diagonal_pairs(n: usize) -> impl Iterator<Item = (usize, usize)> {
-    (0..n)
-        .rev()
-        .flat_map(move |i| (0..n).rev().filter_map(move |j| (i != j).then_some((i, j))))
+    (0..n).flat_map(move |i| (0..n).filter_map(move |j| (i != j).then_some((i, j))))
 }
 
 /// Reduction step for polynomials in the first layer of revdot folding.
@@ -83,10 +81,17 @@ pub fn fold_polys_m<F: Field, R: Rank, P: Parameters>(
         P::M::len() * P::N::len()
     );
 
+    let m = P::M::len();
     source
-        .chunks(P::M::len())
+        .chunks(m)
         .map(|chunk| {
-            structured::Polynomial::fold(chunk.iter().rev().map(Borrow::borrow), scale_factor)
+            structured::Polynomial::fold(
+                chunk
+                    .iter()
+                    .map(|p| p.borrow().clone())
+                    .chain(iter::repeat_with(structured::Polynomial::new).take(m - chunk.len())),
+                scale_factor,
+            )
         })
         .chain(iter::repeat_with(structured::Polynomial::new))
         .take(P::N::len())
@@ -103,7 +108,7 @@ pub fn fold_polys_n<F: Field, R: Rank, P: Parameters>(
     source: FixedVec<structured::Polynomial<F, R>, P::N>,
     scale_factor: F,
 ) -> structured::Polynomial<F, R> {
-    structured::Polynomial::fold(source.iter().rev(), scale_factor)
+    structured::Polynomial::fold(source.iter(), scale_factor)
 }
 
 /// Error computation for revdot folding.
@@ -218,9 +223,9 @@ fn fold_products_impl<'dr, D: Driver<'dr>, S: Len>(
     let mut outer_horner = Horner::new(mu_inv);
 
     let n = S::len();
-    for i in (0..n).rev() {
+    for i in 0..n {
         let mut inner_horner = Horner::new(munu);
-        for j in (0..n).rev() {
+        for j in 0..n {
             let term = if i == j {
                 ky_values.next().expect("should exist")
             } else {
@@ -277,12 +282,7 @@ mod tests {
             .collect();
 
         // Compute ky values: diagonal revdot products
-        let ky: Vec<Fp> = lhs
-            .iter()
-            .zip(&rhs)
-            .map(|(l, r)| l.revdot(r))
-            .rev()
-            .collect();
+        let ky: Vec<Fp> = lhs.iter().zip(&rhs).map(|(l, r)| l.revdot(r)).collect();
 
         // Compute error terms using compute_errors_n (single-layer N-sized reduction)
         let error_terms = compute_errors_n::<Fp, TestRank, P>(&lhs, &rhs);
@@ -294,8 +294,8 @@ mod tests {
         let munu = mu * nu;
 
         // Fold polynomials
-        let folded_lhs = structured::Polynomial::fold(lhs.iter().rev(), mu_inv);
-        let folded_rhs = structured::Polynomial::fold(rhs.iter().rev(), munu);
+        let folded_lhs = structured::Polynomial::fold(lhs.iter(), mu_inv);
+        let folded_rhs = structured::Polynomial::fold(rhs.iter(), munu);
 
         // Run routine with Emulator
         let dr = &mut Emulator::execute();
@@ -390,19 +390,20 @@ mod tests {
 
             // Compute collapsed values via FoldProducts
             let collapsed: FixedVec<Fp, P::N> =
-                Emulator::emulate_wireless((&error_m, &ky_values, mu, nu, m), |dr, witness| {
-                    let (error_m, ky_values, mu, nu, m) = witness.cast();
+                Emulator::emulate_wireless((&error_m, &ky_values, mu, nu), |dr, witness| {
+                    let (error_m, ky_values, mu, nu) = witness.cast();
                     let mu = Element::alloc(dr, mu)?;
                     let nu = Element::alloc(dr, nu)?;
                     let fold_products = FoldProducts::new(dr, &mu, &nu)?;
 
-                    let m = m.take();
+                    let mut ky_idx = 0;
                     let collapsed = FixedVec::try_from_fn(|group| {
                         let errors = FixedVec::try_from_fn(|j| {
                             Element::alloc(dr, error_m.view().map(|e| e[group][j]))
                         })?;
-                        let ky = FixedVec::try_from_fn(|idx_in_group| {
-                            let idx = group * m + (m - 1 - idx_in_group);
+                        let ky = FixedVec::try_from_fn(|_| {
+                            let idx = ky_idx;
+                            ky_idx += 1;
                             Element::alloc(dr, ky_values.view().map(|kv| kv[idx]))
                         })?;
                         let v = fold_products.fold_products_m::<P>(dr, &errors, &ky)?;
@@ -436,23 +437,21 @@ mod tests {
 
             // Compute final c via FoldProducts
             let final_c: Fp = Emulator::emulate_wireless(
-                (&error_n, &collapsed, mu_prime, nu_prime, n),
+                (&error_n, &collapsed, mu_prime, nu_prime),
                 |dr, witness| {
-                    let (error_n, collapsed, mu_prime, nu_prime, n) = witness.cast();
+                    let (error_n, collapsed, mu_prime, nu_prime) = witness.cast();
                     let mu_prime = Element::alloc(dr, mu_prime)?;
                     let nu_prime = Element::alloc(dr, nu_prime)?;
                     let fold_products = FoldProducts::new(dr, &mu_prime, &nu_prime)?;
 
-                    let n = n.take();
                     let error_terms = FixedVec::try_from_fn(|i| {
                         Element::alloc(dr, error_n.view().map(|e| e[i]))
                     })?;
-                    let collapsed_desc = FixedVec::try_from_fn(|i| {
-                        Element::alloc(dr, collapsed.view().map(|c| c[n - 1 - i]))
+                    let collapsed = FixedVec::try_from_fn(|i| {
+                        Element::alloc(dr, collapsed.view().map(|c| c[i]))
                     })?;
 
-                    let c =
-                        fold_products.fold_products_n::<P>(dr, &error_terms, &collapsed_desc)?;
+                    let c = fold_products.fold_products_n::<P>(dr, &error_terms, &collapsed)?;
                     Ok(*c.value().take())
                 },
             )?;
