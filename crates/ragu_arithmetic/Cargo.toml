@@ -22,6 +22,9 @@ all-features = true
 [features]
 default = []
 
+[lib]
+bench = false
+
 [dependencies]
 ff = { workspace = true }
 pasta_curves = { workspace = true }
@@ -30,3 +33,8 @@ rand = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+gungraun = { workspace = true }
+
+[[bench]]
+name = "arithmetic"
+harness = false
