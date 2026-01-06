@@ -1,13 +1,14 @@
 mod _01_application;
 mod _02_preamble;
 mod _03_s_prime;
-mod _04_errors;
-mod _05_ab;
-mod _06_query;
-mod _07_f;
-mod _08_eval;
-mod _09_p;
-mod _10_circuits;
+mod _04_error_m;
+mod _05_error_n;
+mod _06_ab;
+mod _07_query;
+mod _08_f;
+mod _09_eval;
+mod _10_p;
+mod _11_circuits;
 
 use arithmetic::Cycle;
 use ragu_circuits::{
