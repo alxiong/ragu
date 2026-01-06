@@ -1,3 +1,8 @@
+//! Commit to the collapsed revdot claim polynomials $A$ and $B$.
+//!
+//! This creates the [`proof::AB`] component of the proof, which contains the
+//! claimed (folded) revdot polynomials $A$ and $B$.
+
 use arithmetic::Cycle;
 use ff::Field;
 use ragu_circuits::{
@@ -19,18 +24,14 @@ use crate::{
     proof,
 };
 
+type NativeN = <NativeParameters as fold_revdot::Parameters>::N;
+
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_SIZE> {
     pub(super) fn compute_ab<'dr, D, RNG: Rng>(
         &self,
         rng: &mut RNG,
-        a: FixedVec<
-            structured::Polynomial<C::CircuitField, R>,
-            <NativeParameters as fold_revdot::Parameters>::N,
-        >,
-        b: FixedVec<
-            structured::Polynomial<C::CircuitField, R>,
-            <NativeParameters as fold_revdot::Parameters>::N,
-        >,
+        a: FixedVec<structured::Polynomial<C::CircuitField, R>, NativeN>,
+        b: FixedVec<structured::Polynomial<C::CircuitField, R>, NativeN>,
         mu_prime: &Element<'dr, D>,
         nu_prime: &Element<'dr, D>,
     ) -> Result<proof::AB<C, R>>

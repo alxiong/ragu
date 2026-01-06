@@ -32,6 +32,8 @@ use crate::{
 
 use super::FuseProofSource;
 
+type NativeN = <NativeParameters as fold_revdot::Parameters>::N;
+
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_SIZE> {
     pub(super) fn compute_errors_m<'dr, 'rx, D, RNG: Rng>(
         &self,
@@ -115,14 +117,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     ) -> Result<(
         proof::ErrorN<C, R>,
         stages::native::error_n::Witness<C, NativeParameters>,
-        FixedVec<
-            structured::Polynomial<C::CircuitField, R>,
-            <NativeParameters as fold_revdot::Parameters>::N,
-        >,
-        FixedVec<
-            structured::Polynomial<C::CircuitField, R>,
-            <NativeParameters as fold_revdot::Parameters>::N,
-        >,
+        FixedVec<structured::Polynomial<C::CircuitField, R>, NativeN>,
+        FixedVec<structured::Polynomial<C::CircuitField, R>, NativeN>,
     )>
     where
         D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,

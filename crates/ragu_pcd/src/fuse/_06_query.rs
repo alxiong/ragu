@@ -1,3 +1,13 @@
+//! Commit to the polynomial query claims at various points (typically $x$,
+//! $xz$, $w$).
+//!
+//! This creates the [`proof::Query`] component of the proof, which contains
+//! claimed evaluations (corresponding to each polynomial query) usually at
+//! points like $x$, $xz$, and $w$.
+//!
+//! This phase of the fuse operation is also used to commit to the $m(W, x, y)$
+//! restriction.
+
 use arithmetic::Cycle;
 use ff::Field;
 use ragu_circuits::{polynomials::Rank, staging::StageExt};
@@ -41,8 +51,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let w = *w.value().take();
         let x = *x.value().take();
         let y = *y.value().take();
-        let z = *z.value().take();
-        let xz = x * z;
+        let xz = x * *z.value().take();
 
         let mesh_xy_poly = self.circuit_mesh.xy(x, y);
         let mesh_xy_blind = C::CircuitField::random(&mut *rng);
@@ -56,6 +65,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
 
         let query_witness = query::Witness {
             fixed_mesh: query::FixedMeshWitness {
+                // TODO: these can all be evaluated at the same time; in fact,
+                // that's what mesh.xy is supposed to allow.
                 preamble_stage: mesh_at(PreambleStage),
                 error_m_stage: mesh_at(ErrorMStage),
                 error_n_stage: mesh_at(ErrorNStage),

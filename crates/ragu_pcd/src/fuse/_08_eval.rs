@@ -1,3 +1,9 @@
+//! Commit to the evaluations of every queried polynomial at $u$.
+//!
+//! This creates the [`proof::Eval`] component of the proof, which contains
+//! evaluations of every committed or accumulated polynomial (thus far) at the
+//! point $u$, except $f(u)$ which is _derived_ from said evaluations.
+
 use arithmetic::Cycle;
 use ff::Field;
 use ragu_circuits::{polynomials::Rank, staging::StageExt};
@@ -36,6 +42,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             left: eval::ChildEvaluationsWitness::from_proof(left, u),
             right: eval::ChildEvaluationsWitness::from_proof(right, u),
             current: eval::CurrentStepWitness {
+                // TODO: the mesh evaluations here could _theoretically_ be more
+                // efficient if they're computed simultaneously with assistance
+                // from the mesh itself, rather than individually evaluated for
+                // each of these restrictions.
                 mesh_wx0: s_prime.mesh_wx0_poly.eval(u),
                 mesh_wx1: s_prime.mesh_wx1_poly.eval(u),
                 mesh_wy: error_m.mesh_wy_poly.eval(u),

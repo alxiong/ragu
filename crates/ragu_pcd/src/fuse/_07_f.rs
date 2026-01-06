@@ -1,3 +1,10 @@
+//! Evaluate $f(X)$.
+//!
+//! This creates the [`proof::F`] component of the proof, which is a
+//! multi-quotient polynomial that witnesses the correct evaluations of every
+//! claimed query in the query stage for all of the committed polynomials so
+//! far.
+
 use arithmetic::Cycle;
 use ff::Field;
 use ragu_circuits::{
@@ -53,6 +60,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             idx.circuit_index(self.num_application_steps).omega_j()
         };
 
+        // This must exactly match the ordering of the `poly_queries` function
+        // in the `compute_v` circuit.
         let mut iters = [
             factor_iter(left.p.poly.iter_coeffs(), left.challenges.u),
             factor_iter(right.p.poly.iter_coeffs(), right.challenges.u),
