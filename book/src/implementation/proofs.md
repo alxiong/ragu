@@ -262,5 +262,3 @@ blinding factors, and commitments on both the host and nested curves.
 | F | Batched verification polynomial |
 | Eval | Evaluation stage commitments |
 | P | Final batch proof: $p(X)$ and evaluation $v = p(u)$ |
-| Challenges | Fiat-Shamir challenges derived during proving |
-| InternalCircuits | Hash and collapse circuit witness commitments |
