@@ -6,9 +6,10 @@
 //!
 //! This circuit completes the Fiat-Shamir transcript started in
 //! [`hashes_1`][super::hashes_1], invoking $5$ Poseidon permutations:
-//! - Resume sponge from saved state (after `hashes_1` absorbed
-//!   [`nested_error_m_commitment`] and applied the permutation to move it into
-//!   squeeze mode).
+//! - Resume sponge from saved state via [`Sponge::resume_and_squeeze`] using
+//!   the state witnessed in [`error_n`]. (This state was computed by `hashes_1`
+//!   after absorbing [`nested_error_m_commitment`] and applying the permutation
+//!   to move into squeeze mode.)
 //! - Squeeze [$\mu$] and [$\nu$] challenges.
 //! - Absorb [`nested_error_n_commitment`].
 //! - Squeeze [$\mu'$] and [$\nu'$] challenges.
@@ -34,7 +35,10 @@
 //!
 //! ## Public Inputs
 //!
-//! This circuit uses the [`unified::Output`] as its public inputs.
+//! This circuit uses the [`unified::Output`] as its public inputs, wrapped in a
+//! [`WithSuffix`] with a zero element appended. This matches the format used by
+//! [`hashes_1`][super::hashes_1] and ensures the public input serialization
+//! aligns with the $k(y)$ computation for `unified_ky`.
 //!
 //! [`nested_error_m_commitment`]: unified::Output::nested_error_m_commitment
 //! [$\mu$]: unified::Output::mu
@@ -50,6 +54,9 @@
 //! [$u$]: unified::Output::u
 //! [`nested_eval_commitment`]: unified::Output::nested_eval_commitment
 //! [$\beta$]: unified::Output::beta
+//! [`error_n`]: super::stages::native::error_n
+//! [`WithSuffix`]: crate::components::suffix::WithSuffix
+//! [`Sponge::resume_and_squeeze`]: ragu_primitives::poseidon::Sponge::resume_and_squeeze
 
 use arithmetic::Cycle;
 use ragu_circuits::{
