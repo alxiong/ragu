@@ -160,11 +160,11 @@ impl<F: PrimeField> ChildEvaluationsWitness<F> {
         mesh_wy: &structured::Polynomial<F, R>,
     ) -> Self {
         ChildEvaluationsWitness {
-            preamble: XzQueryWitness::eval(x, xz, |pt| proof.preamble.stage_rx.eval(pt)),
-            error_m: XzQueryWitness::eval(x, xz, |pt| proof.error_m.stage_rx.eval(pt)),
-            error_n: XzQueryWitness::eval(x, xz, |pt| proof.error_n.stage_rx.eval(pt)),
-            query: XzQueryWitness::eval(x, xz, |pt| proof.query.stage_rx.eval(pt)),
-            eval: XzQueryWitness::eval(x, xz, |pt| proof.eval.stage_rx.eval(pt)),
+            preamble: XzQueryWitness::eval(x, xz, |pt| proof.preamble.native_rx.eval(pt)),
+            error_m: XzQueryWitness::eval(x, xz, |pt| proof.error_m.native_rx.eval(pt)),
+            error_n: XzQueryWitness::eval(x, xz, |pt| proof.error_n.native_rx.eval(pt)),
+            query: XzQueryWitness::eval(x, xz, |pt| proof.query.native_rx.eval(pt)),
+            eval: XzQueryWitness::eval(x, xz, |pt| proof.eval.native_rx.eval(pt)),
             application: XzQueryWitness::eval(x, xz, |pt| proof.application.rx.eval(pt)),
             hashes_1: XzQueryWitness::eval(x, xz, |pt| proof.circuits.hashes_1_rx.eval(pt)),
             hashes_2: XzQueryWitness::eval(x, xz, |pt| proof.circuits.hashes_2_rx.eval(pt)),

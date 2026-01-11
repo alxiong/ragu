@@ -138,14 +138,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             ky,
             sponge_state_elements,
         };
-        let stage_rx = native::stages::error_n::Stage::<C, R, HEADER_SIZE, NativeParameters>::rx(
+        let native_rx = native::stages::error_n::Stage::<C, R, HEADER_SIZE, NativeParameters>::rx(
             &error_n_witness,
         )?;
-        let stage_blind = C::CircuitField::random(&mut *rng);
-        let stage_commitment = stage_rx.commit(C::host_generators(self.params), stage_blind);
+        let native_blind = C::CircuitField::random(&mut *rng);
+        let native_commitment = native_rx.commit(C::host_generators(self.params), native_blind);
 
         let nested_error_n_witness = nested::stages::error_n::Witness {
-            native_error_n: stage_commitment,
+            native_error_n: native_commitment,
         };
         let nested_rx =
             nested::stages::error_n::Stage::<C::HostCurve, R>::rx(&nested_error_n_witness)?;
@@ -154,9 +154,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
 
         Ok((
             proof::ErrorN {
-                stage_rx,
-                stage_blind,
-                stage_commitment,
+                native_rx,
+                native_blind,
+                native_commitment,
                 nested_rx,
                 nested_blind,
                 nested_commitment,

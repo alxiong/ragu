@@ -97,12 +97,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             ),
         };
 
-        let stage_rx = query::Stage::<C, R, HEADER_SIZE>::rx(&query_witness)?;
-        let stage_blind = C::CircuitField::random(&mut *rng);
-        let stage_commitment = stage_rx.commit(C::host_generators(self.params), stage_blind);
+        let native_rx = query::Stage::<C, R, HEADER_SIZE>::rx(&query_witness)?;
+        let native_blind = C::CircuitField::random(&mut *rng);
+        let native_commitment = native_rx.commit(C::host_generators(self.params), native_blind);
 
         let nested_query_witness = nested::stages::query::Witness {
-            native_query: stage_commitment,
+            native_query: native_commitment,
             mesh_xy: mesh_xy_commitment,
         };
         let nested_rx = nested::stages::query::Stage::<C::HostCurve, R>::rx(&nested_query_witness)?;
@@ -114,9 +114,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 mesh_xy_poly,
                 mesh_xy_blind,
                 mesh_xy_commitment,
-                stage_rx,
-                stage_blind,
-                stage_commitment,
+                native_rx,
+                native_blind,
+                native_commitment,
                 nested_rx,
                 nested_blind,
                 nested_commitment,

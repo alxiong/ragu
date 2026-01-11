@@ -93,26 +93,26 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     proof.application.commitment,
                 );
                 acc.acc(
-                    &proof.preamble.stage_rx,
-                    proof.preamble.stage_blind,
-                    proof.preamble.stage_commitment,
+                    &proof.preamble.native_rx,
+                    proof.preamble.native_blind,
+                    proof.preamble.native_commitment,
                 );
                 acc.acc(
-                    &proof.error_n.stage_rx,
-                    proof.error_n.stage_blind,
-                    proof.error_n.stage_commitment,
+                    &proof.error_n.native_rx,
+                    proof.error_n.native_blind,
+                    proof.error_n.native_commitment,
                 );
                 acc.acc(
-                    &proof.error_m.stage_rx,
-                    proof.error_m.stage_blind,
-                    proof.error_m.stage_commitment,
+                    &proof.error_m.native_rx,
+                    proof.error_m.native_blind,
+                    proof.error_m.native_commitment,
                 );
                 acc.acc(&proof.ab.a_poly, proof.ab.a_blind, proof.ab.a_commitment);
                 acc.acc(&proof.ab.b_poly, proof.ab.b_blind, proof.ab.b_commitment);
                 acc.acc(
-                    &proof.query.stage_rx,
-                    proof.query.stage_blind,
-                    proof.query.stage_commitment,
+                    &proof.query.native_rx,
+                    proof.query.native_blind,
+                    proof.query.native_commitment,
                 );
                 acc.acc(
                     &proof.query.mesh_xy_poly,
@@ -120,9 +120,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                     proof.query.mesh_xy_commitment,
                 );
                 acc.acc(
-                    &proof.eval.stage_rx,
-                    proof.eval.stage_blind,
-                    proof.eval.stage_commitment,
+                    &proof.eval.native_rx,
+                    proof.eval.native_blind,
+                    proof.eval.native_commitment,
                 );
                 acc.acc(&proof.p.poly, proof.p.blind, proof.p.commitment);
                 acc.acc(

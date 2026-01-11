@@ -56,7 +56,7 @@ use ragu_primitives::{Element, GadgetExt};
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
-use crate::components::claim_builder::{self, ClaimProcessor, ClaimSource, RxComponent};
+use crate::components::claim_builder::{self, ClaimProcessor, ClaimSource, NativeRxComponent};
 use crate::components::fold_revdot::{NativeParameters, Parameters, fold_two_layer};
 
 use super::{
@@ -379,8 +379,8 @@ impl<'a, 'dr, D: Driver<'dr>> ClaimSource for EvaluationSource<'a, 'dr, D> {
     /// For app circuits: the mesh evaluation at the circuit's omega^j.
     type AppCircuitId = &'a Element<'dr, D>;
 
-    fn rx(&self, component: RxComponent) -> impl Iterator<Item = Self::Rx> {
-        use RxComponent::*;
+    fn rx(&self, component: NativeRxComponent) -> impl Iterator<Item = Self::Rx> {
+        use NativeRxComponent::*;
         let (left, right) = match component {
             // Raw claims: only x evaluation is available
             AbA => (
@@ -410,11 +410,11 @@ impl<'a, 'dr, D: Driver<'dr>> ClaimSource for EvaluationSource<'a, 'dr, D> {
                 self.left.compute_v.to_eval(),
                 self.right.compute_v.to_eval(),
             ),
-            PreambleStage => (self.left.preamble.to_eval(), self.right.preamble.to_eval()),
-            ErrorMStage => (self.left.error_m.to_eval(), self.right.error_m.to_eval()),
-            ErrorNStage => (self.left.error_n.to_eval(), self.right.error_n.to_eval()),
-            QueryStage => (self.left.query.to_eval(), self.right.query.to_eval()),
-            EvalStage => (self.left.eval.to_eval(), self.right.eval.to_eval()),
+            Preamble => (self.left.preamble.to_eval(), self.right.preamble.to_eval()),
+            ErrorM => (self.left.error_m.to_eval(), self.right.error_m.to_eval()),
+            ErrorN => (self.left.error_n.to_eval(), self.right.error_n.to_eval()),
+            Query => (self.left.query.to_eval(), self.right.query.to_eval()),
+            Eval => (self.left.eval.to_eval(), self.right.eval.to_eval()),
         };
         [left, right].into_iter()
     }

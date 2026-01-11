@@ -16,7 +16,7 @@ use crate::{
     Application, Pcd, Proof,
     circuits::native::stages::preamble::ProofInputs,
     components::claim_builder::{
-        self, ClaimBuilder, ClaimSource, KySource, RxComponent, ky_values,
+        self, ClaimBuilder, ClaimSource, KySource, NativeRxComponent, ky_values,
     },
     header::Header,
 };
@@ -124,21 +124,21 @@ impl<'rx, C: Cycle, R: Rank> ClaimSource for SingleProofSource<'rx, C, R> {
     type Rx = &'rx structured::Polynomial<C::CircuitField, R>;
     type AppCircuitId = CircuitIndex;
 
-    fn rx(&self, component: RxComponent) -> impl Iterator<Item = Self::Rx> {
+    fn rx(&self, component: NativeRxComponent) -> impl Iterator<Item = Self::Rx> {
         let poly = match component {
-            RxComponent::AbA => &self.proof.ab.a_poly,
-            RxComponent::AbB => &self.proof.ab.b_poly,
-            RxComponent::Application => &self.proof.application.rx,
-            RxComponent::Hashes1 => &self.proof.circuits.hashes_1_rx,
-            RxComponent::Hashes2 => &self.proof.circuits.hashes_2_rx,
-            RxComponent::PartialCollapse => &self.proof.circuits.partial_collapse_rx,
-            RxComponent::FullCollapse => &self.proof.circuits.full_collapse_rx,
-            RxComponent::ComputeV => &self.proof.circuits.compute_v_rx,
-            RxComponent::PreambleStage => &self.proof.preamble.stage_rx,
-            RxComponent::ErrorMStage => &self.proof.error_m.stage_rx,
-            RxComponent::ErrorNStage => &self.proof.error_n.stage_rx,
-            RxComponent::QueryStage => &self.proof.query.stage_rx,
-            RxComponent::EvalStage => &self.proof.eval.stage_rx,
+            NativeRxComponent::AbA => &self.proof.ab.a_poly,
+            NativeRxComponent::AbB => &self.proof.ab.b_poly,
+            NativeRxComponent::Application => &self.proof.application.rx,
+            NativeRxComponent::Hashes1 => &self.proof.circuits.hashes_1_rx,
+            NativeRxComponent::Hashes2 => &self.proof.circuits.hashes_2_rx,
+            NativeRxComponent::PartialCollapse => &self.proof.circuits.partial_collapse_rx,
+            NativeRxComponent::FullCollapse => &self.proof.circuits.full_collapse_rx,
+            NativeRxComponent::ComputeV => &self.proof.circuits.compute_v_rx,
+            NativeRxComponent::Preamble => &self.proof.preamble.native_rx,
+            NativeRxComponent::ErrorM => &self.proof.error_m.native_rx,
+            NativeRxComponent::ErrorN => &self.proof.error_n.native_rx,
+            NativeRxComponent::Query => &self.proof.query.native_rx,
+            NativeRxComponent::Eval => &self.proof.eval.native_rx,
         };
         core::iter::once(poly)
     }
