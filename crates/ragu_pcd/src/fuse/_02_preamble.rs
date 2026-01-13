@@ -39,18 +39,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
 
         let nested_preamble_witness = nested::stages::preamble::Witness {
             native_preamble: native_commitment,
-            left_application: left.application.commitment,
-            right_application: right.application.commitment,
-            left_hashes_1: left.circuits.hashes_1_commitment,
-            right_hashes_1: right.circuits.hashes_1_commitment,
-            left_hashes_2: left.circuits.hashes_2_commitment,
-            right_hashes_2: right.circuits.hashes_2_commitment,
-            left_partial_collapse: left.circuits.partial_collapse_commitment,
-            right_partial_collapse: right.circuits.partial_collapse_commitment,
-            left_full_collapse: left.circuits.full_collapse_commitment,
-            right_full_collapse: right.circuits.full_collapse_commitment,
-            left_compute_v: left.circuits.compute_v_commitment,
-            right_compute_v: right.circuits.compute_v_commitment,
+            left: nested::stages::preamble::ChildWitness::from_proof(left),
+            right: nested::stages::preamble::ChildWitness::from_proof(right),
         };
 
         let nested_rx =
