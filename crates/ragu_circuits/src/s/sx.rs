@@ -19,8 +19,9 @@ use crate::{
     },
 };
 
-use super::{Wire, WireSum};
+use super::{Monomial, MonomialSum};
 
+/// Driver for computing partial evaluation $s(x, Y)$.
 struct Collector<F: Field, R: Rank> {
     result: unstructured::Polynomial<F, R>,
     multiplication_constraints: usize,
@@ -31,27 +32,27 @@ struct Collector<F: Field, R: Rank> {
     current_u_x: F, // x^{2 * n - 1 - i}
     current_v_x: F, // x^{2 * n + i}
     current_w_x: F, // x^{4 * n - 1 - i}
-    available_b: Option<Wire<F>>,
+    available_b: Option<Monomial<F>>,
     _marker: core::marker::PhantomData<R>,
 }
 
 impl<F: Field, R: Rank> DriverTypes for Collector<F, R> {
     type MaybeKind = Empty;
-    type LCadd = WireSum<F>;
-    type LCenforce = WireSum<F>;
+    type LCadd = MonomialSum<F>;
+    type LCenforce = MonomialSum<F>;
     type ImplField = F;
-    type ImplWire = Wire<F>;
+    type ImplWire = Monomial<F>;
 }
 
 impl<'dr, F: Field, R: Rank> Driver<'dr> for Collector<F, R> {
     type F = F;
-    type Wire = Wire<F>;
+    type Wire = Monomial<F>;
 
-    const ONE: Self::Wire = Wire::One;
+    const ONE: Self::Wire = Monomial::One;
 
     fn alloc(&mut self, _: impl Fn() -> Result<Coeff<Self::F>>) -> Result<Self::Wire> {
-        if let Some(wire) = self.available_b.take() {
-            Ok(wire)
+        if let Some(monomial) = self.available_b.take() {
+            Ok(monomial)
         } else {
             let (a, b, _) = self.mul(|| unreachable!())?;
             self.available_b = Some(b);
@@ -78,11 +79,11 @@ impl<'dr, F: Field, R: Rank> Driver<'dr> for Collector<F, R> {
         self.current_v_x *= self.x;
         self.current_w_x *= self.x_inv;
 
-        Ok((Wire::Value(a), Wire::Value(b), Wire::Value(c)))
+        Ok((Monomial::Value(a), Monomial::Value(b), Monomial::Value(c)))
     }
 
     fn add(&mut self, lc: impl Fn(Self::LCadd) -> Self::LCadd) -> Self::Wire {
-        Wire::Value(lc(WireSum::new(self.one)).value)
+        Monomial::Value(lc(MonomialSum::new(self.one)).value)
     }
 
     fn enforce_zero(&mut self, lc: impl Fn(Self::LCenforce) -> Self::LCenforce) -> Result<()> {
@@ -92,7 +93,7 @@ impl<'dr, F: Field, R: Rank> Driver<'dr> for Collector<F, R> {
         }
         self.linear_constraints += 1;
 
-        self.result[q] = lc(WireSum::new(self.one)).value;
+        self.result[q] = lc(MonomialSum::new(self.one)).value;
 
         Ok(())
     }
@@ -119,6 +120,9 @@ impl<'dr, F: Field, R: Rank> Driver<'dr> for Collector<F, R> {
     }
 }
 
+/// Evaluates the wiring polynomial `s(x,Y)` at a fixed `x`, with mesh key `key`.
+/// Mesh key augment the original `circuit` with one more `key`-related linear
+/// constraint, thus binding `circuit` to an outer `Mesh` context.
 pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
     circuit: &C,
     x: F,
