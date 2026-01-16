@@ -17,15 +17,6 @@ use alloc::vec::Vec;
 
 use super::{Header, internal::padded};
 
-enum EncodedInner<'dr, D: Driver<'dr>, H: Header<D::F>, const HEADER_SIZE: usize> {
-    /// Standard gadget encoding preserving structure (efficient, type-dependent circuit)
-    Gadget(<H::Output as GadgetKind<D::F>>::Rebind<'dr, D>),
-    /// Uniform encoding as field elements (less efficient, type-independent circuit)
-    Uniform(FixedVec<Element<'dr, D>, ConstLen<HEADER_SIZE>>),
-}
-
-/// The result of encoding a header within a step.
-///
 /// Headers can be encoded in two ways depending on the circuit requirements:
 ///
 /// # Variants
@@ -52,6 +43,14 @@ enum EncodedInner<'dr, D: Driver<'dr>, H: Header<D::F>, const HEADER_SIZE: usize
 /// circuit structure matches the computation. However, rerandomization requires that
 /// the same circuit handles any header type, necessitating the uniform encoding
 /// (`Uniform`) that erases type-level differences through serialization.
+enum EncodedInner<'dr, D: Driver<'dr>, H: Header<D::F>, const HEADER_SIZE: usize> {
+    /// Standard gadget encoding preserving structure (efficient, type-dependent circuit)
+    Gadget(<H::Output as GadgetKind<D::F>>::Rebind<'dr, D>),
+    /// Uniform encoding as field elements (less efficient, type-independent circuit)
+    Uniform(FixedVec<Element<'dr, D>, ConstLen<HEADER_SIZE>>),
+}
+
+/// The result of encoding a header within a step.
 pub struct Encoded<'dr, D: Driver<'dr>, H: Header<D::F>, const HEADER_SIZE: usize>(
     EncodedInner<'dr, D, H, HEADER_SIZE>,
 );
@@ -84,13 +83,12 @@ impl<'dr, D: Driver<'dr, F: PrimeField>, H: Header<D::F>, const HEADER_SIZE: usi
     }
 
     /// Returns a reference to the underlying gadget.
-    ///
-    /// # Panics
-    /// Panics if called on a `Uniform` encoding, which doesn't preserve gadget structure.
     pub fn as_gadget(&self) -> &<H::Output as GadgetKind<D::F>>::Rebind<'dr, D> {
         match &self.0 {
             EncodedInner::Gadget(g) => g,
-            EncodedInner::Uniform(_) => unreachable!(),
+            EncodedInner::Uniform(_) => {
+                unreachable!("as_gadget should not be called on Uniform encoded headers")
+            }
         }
     }
 
