@@ -13,12 +13,7 @@ use rand::Rng;
 use core::iter::once;
 
 use crate::{
-    Application, Pcd, Proof,
-    circuits::native::stages::preamble::ProofInputs,
-    components::claims::{
-        self,
-        native::{KySource, RxComponent, Source, ky_values},
-    },
+    Application, Pcd, Proof, circuits::native::stages::preamble::ProofInputs, components::claims,
     header::Header,
 };
 
@@ -69,20 +64,20 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             })?;
 
         // Build a and b polynomials for each revdot claim.
-        let source = SingleProofSource { proof: &pcd.proof };
+        let source = native::SingleProofSource { proof: &pcd.proof };
         let mut builder = claims::Builder::new(&self.native_mesh, self.num_application_steps, y, z);
         claims::native::build(&source, &mut builder)?;
 
         // Check all revdot claims.
         let revdot_claims = {
-            let ky_source = SingleProofKySource {
+            let ky_source = native::SingleProofKySource {
                 raw_c: pcd.proof.ab.c,
                 application_ky,
                 unified_bridge_ky,
                 unified_ky,
             };
 
-            ky_values(&ky_source)
+            native::ky_values(&ky_source)
                 .zip(builder.a.iter().zip(builder.b.iter()))
                 .all(|(ky, (a, b))| a.revdot(b) == ky)
         };
@@ -116,68 +111,74 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     }
 }
 
-/// Wraps a single proof for use with `ClaimSource`.
-struct SingleProofSource<'rx, C: Cycle, R: Rank> {
-    proof: &'rx Proof<C, R>,
-}
+mod native {
+    use super::*;
+    use crate::components::claims::native::{KySource, RxComponent, Source};
 
-impl<'rx, C: Cycle, R: Rank> Source for SingleProofSource<'rx, C, R> {
-    type Rx = &'rx structured::Polynomial<C::CircuitField, R>;
-    type AppCircuitId = CircuitIndex;
+    pub use crate::components::claims::native::ky_values;
 
-    fn rx(&self, component: RxComponent) -> impl Iterator<Item = Self::Rx> {
-        use RxComponent::*;
-        let poly = match component {
-            AbA => &self.proof.ab.a_poly,
-            AbB => &self.proof.ab.b_poly,
-            Application => &self.proof.application.rx,
-            Hashes1 => &self.proof.circuits.hashes_1_rx,
-            Hashes2 => &self.proof.circuits.hashes_2_rx,
-            PartialCollapse => &self.proof.circuits.partial_collapse_rx,
-            FullCollapse => &self.proof.circuits.full_collapse_rx,
-            ComputeV => &self.proof.circuits.compute_v_rx,
-            Preamble => &self.proof.preamble.native_rx,
-            ErrorM => &self.proof.error_m.native_rx,
-            ErrorN => &self.proof.error_n.native_rx,
-            Query => &self.proof.query.native_rx,
-            Eval => &self.proof.eval.native_rx,
-        };
-        core::iter::once(poly)
+    pub struct SingleProofSource<'rx, C: Cycle, R: Rank> {
+        pub proof: &'rx Proof<C, R>,
     }
 
-    fn app_circuits(&self) -> impl Iterator<Item = Self::AppCircuitId> {
-        core::iter::once(self.proof.application.circuit_id)
-    }
-}
+    impl<'rx, C: Cycle, R: Rank> Source for SingleProofSource<'rx, C, R> {
+        type Rx = &'rx structured::Polynomial<C::CircuitField, R>;
+        type AppCircuitId = CircuitIndex;
 
-/// Source for k(y) values for single-proof verification.
-struct SingleProofKySource<F> {
-    raw_c: F,
-    application_ky: F,
-    unified_bridge_ky: F,
-    unified_ky: F,
-}
+        fn rx(&self, component: RxComponent) -> impl Iterator<Item = Self::Rx> {
+            use RxComponent::*;
+            let poly = match component {
+                AbA => &self.proof.ab.a_poly,
+                AbB => &self.proof.ab.b_poly,
+                Application => &self.proof.application.rx,
+                Hashes1 => &self.proof.circuits.hashes_1_rx,
+                Hashes2 => &self.proof.circuits.hashes_2_rx,
+                PartialCollapse => &self.proof.circuits.partial_collapse_rx,
+                FullCollapse => &self.proof.circuits.full_collapse_rx,
+                ComputeV => &self.proof.circuits.compute_v_rx,
+                Preamble => &self.proof.preamble.native_rx,
+                ErrorM => &self.proof.error_m.native_rx,
+                ErrorN => &self.proof.error_n.native_rx,
+                Query => &self.proof.query.native_rx,
+                Eval => &self.proof.eval.native_rx,
+            };
+            core::iter::once(poly)
+        }
 
-impl<F: Field> KySource for SingleProofKySource<F> {
-    type Ky = F;
-
-    fn raw_c(&self) -> impl Iterator<Item = F> {
-        once(self.raw_c)
-    }
-
-    fn application_ky(&self) -> impl Iterator<Item = F> {
-        once(self.application_ky)
-    }
-
-    fn unified_bridge_ky(&self) -> impl Iterator<Item = F> {
-        once(self.unified_bridge_ky)
-    }
-
-    fn unified_ky(&self) -> impl Iterator<Item = F> + Clone {
-        once(self.unified_ky)
+        fn app_circuits(&self) -> impl Iterator<Item = Self::AppCircuitId> {
+            core::iter::once(self.proof.application.circuit_id)
+        }
     }
 
-    fn zero(&self) -> F {
-        F::ZERO
+    /// Source for k(y) values for single-proof verification.
+    pub struct SingleProofKySource<F> {
+        pub raw_c: F,
+        pub application_ky: F,
+        pub unified_bridge_ky: F,
+        pub unified_ky: F,
+    }
+
+    impl<F: Field> KySource for SingleProofKySource<F> {
+        type Ky = F;
+
+        fn raw_c(&self) -> impl Iterator<Item = F> {
+            once(self.raw_c)
+        }
+
+        fn application_ky(&self) -> impl Iterator<Item = F> {
+            once(self.application_ky)
+        }
+
+        fn unified_bridge_ky(&self) -> impl Iterator<Item = F> {
+            once(self.unified_bridge_ky)
+        }
+
+        fn unified_ky(&self) -> impl Iterator<Item = F> + Clone {
+            once(self.unified_ky)
+        }
+
+        fn zero(&self) -> F {
+            F::ZERO
+        }
     }
 }
