@@ -59,7 +59,10 @@ use ragu_primitives::{Element, Endoscalar, GadgetExt};
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
-use crate::components::claims::native::{self as claims, Processor, RxComponent, Source};
+use crate::components::claims::{
+    Source,
+    native::{self as claims, Processor, RxComponent},
+};
 use crate::components::fold_revdot::{NativeParameters, Parameters, fold_two_layer};
 
 use super::{
@@ -381,6 +384,7 @@ struct EvaluationSource<'a, 'dr, D: Driver<'dr>> {
 }
 
 impl<'a, 'dr, D: Driver<'dr>> Source for EvaluationSource<'a, 'dr, D> {
+    type RxComponent = RxComponent;
     type Rx = RxEval<'a, 'dr, D>;
 
     /// For app circuits: the mesh evaluation at the circuit's omega^j.

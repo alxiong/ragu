@@ -21,7 +21,7 @@ use rand::Rng;
 
 use crate::{
     Application, Pcd, Proof,
-    components::claims::native::{RxComponent, Source},
+    components::claims::{Source, native::RxComponent},
     proof,
     step::Step,
 };
@@ -171,6 +171,7 @@ pub(crate) struct FuseProofSource<'rx, C: Cycle, R: Rank> {
 }
 
 impl<'rx, C: Cycle, R: Rank> Source for FuseProofSource<'rx, C, R> {
+    type RxComponent = RxComponent;
     type Rx = &'rx structured::Polynomial<C::CircuitField, R>;
     type AppCircuitId = CircuitIndex;
 

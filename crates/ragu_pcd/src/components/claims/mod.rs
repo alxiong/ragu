@@ -12,6 +12,32 @@ pub mod native;
 use crate::circuits::InternalCircuitIndex;
 use native::Processor;
 
+/// Trait for providing claim component values from sources.
+///
+/// This trait abstracts over what a "source" provides. For polynomial contexts
+/// (verify, fuse), it provides polynomial references. For evaluation contexts
+/// (compute_v), it provides element evaluation tuples.
+///
+/// Implementors provide access to rx values for all proofs they manage.
+/// The `RxComponent` associated type defines which components can be requested.
+pub trait Source {
+    /// The type identifying which rx component to retrieve.
+    /// For native claims, this is [`native::RxComponent`].
+    type RxComponent: Copy;
+
+    /// Opaque type for rx values.
+    type Rx;
+
+    /// Type for application circuit identifiers.
+    type AppCircuitId;
+
+    /// Get an iterator over rx values for all proofs for the given component.
+    fn rx(&self, component: Self::RxComponent) -> impl Iterator<Item = Self::Rx>;
+
+    /// Get an iterator over application circuit info for all proofs.
+    fn app_circuits(&self) -> impl Iterator<Item = Self::AppCircuitId>;
+}
+
 /// Processor that builds polynomial vectors for revdot claims.
 ///
 /// Accumulates (a, b) polynomial pairs for each claim type, using

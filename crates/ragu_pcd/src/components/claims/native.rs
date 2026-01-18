@@ -15,6 +15,7 @@ use ragu_core::Result;
 use ragu_core::drivers::Driver;
 use ragu_primitives::Element;
 
+use super::Source;
 use crate::circuits::{self, InternalCircuitIndex};
 
 /// Number of circuits that use the unified k(y) value per proof.
@@ -56,33 +57,6 @@ pub enum RxComponent {
     Eval,
 }
 
-/// Trait for providing claim component values from sources.
-///
-/// This trait abstracts over what a "source" provides. For polynomial contexts
-/// (verify, fuse), it provides polynomial references. For evaluation contexts
-/// (compute_v), it provides element evaluation tuples.
-///
-/// Implementors provide access to rx values for all proofs they manage.
-/// For verification (single proof), iterators yield 1 item.
-/// For fuse (two proofs), iterators yield 2 items (left, right).
-pub trait Source {
-    /// Opaque type for rx values. Could be:
-    /// - `&Polynomial<F, R>` for polynomial context
-    /// - `(&Element, &Element)` for evaluation context (at_x, at_xz)
-    type Rx;
-
-    /// Type for application circuit identifiers. Could be:
-    /// - `CircuitIndex` for polynomial context
-    /// - `(CircuitIndex, &Element)` for evaluation context (includes mesh eval)
-    type AppCircuitId;
-
-    /// Get an iterator over rx values for all proofs for the given component.
-    fn rx(&self, component: RxComponent) -> impl Iterator<Item = Self::Rx>;
-
-    /// Get an iterator over application circuit info for all proofs.
-    fn app_circuits(&self) -> impl Iterator<Item = Self::AppCircuitId>;
-}
-
 /// Trait for processing claim values into accumulated outputs.
 ///
 /// This trait defines how to process rx values from a [`Source`].
@@ -113,7 +87,7 @@ pub trait Processor<Rx, AppCircuitId> {
 /// and `fuse.rs` `compute_errors_n`.
 pub fn build<S, P>(source: &S, processor: &mut P) -> Result<()>
 where
-    S: Source,
+    S: Source<RxComponent = RxComponent>,
     P: Processor<S::Rx, S::AppCircuitId>,
 {
     use RxComponent::*;

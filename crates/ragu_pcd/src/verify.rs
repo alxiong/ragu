@@ -113,7 +113,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
 
 mod native {
     use super::*;
-    use crate::components::claims::native::{KySource, RxComponent, Source};
+    use crate::components::claims::{
+        Source,
+        native::{KySource, RxComponent},
+    };
 
     pub use crate::components::claims::native::ky_values;
 
@@ -122,6 +125,7 @@ mod native {
     }
 
     impl<'rx, C: Cycle, R: Rank> Source for SingleProofSource<'rx, C, R> {
+        type RxComponent = RxComponent;
         type Rx = &'rx structured::Polynomial<C::CircuitField, R>;
         type AppCircuitId = CircuitIndex;
 
