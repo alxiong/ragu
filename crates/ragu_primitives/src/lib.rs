@@ -19,6 +19,7 @@ mod element;
 mod endoscalar;
 mod foreign;
 pub mod io;
+pub mod maybe_rayon;
 mod point;
 pub mod poseidon;
 pub mod promotion;
