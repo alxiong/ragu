@@ -1,12 +1,11 @@
 use super::*;
 use crate::*;
-use ff::PrimeField;
 use native::{
     InternalCircuitIndex,
     stages::{error_m, error_n, eval, preamble, query},
 };
 use ragu_circuits::staging::{Stage, StageExt};
-use ragu_pasta::Pasta;
+use ragu_pasta::{Pasta, fp, fq};
 
 pub(crate) type R = ragu_circuits::polynomials::R<13>;
 
@@ -170,18 +169,12 @@ fn test_native_mesh_digest() {
         .finalize(pasta)
         .unwrap();
 
-    let digest = app.native_mesh.get_key();
-
-    let expected: [u8; 32] = [
-        0x93, 0xe5, 0xe3, 0xe9, 0x11, 0x96, 0x81, 0x22, 0xaa, 0xba, 0xe1, 0x1e, 0x26, 0x96, 0xcd,
-        0xf6, 0x44, 0xd5, 0x9e, 0xe2, 0x39, 0x25, 0x02, 0xdc, 0xdd, 0xa4, 0x8f, 0xad, 0xe2, 0xde,
-        0x77, 0x12,
-    ];
+    let expected = fp!(0x1277dee2ad8fa4dddc022539e29ed544f6cd96261ee1baaa22819611e9e3e593);
 
     assert_eq!(
-        digest.to_repr().as_ref(),
-        &expected,
-        "Mesh digest changed unexpectedly!"
+        app.native_mesh.get_key(),
+        expected,
+        "Native mesh digest changed unexpectedly!"
     );
 }
 
@@ -200,17 +193,61 @@ fn test_nested_mesh_digest() {
         .finalize(pasta)
         .unwrap();
 
-    let digest = app.nested_mesh.get_key();
-
-    let expected: [u8; 32] = [
-        0x03, 0x34, 0x3d, 0x93, 0x69, 0xa3, 0x95, 0xb5, 0x59, 0x4c, 0xeb, 0x1c, 0x4d, 0x31, 0xa8,
-        0x41, 0x64, 0x1b, 0x89, 0x96, 0xa3, 0xa2, 0x21, 0x01, 0x0b, 0x38, 0x31, 0x14, 0xa6, 0xed,
-        0x8e, 0x0a,
-    ];
+    let expected = fq!(0x0a8eeda61431380b0121a2a396891b6441a8314d1ceb4c59b595a369933d3403);
 
     assert_eq!(
-        digest.to_repr().as_ref(),
-        &expected,
-        "Mesh digest changed unexpectedly!"
+        app.nested_mesh.get_key(),
+        expected,
+        "Nested mesh digest changed unexpectedly!"
+    );
+}
+
+/// Helper test to print current mesh digests in copy-pasteable format.
+/// Run with: `cargo test -p ragu_pcd --release print_mesh_digests -- --nocapture`
+#[test]
+fn print_mesh_digests() {
+    use ff::PrimeField;
+
+    let pasta = Pasta::baked();
+
+    let app = ApplicationBuilder::<Pasta, R, HEADER_SIZE>::new()
+        .register_dummy_circuits(NUM_APP_STEPS)
+        .unwrap()
+        .finalize(pasta)
+        .unwrap();
+
+    let native_digest = app.native_mesh.get_key();
+    let nested_digest = app.nested_mesh.get_key();
+
+    // Convert to big-endian hex for repr256! format
+    let native_bytes: Vec<u8> = native_digest
+        .to_repr()
+        .as_ref()
+        .iter()
+        .rev()
+        .cloned()
+        .collect();
+    let nested_bytes: Vec<u8> = nested_digest
+        .to_repr()
+        .as_ref()
+        .iter()
+        .rev()
+        .cloned()
+        .collect();
+
+    println!("\n// Copy-paste the following into the mesh digest tests:");
+    println!(
+        "    let expected = fp!(0x{});",
+        native_bytes
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect::<String>()
+    );
+    println!(
+        "    let expected = fq!(0x{});",
+        nested_bytes
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect::<String>()
     );
 }
