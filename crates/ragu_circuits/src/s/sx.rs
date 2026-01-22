@@ -83,7 +83,7 @@ use crate::{
     },
 };
 
-use super::common::{WireEval, WireEvalSum};
+use super::common::{DriverExt, WireEval, WireEvalSum};
 
 /// A [`Driver`] that computes the partial evaluation $s(x, Y)$.
 ///
@@ -287,26 +287,6 @@ impl<'dr, F: Field, R: Rank> Driver<'dr> for Evaluator<F, R> {
 ///
 /// If $x = 0$, returns the zero polynomial since all monomials vanish.
 ///
-/// # Public Input Enforcement
-///
-/// Public inputs are enforced through a specialized use of linear constraints.
-/// Within the circuit implementation ([`Circuit::witness`]), calls to
-/// [`enforce_zero`] constrain linear combinations of wires to equal zero, as
-/// expected.
-///
-/// However, the public output gadget (returned by [`Circuit::instance`]) and
-/// the `ONE` wire are treated specially: their corresponding [`enforce_zero`]
-/// calls do not enforce that the wire equals zero. Instead, they create binding
-/// constraints that force these wires to match their corresponding values in the
-/// public input polynomial $k(Y)$.
-///
-/// For example, `enforce_zero(|lc| lc.add(output_wire))` on a public output
-/// doesn't constrain `output_wire = 0`. Instead, if `output_wire` has value `v`,
-/// this creates a constraint binding `v` as a coefficient in $k(Y)$.
-///
-/// [`Circuit::witness`]: crate::Circuit::witness
-/// [`Circuit::instance`]: crate::Circuit::instance
-/// [`enforce_zero`]: ragu_core::drivers::Driver::enforce_zero
 /// [`Mesh`]: crate::mesh::Mesh
 pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
     circuit: &C,
@@ -353,15 +333,9 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
     let (io, _) = circuit.witness(&mut evaluator, Empty)?;
     io.write(&mut evaluator, &mut outputs)?;
 
-    // Public output constraints (one per output wire).
-    // They do NOT enforce output == 0, instead bind output wires to k(Y) coefficients
-    for output in outputs {
-        evaluator.enforce_zero(|lc| lc.add(output.wire()))?;
-    }
-
-    // ONE wire constraint.
-    // It does NOT enforce one == 0, instead binds ONE wire the first k(Y) coefficient
-    evaluator.enforce_zero(|lc| lc.add(&one))?;
+    // Enforcing public inputs
+    evaluator.enforce_public_outputs(outputs.iter().map(|output| output.wire()))?;
+    evaluator.enforce_one()?;
 
     // Reverse to canonical coefficient order (see module docs).
     evaluator.result[0..evaluator.linear_constraints].reverse();

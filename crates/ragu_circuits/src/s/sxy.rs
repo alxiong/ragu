@@ -63,7 +63,7 @@ use alloc::vec;
 
 use crate::{Circuit, polynomials::Rank};
 
-use super::common::{WireEval, WireEvalSum};
+use super::common::{DriverExt, WireEval, WireEvalSum};
 
 /// A [`Driver`] that computes the full evaluation $s(x, y)$.
 ///
@@ -249,8 +249,6 @@ impl<'dr, F: Field, R: Rank> Driver<'dr> for Evaluator<F, R> {
 /// Evaluates the wiring polynomial $s(X, Y)$ at fixed point $(x, y)$.
 ///
 /// See the [module documentation][`self`] for the Horner evaluation algorithm.
-/// See the [`sx::eval()` doc][`super::sx::eval`] for public input enforcement
-/// details.
 ///
 /// # Arguments
 ///
@@ -312,15 +310,9 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(circuit: &C, x: F, y: F, key: F) -
     let (io, _) = circuit.witness(&mut evaluator, Empty)?;
     io.write(&mut evaluator, &mut outputs)?;
 
-    // Public output constraints (one per output wire).
-    // They do NOT enforce output == 0, instead bind output wires to k(Y) coefficients
-    for output in outputs {
-        evaluator.enforce_zero(|lc| lc.add(output.wire()))?;
-    }
-
-    // ONE wire constraint.
-    // It does NOT enforce one == 0, instead binds ONE wire the first k(Y) coefficient
-    evaluator.enforce_zero(|lc| lc.add(&one))?;
+    // Enforcing public inputs
+    evaluator.enforce_public_outputs(outputs.iter().map(|output| output.wire()))?;
+    evaluator.enforce_one()?;
 
     Ok(evaluator.result)
 }

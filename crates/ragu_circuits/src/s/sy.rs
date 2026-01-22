@@ -83,6 +83,7 @@ use core::cell::RefCell;
 use crate::{
     Circuit,
     polynomials::{Rank, structured},
+    s::common::DriverExt,
 };
 
 /// An index identifying a wire in the evaluator.
@@ -617,9 +618,6 @@ impl<'table, 'sy, F: Field, R: Rank> Driver<'table> for Evaluator<'table, 'sy, F
 /// deferred evaluation through virtual wires. See the [module
 /// documentation](self) for the algorithm overview.
 ///
-/// See the [`sx::eval()` doc][`super::sx::eval`] for public input enforcement
-/// details.
-///
 /// # Arguments
 ///
 /// - `circuit`: The circuit whose wiring polynomial to evaluate.
@@ -678,15 +676,9 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
             let (io, _) = circuit.witness(&mut evaluator, Empty)?;
             io.write(&mut evaluator, &mut outputs)?;
 
-            // Public output constraints (one per output wire).
-            // They do NOT enforce output == 0, instead bind output wires to k(Y) coefficients
-            for output in outputs {
-                evaluator.enforce_zero(|lc| lc.add(output.wire()))?;
-            }
-
-            // ONE wire constraint.
-            // It does NOT enforce one == 0, instead binds ONE wire the first k(Y) coefficient
-            evaluator.enforce_zero(|lc| lc.add(&one))?;
+            // Enforcing public inputs
+            evaluator.enforce_public_outputs(outputs.iter().map(|output| output.wire()))?;
+            evaluator.enforce_one()?;
 
             // Invariant: synthesis must produce exactly the expected number of
             // linear constraints.
