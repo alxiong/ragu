@@ -49,7 +49,7 @@ multiple claims share the same underlying polynomial, only one evaluation per
 polynomial is needed since $p_i(u)$ depends only on the polynomial, not the
 original evaluation point $x_i$.
 5. Verifier sends challenge $\beta\sample\F$
-6. Prover computes the aggregated polynomial (named `final_poly` by Ragu)
+6. Prover computes the aggregated polynomial
 $p(X) = f(X) + \sum_i \beta^i \cdot p_i(X)$ and the aggregated blinding factor
 $\gamma = \gamma_f + \sum_i \beta^i \cdot \gamma_i$
 7. Verifier derives the aggregated commitment
