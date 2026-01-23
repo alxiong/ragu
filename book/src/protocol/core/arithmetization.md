@@ -1,7 +1,5 @@
 # Arithmetization
 
-> explain Bootle16 CS -> revdot product relation
-
 **Additional Notation**:
 We further generalize the power vector notation to arbitrary range $[n,m)$ in the
 exponent: $\v{z^{n:m}}=(z^n,\ldots,z^{m-1})$.
@@ -18,9 +16,21 @@ A few arithmetic facts (assume all vectors have the same length):
 - $\dot{\rv{b}}{\rv{a} \circ \v{d}} = \dot{\v{b}}{\widehat{\rv{a}\circ\v{d}}}=
 \dot{\v{b}}{\v{a}\circ\rv{d}}$
 
-## Constraint System
 
-The witness vectors $\v{a}, \v{b}, \v{c} \in \F^n$ must satisfy $n$ _multiplication constraints_, where the $i$th such constraint takes the form $\v{a}_i \cdot \v{b}_i = \v{c}_i$. In addition, the witness must satisfy a set of $4n$ _linear constraints_, where the $j$th such constraint is of the form
+## Constraint System: Bootle16
+
+The Bootle16 constraint system was proposed in [[BCC+16]](https://eprint.iacr.org/2016/263)
+and later used in [Sonic](https://eprint.iacr.org/2019/099) and
+[Halo](https://eprint.iacr.org/2019/1021) papers.
+It describes any NP relation $\Rel=\set{(x,w): \Cir(x,w)=1}$
+with public instance $x$ and secret satisfying witness $w$ using a set of
+constraints over the witness vectors $\v{a},\v{b},\v{c}\in\F^n$ and public input
+vector $\v{k}\in\F^{4n}$.
+
+The witness vectors $\v{a}, \v{b}, \v{c} \in \F^n$ must satisfy $n$
+_multiplication constraints_, where the $i$th such constraint takes the form
+$\v{a}_i \cdot \v{b}_i = \v{c}_i$. In addition, the witness must satisfy a set
+of $4n$ _linear constraints_, where the $j$th such constraint is of the form
 
 $$
 \sum_{i = 0}^{n - 1} \big( \v{u}_{j,i} \cdot \mathbf{a}_i \big) +
@@ -29,7 +39,15 @@ $$
 \v{k}_j
 $$
 
-for some (sparse) public input vector $\v{k} \in \F^{4n}$ and fixed matrices $\v{u}, \v{v}, \v{w} \in \F^{n \times 4n}$, where $\v{u_{j}}, \v{v_{j}}, \v{w_{j}} \in \F^{4n}$ denote the _j-th row_ of those matrices. Because $n$ is fixed, individual circuits vary only by these matrices after this reduction.
+for some (sparse) public input vector $\v{k} \in \F^{4n}$ and fixed matrices
+$\v{u}, \v{v}, \v{w} \in \F^{n \times 4n}$, where
+$\v{u_{j}}, \v{v_{j}}, \v{w_{j}} \in \F^{4n}$ denote the _j-th row_ of those
+matrices. Because $n$ is fixed, individual circuits vary only by these matrices
+after this reduction.
+
+Bootle16 CS is practically identical to the more commonly known R1CS, as they
+are linear-time interreducible, thus equivalent for all practical purposes.
+See [appendix](../../appendix/cs.md) for a more detailed comparison.
 
 ## Multiplication Constraints
 

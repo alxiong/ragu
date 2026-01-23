@@ -23,7 +23,6 @@
     - [Structured Vectors](protocol/prelim/structured_vectors.md)
     - [Nested Commitment](protocol/prelim/nested_commitment.md)
     - [Bulletproofs IPA](protocol/prelim/bulletproofs.md)
-    - [Constraint Systems](protocol/prelim/cs.md)
   - [Core Construction](protocol/core/index.md)
     - [Arithmetization](protocol/core/arithmetization.md)
     - [NARK](protocol/core/nark.md)
@@ -52,5 +51,6 @@
 
 # Appendices
 
+- [Bootle16 v.s. R1CS](appendix/cs.md)
 - [Related Work](appendix/related.md)
 - [Terminology](appendix/terminology.md)
