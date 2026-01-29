@@ -127,8 +127,8 @@ mod tests {
     fn test_rx() {
         let circuit = SquareCircuit { times: 10 };
         let witness: Fp = Fp::from(3);
-        let key = Fp::ONE;
-        let (rx, _aux) = eval::<Fp, _, R<6>>(&circuit, witness, key).unwrap();
+        let key = registry::Key::default();
+        let (rx, _aux) = eval::<Fp, _, R<6>>(&circuit, witness, &key).unwrap();
         let mut coeffs = rx.iter_coeffs().collect::<Vec<_>>();
         let size_of_vec = coeffs.len() / 4;
         let c = coeffs.drain(..size_of_vec).collect::<Vec<_>>();
