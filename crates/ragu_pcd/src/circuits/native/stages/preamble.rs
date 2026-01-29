@@ -78,7 +78,7 @@ pub struct ChildHeaders<'dr, D: Driver<'dr>, const HEADER_SIZE: usize> {
 }
 
 /// Processed inputs from a single child proof in the preamble stage.
-#[derive(Gadget)]
+#[derive(Gadget, Consistent)]
 pub struct ProofInputs<'dr, D: Driver<'dr>, C: Cycle<CircuitField = D::F>, const HEADER_SIZE: usize>
 {
     /// Headers this child proof claimed for its own children.
@@ -91,14 +91,6 @@ pub struct ProofInputs<'dr, D: Driver<'dr>, C: Cycle<CircuitField = D::F>, const
     pub circuit_id: Element<'dr, D>,
     #[ragu(gadget)]
     pub unified: unified::Output<'dr, D, C>,
-}
-
-impl<'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle, const HEADER_SIZE: usize>
-    Consistent<'dr, D> for ProofInputs<'dr, D, C, HEADER_SIZE>
-{
-    fn enforce_consistent(&self, dr: &mut D) -> Result<()> {
-        self.unified.enforce_consistent(dr)
-    }
 }
 
 impl<'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle, const HEADER_SIZE: usize>
@@ -230,21 +222,12 @@ impl<'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle, const HEADER_SIZE: usiz
 }
 
 /// Output of the native preamble stage.
-#[derive(Gadget)]
+#[derive(Gadget, Consistent)]
 pub struct Output<'dr, D: Driver<'dr>, C: Cycle<CircuitField = D::F>, const HEADER_SIZE: usize> {
     #[ragu(gadget)]
     pub left: ProofInputs<'dr, D, C, HEADER_SIZE>,
     #[ragu(gadget)]
     pub right: ProofInputs<'dr, D, C, HEADER_SIZE>,
-}
-
-impl<'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle, const HEADER_SIZE: usize>
-    Consistent<'dr, D> for Output<'dr, D, C, HEADER_SIZE>
-{
-    fn enforce_consistent(&self, dr: &mut D) -> Result<()> {
-        self.left.enforce_consistent(dr)?;
-        self.right.enforce_consistent(dr)
-    }
 }
 
 impl<'dr, D: Driver<'dr>, C: Cycle<CircuitField = D::F>, const HEADER_SIZE: usize>
