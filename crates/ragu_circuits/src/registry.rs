@@ -38,6 +38,11 @@ impl CircuitIndex {
         Self(index.try_into().unwrap())
     }
 
+    /// Creates a circuit index from a `u32` value.
+    pub const fn from_u32(index: u32) -> Self {
+        Self(index)
+    }
+
     /// Returns $\omega^j$ field element that corresponds to this $i$th circuit index.
     ///
     /// The $i$th circuit added to any [`Registry`] (for a given [`PrimeField`] `F`) is
