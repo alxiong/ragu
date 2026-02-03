@@ -10,7 +10,7 @@ inputs:
     required: false
     default: ""
   apt-packages:
-    description: Additional apt packages to install
+    description: Additional apt packages to install (space-separated)
     required: false
     default: ""
   cargo-tools:
@@ -40,7 +40,7 @@ runs:
     # Cache cargo registry and git separately (shared across all jobs)
     - name: Cache cargo registry
       id: registry-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           ~/.cargo/registry/index
@@ -53,7 +53,7 @@ runs:
     # Cache target directory (job-specific due to different build configurations)
     # Includes source file hash to avoid stale incremental compilation artifacts
     - name: Cache target directory
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: target
         key: ${{ runner.os }}-target-${{ inputs.targets }}-${{ inputs.cache-suffix }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('crates/**/src/**/*.rs') }}

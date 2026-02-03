@@ -57,7 +57,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: target/gungraun
-          key: bench-${{ github.sha }}
+          key: never-${{ github.sha }}-${{ github.run_id }}
           restore-keys: bench-${{ github.event.pull_request.base.sha }}
 
       - name: Clean benchmark summaries

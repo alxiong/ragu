@@ -13,7 +13,7 @@ jobs:
   bench-alert:
     name: Alert any benchmark regressions
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success'
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
     env:
       ALERT_THRESHOLD: 1.5
     steps:
