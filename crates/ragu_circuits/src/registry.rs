@@ -25,7 +25,7 @@ use alloc::{boxed::Box, collections::btree_map::BTreeMap, vec::Vec};
 use crate::{
     Circuit, CircuitExt, CircuitObject,
     polynomials::{Rank, structured, unstructured},
-    staging::{Stage, StageExt, mask::StageMask},
+    staging::{Stage, StageExt},
 };
 
 /// Represents a simple numeric index of a circuit in the registry.
@@ -137,10 +137,7 @@ impl<'params, F: PrimeField, R: Rank> RegistryBuilder<'params, F, R> {
     where
         S: Stage<F, R> + 'params,
     {
-        self.internal_masks.push(Box::new(StageMask::new(
-            S::skip_multiplications(),
-            S::num_multiplications(),
-        )?));
+        self.internal_masks.push(S::mask()?);
         Ok(self)
     }
 
@@ -149,9 +146,7 @@ impl<'params, F: PrimeField, R: Rank> RegistryBuilder<'params, F, R> {
     where
         S: Stage<F, R> + 'params,
     {
-        self.internal_masks.push(Box::new(StageMask::new_final(
-            S::skip_multiplications() + S::num_multiplications(),
-        )?));
+        self.internal_masks.push(S::final_mask()?);
         Ok(self)
     }
 
