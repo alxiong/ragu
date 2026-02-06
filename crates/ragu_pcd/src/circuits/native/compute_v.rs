@@ -69,7 +69,7 @@ use super::InternalCircuitIndex;
 use super::{
     stages::{
         eval as native_eval, preamble as native_preamble,
-        query::{self as native_query, ChildEvaluations, FixedRegistryEvaluations, RxEval},
+        query::{self as native_query, ChildEvaluations, FixedRegistryEvaluations},
     },
     unified::{self, OutputBuilder},
 };
@@ -395,7 +395,7 @@ struct EvaluationSource<'a, 'dr, D: Driver<'dr>> {
 
 impl<'a, 'dr, D: Driver<'dr>> Source for EvaluationSource<'a, 'dr, D> {
     type RxComponent = RxComponent;
-    type Rx = RxEval<'a, 'dr, D>;
+    type Rx = &'a Element<'dr, D>;
 
     /// For app circuits: the registry evaluation at the circuit's omega^j.
     type AppCircuitId = &'a Element<'dr, D>;
@@ -403,54 +403,19 @@ impl<'a, 'dr, D: Driver<'dr>> Source for EvaluationSource<'a, 'dr, D> {
     fn rx(&self, component: RxComponent) -> impl Iterator<Item = Self::Rx> {
         use RxComponent::*;
         let (left, right) = match component {
-            // Raw claims: a uses xz evaluation, b uses x evaluation
-            AbA => (
-                RxEval::Xz(&self.left.a_poly_at_xz),
-                RxEval::Xz(&self.right.a_poly_at_xz),
-            ),
-            AbB => (
-                RxEval::X(&self.left.b_poly_at_x),
-                RxEval::X(&self.right.b_poly_at_x),
-            ),
-            // Circuit/stage claims: use xz evaluation
-            Application => (
-                RxEval::Xz(&self.left.application),
-                RxEval::Xz(&self.right.application),
-            ),
-            Hashes1 => (
-                RxEval::Xz(&self.left.hashes_1),
-                RxEval::Xz(&self.right.hashes_1),
-            ),
-            Hashes2 => (
-                RxEval::Xz(&self.left.hashes_2),
-                RxEval::Xz(&self.right.hashes_2),
-            ),
-            PartialCollapse => (
-                RxEval::Xz(&self.left.partial_collapse),
-                RxEval::Xz(&self.right.partial_collapse),
-            ),
-            FullCollapse => (
-                RxEval::Xz(&self.left.full_collapse),
-                RxEval::Xz(&self.right.full_collapse),
-            ),
-            ComputeV => (
-                RxEval::Xz(&self.left.compute_v),
-                RxEval::Xz(&self.right.compute_v),
-            ),
-            Preamble => (
-                RxEval::Xz(&self.left.preamble),
-                RxEval::Xz(&self.right.preamble),
-            ),
-            ErrorM => (
-                RxEval::Xz(&self.left.error_m),
-                RxEval::Xz(&self.right.error_m),
-            ),
-            ErrorN => (
-                RxEval::Xz(&self.left.error_n),
-                RxEval::Xz(&self.right.error_n),
-            ),
-            Query => (RxEval::Xz(&self.left.query), RxEval::Xz(&self.right.query)),
-            Eval => (RxEval::Xz(&self.left.eval), RxEval::Xz(&self.right.eval)),
+            AbA => (&self.left.a_poly_at_xz, &self.right.a_poly_at_xz),
+            AbB => (&self.left.b_poly_at_x, &self.right.b_poly_at_x),
+            Application => (&self.left.application, &self.right.application),
+            Hashes1 => (&self.left.hashes_1, &self.right.hashes_1),
+            Hashes2 => (&self.left.hashes_2, &self.right.hashes_2),
+            PartialCollapse => (&self.left.partial_collapse, &self.right.partial_collapse),
+            FullCollapse => (&self.left.full_collapse, &self.right.full_collapse),
+            ComputeV => (&self.left.compute_v, &self.right.compute_v),
+            Preamble => (&self.left.preamble, &self.right.preamble),
+            ErrorM => (&self.left.error_m, &self.right.error_m),
+            ErrorN => (&self.left.error_n, &self.right.error_n),
+            Query => (&self.left.query, &self.right.query),
+            Eval => (&self.left.eval, &self.right.eval),
         };
         [left, right].into_iter()
     }
@@ -500,33 +465,33 @@ impl<'a, 'dr, D: Driver<'dr>> EvaluationProcessor<'a, 'dr, D> {
     }
 }
 
-impl<'a, 'dr, D: Driver<'dr>> Processor<RxEval<'a, 'dr, D>, &'a Element<'dr, D>>
+impl<'a, 'dr, D: Driver<'dr>> Processor<&'a Element<'dr, D>, &'a Element<'dr, D>>
     for EvaluationProcessor<'a, 'dr, D>
 {
-    fn raw_claim(&mut self, a: RxEval<'a, 'dr, D>, b: RxEval<'a, 'dr, D>) {
-        self.ax.push(a.xz().clone());
-        self.bx.push(b.x().clone());
+    fn raw_claim(&mut self, a: &'a Element<'dr, D>, b: &'a Element<'dr, D>) {
+        self.ax.push(a.clone());
+        self.bx.push(b.clone());
     }
 
-    fn circuit(&mut self, sy: &'a Element<'dr, D>, rx: RxEval<'a, 'dr, D>) {
-        // b(x) = rx(xz) + s_y + t(xz)
+    fn circuit(&mut self, sy: &'a Element<'dr, D>, rx: &'a Element<'dr, D>) {
         // a(xz) = rx(xz)
-        self.ax.push(rx.xz().clone());
-        self.bx
-            .push(rx.xz().add(self.dr, sy).add(self.dr, self.txz));
+        self.ax.push(rx.clone());
+
+        // b(x) = rx(xz) + s_y + t(xz)
+        self.bx.push(rx.add(self.dr, sy).add(self.dr, self.txz));
     }
 
     fn internal_circuit(
         &mut self,
         id: InternalCircuitIndex,
-        rxs: impl Iterator<Item = RxEval<'a, 'dr, D>>,
+        rxs: impl Iterator<Item = &'a Element<'dr, D>>,
     ) {
         let sy = self.fixed_registry.circuit_registry(id);
 
         let mut sum = Element::zero(self.dr);
 
         for rx in rxs {
-            sum = sum.add(self.dr, rx.xz());
+            sum = sum.add(self.dr, rx);
         }
 
         // a(xz) = rx(xz)
@@ -539,13 +504,13 @@ impl<'a, 'dr, D: Driver<'dr>> Processor<RxEval<'a, 'dr, D>, &'a Element<'dr, D>>
     fn stage(
         &mut self,
         id: InternalCircuitIndex,
-        rxs: impl Iterator<Item = RxEval<'a, 'dr, D>>,
+        rxs: impl Iterator<Item = &'a Element<'dr, D>>,
     ) -> Result<()> {
         let sy = self.fixed_registry.circuit_registry(id);
 
         // a(xz) = fold of all rx(xz) with z (Horner's rule)
-        self.ax
-            .push(Element::fold(self.dr, rxs.map(|rx| rx.xz()), self.z)?);
+        self.ax.push(Element::fold(self.dr, rxs, self.z)?);
+
         // b(x) = s_y evaluated at circuit's omega^j
         self.bx.push(sy.clone());
         Ok(())

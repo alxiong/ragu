@@ -22,35 +22,6 @@ use crate::circuits::native::{InternalCircuitIndex, NUM_INTERNAL_CIRCUITS};
 
 pub(crate) use InternalCircuitIndex::QueryStage as STAGING_ID;
 
-/// Evaluation of an rx polynomial at x or xz.                                                                                                                                                                                                     
-///                                                                                                                                                                                                                                                
-/// For raw a/b claims, only one evaluation is used (xz for a, x for b).                                                                                                                                                                           
-/// For circuit/stage claims, we use the xz evaluation.  
-pub enum RxEval<'a, 'dr, D: Driver<'dr>> {
-    /// The x evaluation (used for raw b queries).
-    X(&'a Element<'dr, D>),
-    /// The xz evaluation (used for raw a queries and circuit/stage claims).
-    Xz(&'a Element<'dr, D>),
-}
-
-impl<'a, 'dr, D: Driver<'dr>> RxEval<'a, 'dr, D> {
-    /// Returns the evaluation at x.
-    pub fn x(&self) -> &'a Element<'dr, D> {
-        match self {
-            Self::X(x) => x,
-            Self::Xz(_) => panic!("x evaluation not available for xz-only RxEval"),
-        }
-    }
-
-    /// Returns the evaluation at xz. Panics if only x is available.
-    pub fn xz(&self) -> &'a Element<'dr, D> {
-        match self {
-            Self::X(_) => panic!("xz evaluation not available for x-only RxEval"),
-            Self::Xz(xz) => xz,
-        }
-    }
-}
-
 /// Pre-computed evaluations of registry_xy at each internal circuit's omega^j.
 pub struct FixedRegistryWitness<F> {
     pub preamble_stage: F,
