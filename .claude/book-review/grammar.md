@@ -24,6 +24,11 @@ For text-level concerns (terminology, transitions, coherence), see
   sentence instead.
 - Technical terms should be introduced before they're used. Flag forward
   references to undefined terms.
+- Do not open a sentence with "While" as a concessive conjunction (meaning
+  "although" or "whereas"). Lead with the main clause and introduce the
+  contrast after a comma — e.g., "X suffices for A, but B requires Y"
+  rather than "While X suffices for A, B requires Y." Temporal "while"
+  (meaning "during the time that") is fine.
 
 ## Word Repetition
 

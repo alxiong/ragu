@@ -114,3 +114,81 @@ This has led to two fundamental design decisions:
   for being decomposed into as few (smaller) separate circuits that
   "communicate" along the PCD tree, rather than individually being more
   efficient due to aggressive optimization techniques and arithmetizations.
+
+
+-----
+
+STUFFING THIS HERE TEMPORARILY:::
+
+
+## Cycles of Elliptic Curves {#cycles}
+
+The first practical realizations of PCD used recursive SNARKs built using
+pairing-friendly elliptic curves. In these earlier protocols the SNARK verifier
+was asymptotically efficient—usually constant-time, regardless of the complexity
+of the statement being checked. Because of this, proof verifiers could be
+encoded alongside the transition predicates they certified, and the recursive
+circuit converged to a finite size, enabling PCD.
+
+There remained some efficiency concerns with this approach. Earlier recursive
+SNARK constructions were instantiated over [cycles of elliptic
+curves](https://eprint.iacr.org/2014/595) to minimize the expensive non-native
+field arithmetic needed by the SNARK verifier, which itself still had to be
+encoded into an arithmetic circuit. The resulting constructions, while barely
+practical, required a mixture of very large elliptic curves, complicated
+cryptographic assumptions, and (notably) trusted setups.
+
+## Accumulation and Folding Schemes {#accumulation-and-folding}
+
+[Halo] introduced a new technique for realizing IVC using recursive SNARKs,
+observing that in some SNARKs the most expensive (and especially linear-time)
+portions of the verifier circuit could be continually deferred in a process
+referred to as "nested amortization." In short, the prover in each IVC step
+could witness the _claimed_ output of an expensive verifier check (as advice)
+and the statement could embed this claim into the instance. Then, through the
+use of a special non-interactive protocol, two or more instances of these claims
+could be reduced together into a single claim in each IVC step.
+
+This was realized in two separate ways:
+
+1. Halo avoided the linear-time cost of evaluating a large bivariate public
+polynomial $s(X, Y)$ needed to verify the SNARK by taking a claimed commitment
+to $S = s(X, y)$ as advice, and encoding the claim $(S, y)$ in the instance. In
+each step, a parallel protocol (involving a multivariate consistency check)
+could be applied to reduce claimed commitments together via random spot
+validation. As a result, all _prior_ evaluations of $s$ could be established
+with high probability just by checking the _final_ claim encoded in the
+instance.
+2. The SNARK (and the amortization process for $s$) both relied on a polynomial
+commitment scheme constructed using the inner product argument, which requires a
+linear-time group polynomial evaluation $G = g_\mathbf{u}(\mathbf{X})$ to
+verify. But because $g_\mathbf{u}(\mathbf{X}) = \com(g_\mathbf{u}(X))$ is a
+linearly homomorphic commitment to a succinct polynomial $g_\mathbf{u}$, the
+claim $(G, \mathbf{u})$ could be embedded into the instance and multiple such
+claims could be merged in each step through random spot checks.
+
+Halo's technique was later modularized as an [accumulation
+scheme](https://eprint.iacr.org/2020/499) for PCD. In this interpretation, each
+step of PCD involves adding SNARKs to an _accumulator_ object. The accumulator,
+which is analogous to the claim encoded in Halo's recursive SNARK instance, can
+be _decided_ at any point with a (possibly expensive) verification operation
+that determines the correctness of all the inserted SNARKs by induction. The
+insertion protocol, which mirrors nested amortization's probabilistic reduction
+step, remains comparatively cheap to verify. The accumulation scheme
+formalization resembles what actually occurs in the more familiar setting of
+batch verification.
+
+The original formalization of accumulation schemes assumed that the accumulator
+(instance) was sufficient to create and verify insertion transcripts. In a
+follow-up work, the same authors presented a generalization called [split
+accumulation] (as opposed to the original so-called _atomic_ accumulation) which
+considered a separate witness only required by the accumulation prover and
+decider, _not_ the accumulation verifier. This generalization expanded the set
+of protocols that could function for the purpose of PCD, including NARKs
+(non-succinct SNARKs). Later formalizations such as [folding schemes] present a
+related alternative that purely involves merging NP statements themselves,
+without the use of any (S)NARK verifier during accumulation.
+
+[Halo]: https://eprint.iacr.org/2019/1021
+[folding schemes]: https://eprint.iacr.org/2021/370
+[split accumulation]: https://eprint.iacr.org/2020/1618
