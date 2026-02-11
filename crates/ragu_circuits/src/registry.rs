@@ -15,10 +15,10 @@
 //! to compile the added circuits into a registry polynomial representation that can
 //! be efficiently evaluated at different restrictions.
 
-use arithmetic::{Domain, PoseidonPermutation, bitreverse};
-use ff::{Field, PrimeField};
-use ragu_core::{Error, Result, drivers::emulator::Emulator, maybe::Maybe};
-use ragu_primitives::{Element, poseidon::Sponge};
+use arithmetic::{Domain, bitreverse};
+use blake2b_simd::Params;
+use ff::{Field, FromUniformBytes, PrimeField};
+use ragu_core::{Error, Result};
 
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, vec::Vec};
 
@@ -160,10 +160,10 @@ impl<'params, F: PrimeField, R: Rank> RegistryBuilder<'params, F, R> {
     /// This ordering ensures internal masks can be optimized separately while
     /// maintaining proper PCD indexing where internal items occupy indices
     /// $0 \ldots N$ and application steps occupy indices $N$ onward.
-    pub fn finalize<P: PoseidonPermutation<F>>(
-        self,
-        poseidon: &P,
-    ) -> Result<Registry<'params, F, R>> {
+    pub fn finalize(self) -> Result<Registry<'params, F, R>>
+    where
+        F: FromUniformBytes<64>,
+    {
         let total_circuits = self.num_circuits();
         if total_circuits > R::num_coeffs() {
             return Err(Error::CircuitBoundExceeded(total_circuits));
@@ -203,7 +203,7 @@ impl<'params, F: PrimeField, R: Rank> RegistryBuilder<'params, F, R> {
             omega_lookup,
             key: Key::default(),
         };
-        registry.key = Key::new(registry.compute_registry_digest(poseidon));
+        registry.key = Key::new(registry.compute_registry_digest());
 
         Ok(registry)
     }
@@ -444,31 +444,48 @@ impl<F: PrimeField, R: Rank> Registry<'_, F, R> {
 
         result
     }
+}
 
-    /// Compute a digest of this registry.
-    fn compute_registry_digest<P: PoseidonPermutation<F>>(&self, poseidon: &P) -> F {
-        Emulator::emulate_wireless((), |dr, _| {
-            // Placeholder "nothing-up-my-sleeve challenges" (small primes).
-            let mut w = F::from(2u64);
-            let mut x = F::from(3u64);
-            let mut y = F::from(5u64);
+impl<F: PrimeField + FromUniformBytes<64>, R: Rank> Registry<'_, F, R> {
+    /// Compute a digest of this registry using BLAKE2b.
+    fn compute_registry_digest(&self) -> F {
+        let mut hasher = Params::new().personal(b"ragu_registry___").to_state();
 
-            let mut sponge = Sponge::<'_, _, P>::new(dr, poseidon);
-            // FIXME(security): 6 iterations is insufficient to fully bind the registry
-            // polynomial. This should be increased to a value that overdetermines the
-            // polynomial (exceeds the degrees of freedom an adversary could exploit).
-            // Currently limited by registry evaluation performance; See #78 and #316.
-            for _ in 0..6 {
-                let eval = Element::constant(dr, self.wxy(w, x, y));
-                sponge.absorb(dr, &eval)?;
-                w = *sponge.squeeze(dr)?.value().take();
-                x = *sponge.squeeze(dr)?.value().take();
-                y = *sponge.squeeze(dr)?.value().take();
-            }
+        let field_from_hash = |digest_state: &blake2b_simd::Hash, index: u8| {
+            F::from_uniform_bytes(
+                Params::new()
+                    .personal(b"ragu_registry___")
+                    .to_state()
+                    .update(digest_state.as_bytes())
+                    .update(&[index])
+                    .finalize()
+                    .as_array(),
+            )
+        };
 
-            Ok(*sponge.squeeze(dr)?.value().take())
-        })
-        .expect("registry digest computation should always succeed")
+        // Placeholder "nothing-up-my-sleeve challenges" (small primes).
+        let mut w = F::from(2u64);
+        let mut x = F::from(3u64);
+        let mut y = F::from(5u64);
+
+        // FIXME(security): 6 iterations is insufficient to fully bind the registry
+        // polynomial. This should be increased to a value that overdetermines the
+        // polynomial (exceeds the degrees of freedom an adversary could exploit).
+        // Currently limited by registry evaluation performance; See #78 and #316.
+        for _ in 0..6 {
+            let eval = self.wxy(w, x, y);
+            hasher.update(eval.to_repr().as_ref());
+
+            let digest_state = hasher.finalize();
+            w = field_from_hash(&digest_state, 0);
+            x = field_from_hash(&digest_state, 1);
+            y = field_from_hash(&digest_state, 2);
+
+            hasher = Params::new().personal(b"ragu_registry___").to_state();
+            hasher.update(digest_state.as_bytes());
+        }
+
+        field_from_hash(&hasher.finalize(), 0)
     }
 }
 
@@ -479,11 +496,11 @@ mod tests {
     use crate::tests::SquareCircuit;
     use alloc::collections::BTreeSet;
     use alloc::collections::btree_map::BTreeMap;
-    use arithmetic::{Cycle, Domain, bitreverse};
+    use arithmetic::{Domain, bitreverse};
     use ff::Field;
     use ff::PrimeField;
     use ragu_core::Result;
-    use ragu_pasta::{Fp, Pasta};
+    use ragu_pasta::Fp;
 
     type TestRank = R<8>;
     type TestRegistryBuilder<'a> = RegistryBuilder<'a, Fp, TestRank>;
@@ -513,8 +530,6 @@ mod tests {
 
     #[test]
     fn test_registry_circuit_consistency() -> Result<()> {
-        let poseidon = Pasta::circuit_poseidon(Pasta::baked());
-
         let registry = TestRegistryBuilder::new()
             .register_circuit(SquareCircuit { times: 2 })?
             .register_circuit(SquareCircuit { times: 5 })?
@@ -524,7 +539,7 @@ mod tests {
             .register_circuit(SquareCircuit { times: 19 })?
             .register_circuit(SquareCircuit { times: 19 })?
             .register_circuit(SquareCircuit { times: 19 })?
-            .finalize(poseidon)?;
+            .finalize()?;
 
         let w = Fp::random(&mut rand::rng());
         let x = Fp::random(&mut rand::rng());
@@ -591,12 +606,10 @@ mod tests {
 
     #[test]
     fn test_single_circuit_registry() -> Result<()> {
-        let poseidon = Pasta::circuit_poseidon(Pasta::baked());
-
         // Checks that a single circuit can be finalized without bit-shift overflows.
         let _registry = TestRegistryBuilder::new()
             .register_circuit(SquareCircuit { times: 1 })?
-            .finalize(poseidon)?;
+            .finalize()?;
 
         Ok(())
     }
@@ -645,8 +658,6 @@ mod tests {
 
     #[test]
     fn test_non_power_of_two_registry_sizes() -> Result<()> {
-        let poseidon = Pasta::circuit_poseidon(Pasta::baked());
-
         for num_circuits in 0..21 {
             let mut builder = TestRegistryBuilder::new();
 
@@ -654,7 +665,7 @@ mod tests {
                 builder = builder.register_circuit(SquareCircuit { times: i })?;
             }
 
-            let registry = builder.finalize(poseidon)?;
+            let registry = builder.finalize()?;
 
             // Verify domain size is next power of 2
             let expected_domain_size = num_circuits.next_power_of_two();
@@ -674,14 +685,12 @@ mod tests {
 
     #[test]
     fn test_circuit_in_domain() -> Result<()> {
-        let poseidon = Pasta::circuit_poseidon(Pasta::baked());
-
         let registry = TestRegistryBuilder::new()
             .register_circuit(SquareCircuit { times: 2 })?
             .register_circuit(SquareCircuit { times: 5 })?
             .register_circuit(SquareCircuit { times: 10 })?
             .register_circuit(SquareCircuit { times: 11 })?
-            .finalize(poseidon)?;
+            .finalize()?;
 
         // All registered circuit indices should be in the domain
         for i in 0..4 {
@@ -716,8 +725,6 @@ mod tests {
 
     #[test]
     fn test_registry_with_internal_circuits() -> Result<()> {
-        let poseidon = Pasta::circuit_poseidon(Pasta::baked());
-
         // Create a builder
         let builder = TestRegistryBuilder::new();
 
@@ -762,7 +769,7 @@ mod tests {
         );
 
         // Finalize the registry
-        let registry = builder.finalize(poseidon)?;
+        let registry = builder.finalize()?;
         assert_eq!(registry.circuits().len(), 4);
 
         Ok(())
@@ -770,15 +777,13 @@ mod tests {
 
     #[test]
     fn test_internal_mixed_registration() -> Result<()> {
-        let poseidon = Pasta::circuit_poseidon(Pasta::baked());
-
         // Test circuit count with sequential registration
         let registry = TestRegistryBuilder::new()
             .register_internal_circuit(SquareCircuit { times: 1 })?
             .register_internal_circuit(SquareCircuit { times: 2 })?
             .register_circuit(SquareCircuit { times: 3 })?
             .register_circuit(SquareCircuit { times: 4 })?
-            .finalize(poseidon)?;
+            .finalize()?;
 
         assert_eq!(registry.circuits().len(), 4);
 
@@ -788,7 +793,7 @@ mod tests {
             .register_internal_circuit(SquareCircuit { times: 1 })?
             .register_circuit(SquareCircuit { times: 4 })?
             .register_internal_circuit(SquareCircuit { times: 2 })?
-            .finalize(poseidon)?;
+            .finalize()?;
 
         assert_eq!(registry2.circuits().len(), 4);
 
