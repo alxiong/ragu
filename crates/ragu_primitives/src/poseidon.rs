@@ -191,8 +191,7 @@ impl<'dr, D: Driver<'dr>, P: arithmetic::PoseidonPermutation<D::F>> Sponge<'dr, 
     /// still pending for permutation internally. This method will perform a
     /// permutation, consume the sponge, and return the raw [`SpongeState`].
     ///
-    /// Later, the [`SpongeState`] can be passed to
-    /// [`Transcript::resume_from_state`](crate::transcript::TranscriptExt::resume_from_state)
+    /// Later, the [`SpongeState`] can be passed to `Transcript::resume_from_state`
     /// to continue the protocol.
     ///
     /// # Errors
@@ -224,7 +223,7 @@ impl<'dr, D: Driver<'dr>, P: arithmetic::PoseidonPermutation<D::F>> Sponge<'dr, 
     /// Resume a [`Sponge`] from a saved [`SpongeState`].
     ///
     /// This allows resuming a sponge and then performing custom operations before
-    /// squeezing. Used by the [`Transcript`](crate::transcript::Transcript) API.
+    /// squeezing. Used by the `Transcript` API.
     pub fn resume(_dr: &mut D, state: SpongeState<'dr, D, P>, params: &'dr P) -> Self {
         Sponge {
             mode: Mode::Squeeze {
@@ -241,7 +240,7 @@ impl<'dr, D: Driver<'dr>, P: arithmetic::PoseidonPermutation<D::F>> Sponge<'dr, 
 /// This type holds `P::T` field elements representing the internal state
 /// of the sponge. It can be used to save and resume sponge progress via
 /// [`Sponge::save_state`] and [`Sponge::resume`], or passed to
-/// [`Transcript::resume_from_state`](crate::transcript::TranscriptExt::resume_from_state).
+/// `Transcript::resume_from_state`.
 #[derive(Gadget, Write, Consistent)]
 pub struct SpongeState<'dr, D: Driver<'dr>, P: arithmetic::PoseidonPermutation<D::F>> {
     #[ragu(gadget)]
