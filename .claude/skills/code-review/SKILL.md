@@ -62,6 +62,15 @@ If you're unsure what the user means, ask before launching reviewers.
    > - **Severity**: `must-fix` (correctness bug, safety issue, clear violation)
    >   or `suggestion` (improvement, not wrong as-is)
    >
+   > **Do NOT flag:**
+   > - Pre-existing issues on unmodified lines (unless the change introduced
+   >   an inconsistency)
+   > - Things that linters or compilers already catch (formatting, imports,
+   >   type errors) — automated checks run separately
+   > - Pedantic nitpicks or style preferences not backed by project policy
+   > - Intentional behavior changes that are clearly deliberate
+   > - Code covered by lint-ignore or allow attributes
+   >
    > Stay within your policy's scope. Be specific. If you find no real issues,
    > say so — don't manufacture problems.
 
@@ -90,51 +99,7 @@ number). If multiple reviewers flagged overlapping concerns, merge them. Present
 If the review scope was cross-file or conceptual, add a short section about
 cross-cutting observations (consistency, naming conventions, etc.).
 
-## Step 5: Validate Proposed Changes
-
-After synthesizing findings, but before presenting them to the user:
-
-1. Collect all proposed changes (the "suggestion" field from each finding) into
-   a single numbered list — the **proposed plan**.
-2. For EACH policy file (same set as Step 2 — every `.claude/code-review/*.md`
-   except `standards.md`), launch a `general-purpose` Task agent (model
-   `sonnet`) with this prompt:
-
-   > You are validating a set of proposed code changes against review policies.
-   >
-   > Read these files:
-   > - `.claude/code-review/standards.md` (master standards)
-   > - `.claude/code-review/{focus}.md` (your policy)
-   {if focus is "documentation":}
-   > - `.claude/review/writing.md` (shared writing rules)
-   > - `.claude/review/math.md` (shared math rules)
-   >
-   > Here is the proposed plan of changes:
-   > {numbered list of proposed changes with locations and suggested rewrites}
-   >
-   > For each proposed change, check whether applying it would **introduce** a
-   > violation of any rule in your policy or the master standards. Only flag
-   > real conflicts — do not restate rules that are already satisfied.
-   >
-   > For each conflict found:
-   > - **Change #**: which proposed change
-   > - **Rule violated**: quote the relevant policy text
-   > - **Conflict**: explain specifically how the suggestion violates the rule
-   > - **Resolution**: suggest how to fix the suggestion to comply
-   >
-   > If no proposed changes conflict with your policy, say so.
-
-   Launch ALL agents in parallel.
-
-3. Merge validation feedback into the findings. For each conflict:
-   - If the validator provides a compliant alternative, replace the original
-     suggestion with the corrected version.
-   - If the conflict has no clear resolution, annotate the finding with the
-     conflict so the user can decide during triage.
-
-4. If any suggestions were corrected, briefly note it in the synthesis output.
-
-## Step 6: Triage
+## Step 5: Triage
 
 Two modes based on how the review was invoked:
 
