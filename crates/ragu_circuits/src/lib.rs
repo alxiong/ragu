@@ -42,6 +42,26 @@ use alloc::{boxed::Box, vec::Vec};
 
 use polynomials::{Rank, structured, unstructured};
 
+/// A trait for drivers that stash a spare wire from paired allocation (see
+/// [`Driver::alloc`]).
+///
+/// Provides [`with_fresh_b`], which saves [`available_b`], resets it to its
+/// [`Default`], runs a closure with `&mut self`, then restores the original
+/// value. This isolates allocation state within routines.
+pub(crate) trait FreshB<B: Default> {
+    /// Returns a mutable reference to the `available_b` field.
+    fn available_b(&mut self) -> &mut B;
+
+    /// Runs `f` with [`available_b`] temporarily reset to its default, then
+    /// restores the original value.
+    fn with_fresh_b<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        let saved = core::mem::take(self.available_b());
+        let result = f(self);
+        *self.available_b() = saved;
+        result
+    }
+}
+
 /// Core trait for arithmetic circuits.
 pub trait Circuit<F: Field>: Sized + Send + Sync {
     /// The type of data that is needed to construct the expected output of this
