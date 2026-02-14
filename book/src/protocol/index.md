@@ -33,7 +33,8 @@ in the years that followed. The main _external_ ingredients of Ragu are:
   supported in the computational graph with diminishing overhead,
   verification keys are unnecessary, and pre-computations done by the prover
   are negligible in time and memory usage.
-* Prolific use of [Poseidon](https://eprint.iacr.org/2019/458) modeled as a random oracle, a stronger assumption than collision resistance alone.
+* Prolific use of [Poseidon](https://eprint.iacr.org/2019/458) for the purposes of
+  Fiat-Shamir transformations.
 
 Ragu's design is informed by practical requirements for its deployment in
 Zcash as part of [Project Tachyon](https://tachyon.z.cash/). We seek a
