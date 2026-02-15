@@ -1,5 +1,6 @@
 use ff::PrimeField;
 
+use alloc::vec;
 use alloc::vec::Vec;
 
 /// Radix-2 evaluation domain for polynomials in fields supported by Ragu.
@@ -178,7 +179,7 @@ impl<F: PrimeField> Domain<F> {
             })
             .collect();
         {
-            let mut scratch = denominators.clone();
+            let mut scratch = vec![F::ZERO; denominators.len()];
             ff::BatchInverter::invert_with_external_scratch(&mut denominators, &mut scratch);
         }
 
