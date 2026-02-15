@@ -104,6 +104,7 @@ where
 /// multiexp, obtained through experimentation. This could probably be optimized
 /// further and for particular compilation targets.
 fn bucket_lookup(n: usize) -> usize {
+    // Approximates ceil(ln(n)) without floating-point. See test_bucket_lookup_thresholds.
     const LN_THRESHOLDS: [usize; 15] = [
         4, 4, 32, 55, 149, 404, 1097, 2981, 8104, 22027, 59875, 162755, 442414, 1202605, 3269018,
     ];
