@@ -522,6 +522,7 @@ dependencies = [
  "ragu_circuits",
  "ragu_core",
  "ragu_pasta",
+ "ragu_pcd",
  "ragu_primitives",
  "rand",
 ]
