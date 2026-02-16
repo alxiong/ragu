@@ -197,27 +197,25 @@ mod tests {
 
     use super::{Always, Empty, Maybe, MaybeKind, Perhaps};
 
-    type InterfacePerhaps<I, T> = Perhaps<<I as Interface>::MaybeKind, T>;
-
     trait Interface {
         type MaybeKind: MaybeKind;
 
         fn op(f: impl FnOnce() -> usize);
 
-        fn just<R: Send>(f: impl FnOnce() -> R) -> InterfacePerhaps<Self, R> {
+        fn just<R: Send>(f: impl FnOnce() -> R) -> Perhaps<Self::MaybeKind, R> {
             <Self::MaybeKind as MaybeKind>::maybe_just(f)
         }
 
         fn with<R: Send, E>(
             f: impl FnOnce() -> Result<R, E>,
-        ) -> Result<InterfacePerhaps<Self, R>, E> {
+        ) -> Result<Perhaps<Self::MaybeKind, R>, E> {
             <Self::MaybeKind as MaybeKind>::maybe_with(f)
         }
     }
 
     fn my_operation<I: Interface, E>(
-        value: InterfacePerhaps<I, usize>,
-    ) -> Result<InterfacePerhaps<I, usize>, E> {
+        value: Perhaps<I::MaybeKind, usize>,
+    ) -> Result<Perhaps<I::MaybeKind, usize>, E> {
         let my_value = 100usize;
         let just_value = I::just(|| my_value + 10).map(|v| v * 2);
         let err_value = I::with(|| Ok(10))?;
