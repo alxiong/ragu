@@ -98,7 +98,7 @@ practical examples of how this abstraction is used.
 
 ## Available Drivers
 
-- **SXY** - Circuit synthesis (builds S(X,Y) polynomial)
+- **SXY** - Wiring synthesis (builds S(X,Y) wiring polynomial)
 - **RX** - Witness generation (builds R(X) polynomial)
 - **Emulator** - Direct execution without constraints
 - **Simulator** - Full synthesis simulation with validation

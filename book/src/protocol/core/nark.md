@@ -79,7 +79,7 @@ and interpreting them as polynomials.
   $r(X)=\sum_{i=0}^{n-1} (c_iX^i+b_iX^{2n-1-i}+a_iX^{2n+i})$
   - dilated witness polynomial: $r(XZ)$ corresponding to $\v{r}\circ\v{z^{4n}}$
   fixated at $z\in\F$
-- **wiring/circuit polynomial**:
+- **wiring polynomial**:
     $$
     s(X,Y)=\sum_{j=0}^{4n-1} Y^j\cdot\left(\sum_{i=0}^{n-1} (
         \v{u}_j^{(i)}\cdot X^{2n-1-i} +
@@ -119,9 +119,9 @@ sequenceDiagram
 
 Here's how the protocol flows:
 
-1. **Setup**: The circuit polynomials $s(X, Y)$ and $t(X, Z)$ are shared
-   between prover and verifier. These encode the structure of the circuit and
-   don't change per proof.
+1. **Setup**: The wiring polynomial $s(X, Y)$ and the gate polynomial $t(X, Z)$
+   are shared between prover and verifier. These encode the structure of the
+   circuit and don't change per proof.
 
 2. **Public input**: The public input polynomial $k(Y)$ is shared.
 
