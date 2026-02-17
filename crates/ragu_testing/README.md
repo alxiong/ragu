@@ -1,4 +1,10 @@
-# `ragu`
+<p align="center">
+  <img width="300" height="80" src="https://tachyon.z.cash/assets/ragu/v1/github-600x160.png">
+</p>
+
+# `ragu_testing`
+
+Test fixtures for the Ragu project. Provides shared circuit and PCD step implementations for use in tests and benchmarks across Ragu crates.
 
 ## License
 
