@@ -200,6 +200,12 @@ pub trait CircuitObject<F: Field, R: Rank>: Send + Sync {
     ///
     /// This captures wire identities and scalar coefficients without evaluating
     /// the polynomial.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the underlying synthesis exceeds the multiplication or linear
+    /// constraint bounds — which cannot happen for circuits that successfully
+    /// passed through [`CircuitExt::into_object`].
     fn hash(&self, state: &mut blake2b_simd::State)
     where
         F: ff::PrimeField;

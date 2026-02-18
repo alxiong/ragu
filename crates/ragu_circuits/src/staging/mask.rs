@@ -211,10 +211,12 @@ impl<F: Field, R: Rank> CircuitObject<F, R> for StageMask<R> {
 
     /// Hashes the structural identity of this stage mask's wiring polynomial.
     ///
-    /// Reproduces what the [`hash::Hasher`](crate::s::hash) driver would
-    /// produce for an equivalent circuit synthesis, but without running the
-    /// full driver machinery. Each non-multiplied gate contributes 3
-    /// single-term enforce_zero constraints (one each for the a, b, c wires).
+    /// Reproduces what [`hash::eval`](crate::s::hash::eval) produces for an
+    /// equivalent circuit synthesis, but without running the full driver
+    /// machinery. Each non-multiplied gate contributes 3 single-term
+    /// `enforce_zero` constraints (one each for the `a`, `b`, `c` wires).
+    /// No [`Driver::add`](ragu_core::drivers::Driver::add) calls are made
+    /// during synthesis, so no virtual wire sentinel bytes are emitted.
     fn hash(&self, state: &mut blake2b_simd::State)
     where
         F: ff::PrimeField,

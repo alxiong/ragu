@@ -19,7 +19,7 @@
 //! - For each [`enforce_zero()`](ragu_core::drivers::Driver::enforce_zero):
 //!   sentinel + collected `(wire_id, effective_coeff)` pairs
 //!
-//! # Binding Argument
+//! # Binding argument
 //!
 //! Each `(WireIndex, scalar)` pair uniquely identifies one monomial coefficient
 //! of the constraint polynomial. Two circuits with distinct coefficient
@@ -42,8 +42,9 @@ use ragu_primitives::GadgetExt;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
-// Re-export WireIndex for use by other crate modules (e.g., staging/mask.rs).
-pub(crate) use super::common::WireIndex;
+// Re-export WireIndex and hashing helpers for use by other crate modules
+// (e.g., staging/mask.rs).
+pub(crate) use super::common::{WireIndex, hash_coeff, hash_wire_index};
 
 use super::DriverExt;
 use crate::{Circuit, FreshB, polynomials::Rank};
@@ -52,45 +53,11 @@ use crate::{Circuit, FreshB, polynomials::Rank};
 pub(crate) const SENTINEL_ENFORCE: [u8; 1] = [0xEE];
 
 /// Sentinel byte for [`Driver::add`] virtual wire definitions.
+// Not used by hand-rolled implementations (StageMask has no `add` operations).
 const SENTINEL_ADD: [u8; 1] = [0xAD];
 
-/// Hashes a [`WireIndex`] into the BLAKE2b state.
-///
-/// Encodes the wire type as a single discriminant byte followed by the gate
-/// or virtual wire index as a little-endian `u32`.
-pub(crate) fn hash_wire_index(state: &mut blake2b_simd::State, wire: &WireIndex) {
-    match wire {
-        WireIndex::A(g) => {
-            state.update(&[0]);
-            state.update(&(*g as u32).to_le_bytes());
-        }
-        WireIndex::B(g) => {
-            state.update(&[1]);
-            state.update(&(*g as u32).to_le_bytes());
-        }
-        WireIndex::C(g) => {
-            state.update(&[2]);
-            state.update(&(*g as u32).to_le_bytes());
-        }
-        WireIndex::Virtual(id) => {
-            state.update(&[3]);
-            state.update(&(*id as u32).to_le_bytes());
-        }
-    }
-}
-
-/// Hashes a [`Coeff`] value into the BLAKE2b state.
-///
-/// Converts the coefficient to its canonical field element representation
-/// and hashes the raw bytes.
-pub(crate) fn hash_coeff<F: PrimeField>(state: &mut blake2b_simd::State, coeff: &Coeff<F>) {
-    state.update(coeff.value().to_repr().as_ref());
-}
-
-/// Collects wire references and coefficients for hashing.
-///
-/// Follows the same pattern as `sy::TermCollector` but stores terms for
-/// hashing rather than deferred polynomial resolution.
+/// Collects wire references and coefficients during synthesis for structural
+/// hashing.
 struct HashTerms<F: ff::Field> {
     terms: Vec<(WireIndex, Coeff<F>)>,
     gain: Coeff<F>,
@@ -196,7 +163,7 @@ impl<'dr, F: PrimeField, R: Rank> Driver<'dr> for Hasher<'dr, F, R> {
 
         // Hash: sentinel + virtual ID + terms
         self.state.update(&SENTINEL_ADD);
-        self.state.update(&(id as u32).to_le_bytes());
+        self.state.update(&(id as u64).to_le_bytes());
         for (wire, coeff) in &terms.terms {
             hash_wire_index(self.state, wire);
             hash_coeff::<F>(self.state, coeff);
@@ -262,6 +229,10 @@ pub fn eval<F: PrimeField, C: Circuit<F>, R: Rank>(
         _marker: PhantomData,
     };
 
+    // NOTE: Unlike sx/sy/sxy, there is no key-wire mul() + enforce_registry_key()
+    // prefix here. The registry key does not exist at derivation time and must be
+    // excluded from the hash. Adding such a prefix would shift all gate indices
+    // by one and produce a different (incorrect) digest.
     let mut outputs = Vec::new();
     let (io, _) = circuit.witness(&mut hasher, Empty)?;
     io.write(&mut hasher, &mut outputs)?;

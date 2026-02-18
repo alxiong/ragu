@@ -242,8 +242,8 @@ impl<'params, F: PrimeField, R: Rank> RegistryBuilder<'params, F, R> {
 ///
 /// This is unconditionally binding: no evaluation at random points is needed,
 /// and no Schwartz-Zippel argument is required. The binding holds against
-/// adaptive adversaries, limited only by BLAKE2b collision resistance
-/// ($2^{-128}$ security).
+/// adaptive adversaries, limited only by BLAKE2b's 128-bit collision
+/// resistance.
 ///
 /// # Breaking self-reference without preprocessing
 ///
@@ -252,8 +252,7 @@ impl<'params, F: PrimeField, R: Rank> RegistryBuilder<'params, F, R> {
 /// circuit of $m$ as a special wire `key_wire`, enforced by a simple linear
 /// constraint `key_wire = k`. This binds each circuit's wiring polynomial to
 /// the registry polynomial, and thus the entire registry polynomial to the
-/// Fiat-Shamir transcript without self-reference. The key randomizes the
-/// wiring polynomial directly.
+/// Fiat-Shamir transcript without self-reference.
 ///
 /// The key is computed during [`RegistryBuilder::finalize`] and used during
 /// polynomial evaluations of [`CircuitObject`].
@@ -455,6 +454,12 @@ impl<F: PrimeField + FromUniformBytes<64>, R: Rank> Registry<'_, F, R> {
     /// circuit. Two registries with distinct coefficient matrices produce
     /// distinct hash inputs with certainty. Combined with BLAKE2b collision
     /// resistance, the key is unconditionally binding.
+    ///
+    /// This resolves the security concerns tracked in [#78] and [#316]: the
+    /// structural approach is unconditionally binding and does not depend on
+    /// the number of evaluation iterations.
+    ///
+    /// [#316]: https://github.com/tachyon-zcash/ragu/issues/316
     fn compute_registry_digest(&self) -> F {
         let mut hasher = Params::new().personal(b"ragu_registry___").to_state();
 
@@ -463,7 +468,10 @@ impl<F: PrimeField + FromUniformBytes<64>, R: Rank> Registry<'_, F, R> {
 
         for (i, circuit) in self.circuits.iter().enumerate() {
             // Fold on W: hash the circuit's domain element.
-            let j = bitreverse(i as u32, self.domain.log2_n()) as usize;
+            let j = bitreverse(
+                u32::try_from(i).expect("circuit count fits u32"),
+                self.domain.log2_n(),
+            ) as usize;
             let omega_j = self.domain.omega().pow([j as u64]);
             hasher.update(omega_j.to_repr().as_ref());
 
