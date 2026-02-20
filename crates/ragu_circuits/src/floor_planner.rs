@@ -65,7 +65,7 @@ pub fn floor_plan(routine_records: &[RoutineRecord]) -> Vec<RoutineSlot> {
         linear_start += record.num_linear_constraints;
     }
 
-    debug_assert!(
+    assert!(
         result
             .first()
             .is_none_or(|r| r.multiplication_start == 0 && r.linear_start == 0),

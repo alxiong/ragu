@@ -601,9 +601,15 @@ impl<'table, 'sy, F: Field, R: Rank> Driver<'table> for Evaluator<'table, 'sy, '
         // and decrements through the routine's linear constraint range.
         let init_scope = SyScope {
             available_b: None,
-            current_y: self.y.pow_vartime([
-                (slot.linear_start + slot.num_linear_constraints).saturating_sub(1) as u64
-            ]),
+            // When num_linear_constraints == 0 the routine emits no
+            // enforce_zero calls, so current_y is never read; use
+            // F::ZERO as an inert sentinel.
+            current_y: if slot.num_linear_constraints == 0 {
+                F::ZERO
+            } else {
+                self.y
+                    .pow_vartime([(slot.linear_start + slot.num_linear_constraints - 1) as u64])
+            },
             multiplication_constraints: slot.multiplication_start,
             linear_constraints: slot.linear_start,
         };
@@ -632,9 +638,9 @@ impl<'table, 'sy, F: Field, R: Rank> Driver<'table> for Evaluator<'table, 'sy, '
 ///   evaluations of $s(X, y)$, preventing trivial forgeries across registry
 ///   contexts.
 /// - `floor_plan`: Per-routine absolute offsets, computed by
-///   [`floor_plan()`](crate::floor_planner::floor_plan). The root routine's linear constraint
-///   count is used to initialize `current_y = y^{q-1}` for reverse Horner
-///   iteration.
+///   [`floor_plan()`](crate::floor_planner::floor_plan). The root routine's
+///   `num_linear_constraints` determines the initial `current_y = y^{q-1}` for
+///   reverse Horner iteration.
 ///
 /// [`Registry`]: crate::registry::Registry
 pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
@@ -658,7 +664,12 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
         .sum();
 
     // Root routine's linear constraint count (for initial current_y).
+    // The root always has at least the registry key and ONE constraints.
     let root_linear_constraints = floor_plan[0].num_linear_constraints;
+    assert!(
+        root_linear_constraints > 0,
+        "root routine must have at least one linear constraint"
+    );
 
     {
         let virtual_table = RefCell::new(VirtualTable::<F, R> {
@@ -679,7 +690,8 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
             let mut evaluator = Evaluator::<'_, '_, '_, F, R> {
                 scope: SyScope {
                     available_b: None,
-                    current_y: y.pow_vartime([root_linear_constraints.saturating_sub(1) as u64]),
+                    // Assertion above prevents this from underflowing.
+                    current_y: y.pow_vartime([(root_linear_constraints - 1) as u64]),
                     multiplication_constraints: 0,
                     linear_constraints: 0,
                 },

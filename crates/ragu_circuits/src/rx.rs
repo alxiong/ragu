@@ -23,7 +23,7 @@ use super::{
     structured,
 };
 
-/// One contiguous group of multiplication gates.
+/// A contiguous group of multiplication gates.
 ///
 /// Segment 0 is the root segment and holds the placeholder `ONE` gate at
 /// position 0. Routine calls create additional segments (see
@@ -103,12 +103,12 @@ impl<F: Field> Trace<F> {
         key: &registry::Key<F>,
         floor_plan: &[RoutineSlot],
     ) -> Result<structured::Polynomial<F, R>> {
-        debug_assert_eq!(
+        assert_eq!(
             floor_plan.len(),
             self.segments.len(),
             "floor plan and trace must have the same number of routine entries"
         );
-        debug_assert_eq!(
+        assert_eq!(
             floor_plan[0].multiplication_start, 0,
             "root routine must be placed at the polynomial origin"
         );

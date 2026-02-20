@@ -27,7 +27,7 @@
 //! `result = result * y + c_j`.
 //!
 //! The [`sx`] module reverses each routine's coefficient range after synthesis
-//! to match the $Y$-power assignment that Horner's rule produces here.
+//! to align with the $Y$-power assignment that Horner's rule produces here.
 //!
 //! ### Memory Efficiency
 //!

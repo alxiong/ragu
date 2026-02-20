@@ -51,8 +51,8 @@
 //! and [`sxy`] agree on which constraint maps to which $Y$-power.
 //!
 //! After reversal, the root routine's coefficients are ordered as:
-//! 1. $c\_0$: `ONE` wire constraint (the constant $x^{4n - 1}$)
-//! 2. $c\_1, \ldots, c\_p$: public output constraints
+//! 1. $c\_{0}$: `ONE` wire constraint (the constant $x^{4n - 1}$)
+//! 2. $c\_{1}, \ldots, c\_{p}$: public output constraints
 //! 3. $c\_{p+1}, \ldots, c\_{p+m}$: circuit-specific constraints
 //! 4. $c\_{p+m+1}$: registry key binding constraint
 //!
