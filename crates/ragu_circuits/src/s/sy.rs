@@ -738,6 +738,11 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
                 "floor plan routine count must match synthesis"
             );
             debug_assert_eq!(
+                evaluator.scope.multiplication_constraints,
+                evaluator.floor_plan[0].num_multiplication_constraints,
+                "root multiplication constraint count must match floor plan"
+            );
+            debug_assert_eq!(
                 evaluator.scope.linear_constraints, evaluator.floor_plan[0].num_linear_constraints,
                 "root linear constraint count must match floor plan"
             );

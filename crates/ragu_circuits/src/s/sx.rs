@@ -380,6 +380,22 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
     evaluator.enforce_public_outputs(outputs.iter().map(|output| output.wire()))?;
     evaluator.enforce_one()?;
 
+    // Verify all floor plan slots were consumed and counts match.
+    debug_assert_eq!(
+        evaluator.current_routine + 1,
+        evaluator.floor_plan.len(),
+        "floor plan routine count must match synthesis"
+    );
+    debug_assert_eq!(
+        evaluator.scope.multiplication_constraints,
+        evaluator.floor_plan[0].num_multiplication_constraints,
+        "root multiplication constraint count must match floor plan"
+    );
+    debug_assert_eq!(
+        evaluator.scope.linear_constraints, evaluator.floor_plan[0].num_linear_constraints,
+        "root linear constraint count must match floor plan"
+    );
+
     // Reverse to canonical coefficient order within each routine's linear
     // constraint range.
     for slot in evaluator.floor_plan {
