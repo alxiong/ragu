@@ -7,13 +7,13 @@ use std::hint::black_box;
 use gungraun::{library_benchmark, library_benchmark_group, main};
 use ragu_arithmetic::Cycle;
 use ragu_circuits::polynomials::{ProductionRank, TestRank, structured, unstructured};
-use ragu_circuits::registry::{Key, Registry, RegistryBuilder};
+use ragu_circuits::registry::{Registry, RegistryBuilder};
 use ragu_circuits::{Circuit, CircuitExt};
 use ragu_pasta::{Fp, Pasta};
 use ragu_testing::circuits::{MySimpleCircuit, SquareCircuit};
 use setup::{
-    builder_squares, f, key, rand_structured_poly, rand_structured_poly_vec,
-    rand_unstructured_poly, registry_simple, setup_rng, setup_with_rng,
+    builder_squares, f, rand_structured_poly, rand_structured_poly_vec, rand_unstructured_poly,
+    registry_simple, setup_rng, setup_with_rng,
 };
 
 #[library_benchmark(setup = setup_with_rng)]
@@ -100,18 +100,32 @@ fn into_object_r13(circuit: impl Circuit<Fp>) {
 }
 
 #[library_benchmark(setup = setup_rng)]
-#[bench::rx_r5((f, f, key))]
-fn rx_r5((witness0, witness1, key): (Fp, Fp, Key<Fp>)) {
-    black_box(MySimpleCircuit.rx::<TestRank>((witness0, witness1), &key)).unwrap();
+#[bench::rx_r7((f, f))]
+fn rx_r5((witness0, witness1): (Fp, Fp)) {
+    black_box(
+        MySimpleCircuit
+            .rx((witness0, witness1))
+            .unwrap()
+            .0
+            .assemble_trivial::<TestRank>()
+            .unwrap(),
+    );
 }
 
 #[library_benchmark(setup = setup_with_rng)]
 #[benches::multiple(
-        (SquareCircuit { times: 2 }, (f, key)),
-        (SquareCircuit { times: 10 }, (f, key)),
+        (SquareCircuit { times: 2 }, (f,)),
+        (SquareCircuit { times: 10 }, (f,)),
     )]
-fn rx_r13((circuit, (witness, key)): (SquareCircuit, (Fp, Key<Fp>))) {
-    black_box(circuit.rx::<ProductionRank>(witness, &key)).unwrap();
+fn rx_r13((circuit, (witness,)): (SquareCircuit, (Fp,))) {
+    black_box(
+        circuit
+            .rx(witness)
+            .unwrap()
+            .0
+            .assemble_trivial::<ProductionRank>()
+            .unwrap(),
+    );
 }
 
 library_benchmark_group!(

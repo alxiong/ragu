@@ -332,10 +332,21 @@ impl<F: PrimeField> From<F> for OmegaKey {
 }
 
 impl<F: PrimeField, R: Rank> Registry<'_, F, R> {
-    /// Return the constraint system key for this registry, used by the proof
-    /// generator.
-    pub fn key(&self) -> &Key<F> {
-        &self.key
+    /// Assembles a [`Trace`](crate::Trace) into the final `r(X)` polynomial.
+    ///
+    /// The `circuit` parameter identifies which circuit produced the trace.
+    pub fn assemble(
+        &self,
+        trace: &crate::rx::Trace<F>,
+        // TODO: use circuit index to apply per-circuit floor plans.
+        _circuit: CircuitIndex,
+    ) -> Result<structured::Polynomial<F, R>> {
+        trace.assemble_with_key(&self.key)
+    }
+
+    /// Return the registry digest (the key's field element).
+    pub fn digest(&self) -> F {
+        self.key.value()
     }
 
     /// Returns a slice of the circuit objects in this registry.
