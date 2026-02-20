@@ -232,7 +232,7 @@ pub trait CircuitObject<F: Field, R: Rank>: Send + Sync {
 
     /// Returns per-routine constraint records in DFS order.
     ///
-    /// These records serve as input to floor planning for computing absolute
-    /// offsets.
+    /// These records serve as input to
+    /// [`floor_planner::floor_plan`] for computing absolute offsets.
     fn routine_records(&self) -> &[RoutineRecord];
 }

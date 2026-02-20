@@ -180,8 +180,11 @@ impl<'params, F: PrimeField, R: Rank> RegistryBuilder<'params, F, R> {
             .chain(self.application_steps)
             .collect();
 
-        // Per-circuit floor plans (populated later by floor_planner).
-        let floor_plans: Vec<Vec<RoutineSlot>> = alloc::vec![Vec::new(); circuits.len()];
+        // Compute floor plans for each circuit.
+        let floor_plans: Vec<Vec<RoutineSlot>> = circuits
+            .iter()
+            .map(|circuit| crate::floor_planner::floor_plan(circuit.routine_records()))
+            .collect();
 
         // Build omega^j -> i lookup table.
         let mut omega_lookup = BTreeMap::new();

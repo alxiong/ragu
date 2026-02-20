@@ -450,6 +450,8 @@ mod tests {
             let final_rx = final_trace.assemble_trivial::<R>()?;
 
             let staged_s = staged.clone().into_object()?;
+            let staged_floor_plan =
+                ragu_circuits::floor_planner::floor_plan(staged_s.routine_records());
             let ky = staged.ky(())?;
             let y = Fp::random(&mut rand::rng());
 
@@ -466,7 +468,7 @@ mod tests {
             lhs.add_assign(&endoscalar_rx);
             lhs.add_assign(&points_rx);
             assert_eq!(
-                lhs.revdot(&staged_s.sy(y, &key, &[])),
+                lhs.revdot(&staged_s.sy(y, &key, &staged_floor_plan)),
                 ragu_arithmetic::eval(&ky, y)
             );
         }
@@ -518,6 +520,8 @@ mod tests {
             let final_rx = final_trace.assemble_trivial::<R>()?;
 
             let staged_s = staged.clone().into_object()?;
+            let staged_floor_plan =
+                ragu_circuits::floor_planner::floor_plan(staged_s.routine_records());
             let ky = staged.ky(())?;
             let y = Fp::random(&mut rand::rng());
 
@@ -529,7 +533,7 @@ mod tests {
             lhs.add_assign(&endoscalar_rx);
             lhs.add_assign(&points_rx);
             assert_eq!(
-                lhs.revdot(&staged_s.sy(y, &key, &[])),
+                lhs.revdot(&staged_s.sy(y, &key, &staged_floor_plan)),
                 ragu_arithmetic::eval(&ky, y)
             );
         }

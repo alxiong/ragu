@@ -253,8 +253,8 @@ mod tests {
     use rand::Rng;
 
     use crate::{
-        CircuitExt, CircuitObject, metrics, polynomials::Rank, registry, s::sy,
-        staging::StageBuilder, tests::SquareCircuit,
+        CircuitExt, CircuitObject, metrics, polynomials::Rank, registry, staging::StageBuilder,
+        tests::SquareCircuit,
     };
 
     use super::{
@@ -432,9 +432,10 @@ mod tests {
         let k = registry::Key::new(Fp::random(&mut rand::rng()));
 
         let comparison_mask = stage.clone().into_object::<R>().unwrap();
+        let floor_plan = crate::floor_planner::floor_plan(comparison_mask.routine_records());
 
         let x_4n_minus_1 = x.pow_vartime([(4 * R::n() - 1) as u64]);
-        let comparison_sxy = comparison_mask.sxy(x, y, &k, &[]) - x_4n_minus_1;
+        let comparison_sxy = comparison_mask.sxy(x, y, &k, &floor_plan) - x_4n_minus_1;
 
         assert_eq!(stage.sxy(x, y, &k, &[]), comparison_sxy);
     }
@@ -445,12 +446,15 @@ mod tests {
         let y = Fp::random(&mut rand::rng());
         let k = registry::Key::new(Fp::random(&mut rand::rng()));
 
-        let metrics = metrics::eval(&circuit).expect("metrics should succeed");
-        let mut sy = sy::eval::<_, _, R>(&circuit, y, &k, metrics.num_linear_constraints)
-            .expect("sy() evaluation should succeed");
+        let obj = circuit
+            .into_object::<R>()
+            .expect("into_object should succeed");
+        let floor_plan = crate::floor_planner::floor_plan(obj.routine_records());
+        let (_, num_linear_constraints) = obj.constraint_counts();
+        let mut sy = obj.sy(y, &k, &floor_plan);
 
         // The first gate (ONE gate) should have the highest y-power.
-        let expected_y_power = metrics.num_linear_constraints - 1;
+        let expected_y_power = num_linear_constraints - 1;
         let actual_first_coeff = sy.backward().a[0];
         let expected_first_coeff = y.pow_vartime([expected_y_power as u64]);
 
@@ -458,6 +462,24 @@ mod tests {
         assert_eq!(
             actual_first_coeff, expected_first_coeff,
             "First coefficient should have correct y-power"
+        );
+    }
+
+    #[test]
+    fn test_root_routine_has_at_least_two_linear_constraints() {
+        // The root routine always gets the registry key constraint and the ONE
+        // constraint from metrics::eval(), so its num_linear_constraints must be
+        // at least 2.  This invariant prevents the `- 1` underflow in sy::eval's
+        // initial y-power computation.
+        let circuit = SquareCircuit { times: 0 };
+        let obj = circuit
+            .into_object::<R>()
+            .expect("into_object should succeed");
+        let floor_plan = crate::floor_planner::floor_plan(obj.routine_records());
+        assert!(
+            floor_plan[0].num_linear_constraints >= 2,
+            "root routine must have at least 2 linear constraints (registry key + ONE), got {}",
+            floor_plan[0].num_linear_constraints,
         );
     }
 
@@ -511,6 +533,7 @@ mod tests {
 
             let stage_mask = StageMask::<R>::new(skip, num).unwrap();
             let comparison_mask = stage_mask.clone().into_object::<R>().unwrap();
+            let floor_plan = crate::floor_planner::floor_plan(comparison_mask.routine_records());
 
             let k = registry::Key::new(Fp::random(&mut rand::rng()));
 
@@ -519,12 +542,12 @@ mod tests {
 
                 // This adjusts for the single "ONE" constraint which is always skipped
                 // in staging witnesses.
-                let sxy = comparison_mask.sxy(x, y, &k, &[]) - x_4n_minus_1;
-                let mut sx = comparison_mask.sx(x, &k, &[]);
+                let sxy = comparison_mask.sxy(x, y, &k, &floor_plan) - x_4n_minus_1;
+                let mut sx = comparison_mask.sx(x, &k, &floor_plan);
                 {
                     sx[0] -= x_4n_minus_1;
                 }
-                let mut sy = comparison_mask.sy(y, &k, &[]);
+                let mut sy = comparison_mask.sy(y, &k, &floor_plan);
                 {
                     let sy = sy.backward();
                     sy.c[0] -= Fp::ONE;
