@@ -56,18 +56,6 @@ impl<R: Rank> StageMask<R> {
         })
     }
 
-    /// Returns the number of skipped multiplications for this stage.
-    #[allow(dead_code)]
-    pub fn skip_multiplications(&self) -> usize {
-        self.skip_multiplications
-    }
-
-    /// Returns the number of active multiplications for this stage.
-    #[allow(dead_code)]
-    pub fn num_multiplications(&self) -> usize {
-        self.num_multiplications
-    }
-
     /// Returns the generator index for the i-th A coefficient of this stage.
     ///
     /// The A coefficients are placed at positions `2n + 1 + skip + i` in the
@@ -833,6 +821,7 @@ mod tests {
         {
             let rx = rx.forward();
 
+            // ONE wire (always zero for stages).
             rx.a.push(Fp::ZERO);
             rx.b.push(Fp::ZERO);
             rx.c.push(Fp::ZERO);
@@ -896,7 +885,7 @@ mod tests {
         >>::Kind;
 
         fn values() -> usize {
-            6 // 3 values + 3 zeros = 6 values = 3 multiplication gates
+            6 // 3 multiplication gates
         }
 
         fn witness<'dr, 'source: 'dr, D: Driver<'dr, F = Fp>>(
@@ -940,8 +929,8 @@ mod tests {
         let poly_commitment: EqAffine = rx.commit(generators, blind);
 
         // Build `StageMask` with matching parameters.
-        let skip = AOnlyStage::skip_multiplications(); // 0 for root stage
-        let num = <AOnlyStage as StageExt<Fp, R>>::num_multiplications(); // ceil(6/2) = 3
+        let skip = AOnlyStage::skip_multiplications();
+        let num = <AOnlyStage as StageExt<Fp, R>>::num_multiplications();
         let stage_obj = StageMask::<R>::new(skip, num).unwrap();
 
         // Manually compute expected commitment using generator_for_a_coefficient.
