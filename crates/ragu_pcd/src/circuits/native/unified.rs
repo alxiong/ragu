@@ -361,61 +361,27 @@ impl<'a, 'dr, D: Driver<'dr>, C: Cycle<CircuitField = D::F>> OutputBuilder<'a, '
     // Returns the Coverage of challenge slots filled via Slot::set.
     // Each Element slot contributes its positional bit when marked via Slot::set;
     // slots filled via Slot::get or left for lazy allocation do not contribute.
-    // The final `n += 1` after the last field is intentionally unused
-    // (suppressed below); it keeps the pattern uniform across all fields.
-    #[allow(unused_assignments)]
     fn coverage(&self) -> Coverage {
-        let mut bits = 0u32;
-        let mut n = 0u32;
-        if self.w.was_set {
-            bits |= 1 << n;
-        }
-        n += 1;
-        if self.y.was_set {
-            bits |= 1 << n;
-        }
-        n += 1;
-        if self.z.was_set {
-            bits |= 1 << n;
-        }
-        n += 1;
-        if self.mu.was_set {
-            bits |= 1 << n;
-        }
-        n += 1;
-        if self.nu.was_set {
-            bits |= 1 << n;
-        }
-        n += 1;
-        if self.mu_prime.was_set {
-            bits |= 1 << n;
-        }
-        n += 1;
-        if self.nu_prime.was_set {
-            bits |= 1 << n;
-        }
-        n += 1;
-        if self.x.was_set {
-            bits |= 1 << n;
-        }
-        n += 1;
-        if self.alpha.was_set {
-            bits |= 1 << n;
-        }
-        n += 1;
-        if self.u.was_set {
-            bits |= 1 << n;
-        }
-        n += 1;
-        if self.pre_beta.was_set {
-            bits |= 1 << n;
-        }
-        n += 1;
-        if self.v.was_set {
-            bits |= 1 << n;
-        }
-        n += 1;
-        Coverage(bits)
+        let derived = [
+            self.w.was_set,
+            self.y.was_set,
+            self.z.was_set,
+            self.mu.was_set,
+            self.nu.was_set,
+            self.mu_prime.was_set,
+            self.nu_prime.was_set,
+            self.x.was_set,
+            self.alpha.was_set,
+            self.u.was_set,
+            self.pre_beta.was_set,
+            self.v.was_set,
+        ];
+        Coverage(
+            derived
+                .iter()
+                .enumerate()
+                .fold(0u32, |bits, (i, &set)| bits | ((set as u32) << i)),
+        )
     }
 
     /// Finishes building, wraps the output in [`WithSuffix`], and returns
@@ -456,10 +422,11 @@ impl<'a, 'dr, D: Driver<'dr>, C: Cycle<CircuitField = D::F>> OutputBuilder<'a, '
 pub struct Coverage(u32);
 
 impl Coverage {
-    /// The full coverage (all 12 required slots).
-    pub fn all() -> Self {
-        Self((1 << 12) - 1)
-    }
+    /// The number of derived slots (11 Fiat-Shamir challenges + `v`).
+    const NUM_DERIVED: u32 = 12;
+
+    /// Full coverage: all `NUM_DERIVED` slots set.
+    const ALL: Self = Self((1 << Self::NUM_DERIVED) - 1);
 
     /// Validates that the given coverages together cover all required slots
     /// exactly once.
@@ -469,25 +436,15 @@ impl Coverage {
     /// Panics if any slot is covered by multiple circuits or if any required
     /// slot is unclaimed.
     pub fn validate(coverages: &[Coverage]) {
-        let mut seen = Coverage::default();
-        for &cov in coverages {
-            let overlap = seen.intersect(cov);
-            assert!(
-                overlap.is_empty(),
-                "challenge covered by multiple circuits: {:#b}",
-                overlap.0
-            );
-            seen = Coverage(seen.0 | cov.0);
-        }
-        assert_eq!(seen, Coverage::all(), "not all required slots were covered");
-    }
+        let union = coverages.iter().fold(0u32, |acc, c| acc | c.0);
+        let total: u32 = coverages.iter().map(|c| c.0.count_ones()).sum();
 
-    fn intersect(self, other: Self) -> Self {
-        Self(self.0 & other.0)
-    }
-
-    fn is_empty(self) -> bool {
-        self.0 == 0
+        assert_eq!(union, Self::ALL.0, "not all required slots were covered");
+        assert_eq!(
+            total,
+            Self::NUM_DERIVED,
+            "slot covered by multiple circuits"
+        );
     }
 }
 
@@ -517,9 +474,9 @@ mod tests {
 
     #[test]
     fn coverage_all() {
-        // Verify that marking every tracked slot as set produces Coverage::all().
+        // Verify that marking every tracked slot as set produces Coverage::ALL.
         // If a slot is added to define_unified_instance! but omitted from
-        // coverage() (or Coverage::all() is wrong), this test fails.
+        // coverage() (or Coverage::ALL is wrong), this test fails.
         type D = PhantomData<<Pasta as Cycle>::CircuitField>;
         let mut builder: OutputBuilder<'_, '_, D, Pasta> = OutputBuilder::new();
         builder.w.was_set = true;
@@ -536,8 +493,8 @@ mod tests {
         builder.v.was_set = true;
         assert_eq!(
             builder.coverage(),
-            Coverage::all(),
-            "coverage() does not match Coverage::all(); update both when slots change"
+            Coverage::ALL,
+            "coverage() does not match Coverage::ALL; update both when slots change"
         );
     }
 }
