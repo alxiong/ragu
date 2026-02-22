@@ -116,7 +116,6 @@ mod builder;
 pub(crate) mod mask;
 
 use ff::Field;
-use ragu_arithmetic::{CurveAffine, FixedGenerators};
 use ragu_core::{
     Result,
     drivers::{Driver, DriverValue, emulator::Emulator},
@@ -416,18 +415,6 @@ pub trait StageExt<F: Field, R: Rank>: Stage<F, R> {
         );
 
         2 * R::n() + 1 + Self::skip_multiplications() + coefficient_index
-    }
-
-    /// Returns the generator point for the i-th A coefficient of this stage.
-    ///
-    /// This is useful for computing commitments to values placed in A positions
-    /// of the witness polynomial, such as challenge coefficients for smuggling.
-    fn generator_for_a_coefficient<C: CurveAffine>(
-        generators: &impl FixedGenerators<C>,
-        coefficient_index: usize,
-    ) -> C {
-        let idx = Self::generator_index_for_a(coefficient_index);
-        generators.g()[idx]
     }
 }
 
