@@ -91,9 +91,11 @@ struct SxyScope<F> {
     current_v_x: F,
     /// Running monomial for $c$ wires: $x^{4n - 1 - i}$ at gate $i$.
     current_w_x: F,
-    /// Number of multiplication gates consumed so far in this routine.
+    /// Absolute index of the next multiplication constraint to be written.
+    /// Initialized to `slot.multiplication_start` on routine entry.
     multiplication_constraints: usize,
-    /// Number of linear constraints processed so far in this routine.
+    /// Absolute index of the next linear constraint to be written.
+    /// Initialized to `slot.linear_start` on routine entry.
     linear_constraints: usize,
 
     /// Local Horner accumulator for this routine's constraints.

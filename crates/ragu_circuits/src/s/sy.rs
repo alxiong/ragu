@@ -349,9 +349,11 @@ struct SyScope<'table, 'sy, F: Field, R: Rank> {
     available_b: Option<Wire<'table, 'sy, F, R>>,
     /// Current $y$ power being applied to constraints in this routine.
     current_y: F,
-    /// Number of multiplication gates consumed so far in this routine.
+    /// Absolute index of the next multiplication constraint to be written.
+    /// Initialized to `slot.multiplication_start` on routine entry.
     multiplication_constraints: usize,
-    /// Number of linear constraints processed so far in this routine.
+    /// Absolute index of the next linear constraint to be written.
+    /// Initialized to `slot.linear_start` on routine entry.
     linear_constraints: usize,
 }
 

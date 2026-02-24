@@ -31,7 +31,8 @@ pub struct RoutineRecord {
     /// The number of multiplication constraints in this routine.
     pub num_multiplication_constraints: usize,
 
-    /// The number of linear constraints in this routine.
+    /// The number of linear constraints in this routine, including constraints
+    /// on wires of the input gadget and on wires allocated within the routine.
     pub num_linear_constraints: usize,
 }
 
