@@ -1,5 +1,4 @@
 use ff::Field;
-use ragu_arithmetic::{CurveAffine, FixedGenerators};
 use ragu_core::Result;
 
 use alloc::vec::Vec;
@@ -60,10 +59,10 @@ impl<R: Rank> StageMask<R> {
     ///
     /// This is useful for computing commitments to values placed in A positions
     /// of the witness polynomial, such as challenge coefficients for smuggling.
-    #[allow(dead_code)]
-    pub fn generator_for_a_coefficient<C: CurveAffine>(
+    #[cfg(test)]
+    pub fn generator_for_a_coefficient<C: ragu_arithmetic::CurveAffine>(
         &self,
-        generators: &impl FixedGenerators<C>,
+        generators: &impl ragu_arithmetic::FixedGenerators<C>,
         coefficient_index: usize,
     ) -> C {
         assert!(
