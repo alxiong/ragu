@@ -16,14 +16,24 @@
 //! [`floor_plan`] function for details.
 //!
 //! ```text
-//! synthesis order:
-//!   [c0]  RoutineA  [c1]  RoutineB{ [b0]  RoutineC  [b1] }  [c2]
+//!  Synthesis trace              Seg
+//!  ────────────────────────     ───
+//!  ├─ c0 ······················ [0]  (root)
+//!  ├─ call RoutineA
+//!  │   └─ ···················── [1]
+//!  ├─ c1 ······················ [0]  (root)
+//!  ├─ call RoutineB
+//!  │   ├─ b0 ·················· [2]
+//!  │   ├─ call RoutineC
+//!  │   │   └─ ················· [3]
+//!  │   └─ b1 ·················· [2]
+//!  └─ c2 ······················ [0]  (root)
 //!
-//! floor_plan entries (DFS):
-//!   [0] root segment  =  c0 + c1 + c2
-//!   [1] RoutineA      =  A's own constraints
-//!   [2] RoutineB      =  b0 + b1
-//!   [3] RoutineC      =  C's own constraints
+//!  floor_plan indices are DFS encounter order:
+//!    [0]  root ── c0 + c1 + c2  (everything outside routines)
+//!    [1]  A    ── A's own constraints
+//!    [2]  B    ── b0 + b1       (RoutineC excluded)
+//!    [3]  C    ── C's own constraints
 //! ```
 //!
 //! See [`SegmentRecord`] for a fully worked example with concrete numbers.

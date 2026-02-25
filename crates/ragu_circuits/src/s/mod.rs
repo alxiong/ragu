@@ -53,20 +53,22 @@
 //!
 //! ### Polynomial Encoding and Scope Jumps
 //!
-//! The floor plan maps each segment to contiguous ranges of $Y$-powers and
-//! gate indices. Specifically, the $j$-th linear constraint emitted within
-//! segment $i$ is placed at
+//! The [`floor_plan`] partitions the global constraint index space so that each
+//! segment owns a contiguous block of $Y$-powers (for linear constraints) and
+//! gate indices (for multiplication constraints). If segment $i$ has linear
+//! offset $\ell\_{i}$ and multiplication offset $m\_{i}$, then the $j$-th
+//! linear constraint emitted within that segment is placed at
 //!
-//! $$Y^{\mathtt{floor\_plan}\[i\].\mathtt{linear\_start} + j}$$
+//! $$Y^{\ell\_{i} + j}$$
 //!
-//! in $s(X, Y)$, and the $k$-th multiplication gate in segment $i$ occupies
-//! absolute gate index $\mathtt{floor\_plan}\[i\].\mathtt{multiplication\_start} + k$.
+//! in $s(X, Y)$. Similarly, the $k$-th multiplication gate in segment $i$
+//! occupies absolute gate index $m\_{i} + k$.
 //!
-//! Because synthesis order interleaves a segment's own constraints with nested
+//! Because synthesis interleaves a segment's own constraints with nested
 //! routine calls that belong to *separate* segments, the running $Y$-power
 //! counter is **not** continuous across routine boundaries. When entering a
-//! routine, each evaluator **jumps** to `floor_plan[i].linear_start` for that
-//! segment, and restores the parent's offset on return.
+//! routine for segment $i$, each evaluator jumps to $\ell\_{i}$ and restores
+//! the parent's offset on return.
 //!
 //! # Overview
 //!
@@ -81,6 +83,7 @@
 //! [`Driver`]: ragu_core::drivers::Driver
 //! [`Routine`]: ragu_core::routines::Routine
 //! [`enforce_zero`]: ragu_core::drivers::Driver::enforce_zero
+//! [`floor_plan`]: crate::floor_planner::floor_plan
 //! [wiring polynomials]: http://TODO
 
 use ragu_arithmetic::Coeff;

@@ -20,7 +20,8 @@
 //! The driver redefines each operation as follows:
 //!
 //! - [`mul()`][`Driver::mul`]: Returns wire handles that hold monomial
-//!   evaluations $x^{2n - 1 - i}$, $x^{2n + i}$, $x^{4n - 1 - i}$ for the $i$-th gate.
+//!   evaluations $x^{2n - 1 - i}$, $x^{2n + i}$, $x^{4n - 1 - i}$ for the
+//!   $i$-th gate.
 //!
 //! - [`add()`][`Driver::add`]: Accumulates a linear combination of monomial
 //!   evaluations and returns the sum as a virtual wire.
@@ -56,9 +57,9 @@
 //! 3. $c\_{p+1}, \ldots, c\_{p+m}$: circuit-specific constraints
 //! 4. $c\_{p+m+1}$: registry key binding constraint
 //!
-//! This follows from the root segment's synthesis order — registry key
-//! first, then circuit body, public outputs, and ONE last — being flipped by
-//! the reversal.
+//! This follows from the root segment's synthesis order — registry key first,
+//! then circuit body, public outputs, and `ONE` last — being flipped by the
+//! reversal.
 //!
 //! [`Driver`]: ragu_core::drivers::Driver
 //! [`Driver::add`]: ragu_core::drivers::Driver::add
