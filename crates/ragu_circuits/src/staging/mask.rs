@@ -54,27 +54,6 @@ impl<R: Rank> StageMask<R> {
             _marker: core::marker::PhantomData,
         })
     }
-
-    /// Returns the generator point for the i-th A coefficient of this stage.
-    ///
-    /// This is useful for computing commitments to values placed in A positions
-    /// of the witness polynomial, such as challenge coefficients for smuggling.
-    #[cfg(test)]
-    pub fn generator_for_a_coefficient<C: ragu_arithmetic::CurveAffine>(
-        &self,
-        generators: &impl ragu_arithmetic::FixedGenerators<C>,
-        coefficient_index: usize,
-    ) -> C {
-        assert!(
-            coefficient_index < self.num_multiplications,
-            "coefficient_index {} exceeds num_multiplications {}",
-            coefficient_index,
-            self.num_multiplications
-        );
-
-        let idx = 2 * R::n() + 1 + self.skip_multiplications + coefficient_index;
-        generators.g()[idx]
-    }
 }
 
 impl<F: Field, R: Rank> CircuitObject<F, R> for StageMask<R> {
@@ -262,7 +241,7 @@ mod tests {
     use ff::Field;
     use group::{Curve, prime::PrimeCurveAffine};
     use proptest::prelude::*;
-    use ragu_arithmetic::{Coeff, Cycle, FixedGenerators, Uendo};
+    use ragu_arithmetic::{Coeff, CurveAffine, Cycle, FixedGenerators, Uendo};
     use ragu_core::{
         Result,
         drivers::{Driver, DriverValue, LinearExpression, emulator::Emulator},
@@ -331,6 +310,28 @@ mod tests {
             }
 
             Ok(((), D::just(|| ())))
+        }
+    }
+
+    impl<R: Rank> StageMask<R> {
+        /// Returns the generator point for the i-th A coefficient of this stage.
+        ///
+        /// This is useful for computing commitments to values placed in A positions
+        /// of the witness polynomial, such as challenge coefficients for smuggling.
+        fn generator_for_a_coefficient<C: CurveAffine>(
+            &self,
+            generators: &impl FixedGenerators<C>,
+            coefficient_index: usize,
+        ) -> C {
+            assert!(
+                coefficient_index < self.num_multiplications,
+                "coefficient_index {} exceeds num_multiplications {}",
+                coefficient_index,
+                self.num_multiplications
+            );
+
+            let idx = 2 * R::n() + 1 + self.skip_multiplications + coefficient_index;
+            generators.g()[idx]
         }
     }
 
