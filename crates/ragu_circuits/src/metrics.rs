@@ -20,50 +20,50 @@ use core::marker::PhantomData;
 
 use super::{Circuit, DriverScope};
 
-/// Per-routine constraint counts collected during circuit synthesis.
+/// Constraint counts for one segment of the circuit, collected during synthesis.
 ///
-/// Each record captures the number of multiplication and linear constraints
-/// contributed by a single routine (in DFS order). These sizes are the raw
-/// input to floor planning, which decides where each routine's constraints are
-/// placed in the polynomial layout.
+/// Each record captures the multiplication and linear constraints contributed
+/// by a single segment in DFS order. Segments are the primary boundary for
+/// floor planning: the floor planner decides where each segment's constraints
+/// are placed in the polynomial layout.
 ///
-/// # Root Routine Record
-///
-/// **The first record (index 0) is not backed by a [`Routine`].**
-/// It accumulates every constraint emitted directly at circuit scope: the gaps
-/// between (and around) top-level routine calls. Each subsequent record
-/// likewise only captures constraints *local* to its scope: constraints
-/// delegated to a nested sub-routine are counted in the sub-routine's own
-/// record, not in the parent's.
+/// The circuit is divided into segments whose boundaries are [`Routine`] calls:
+/// - **Index 0** is the *root segment* — it is not backed by any [`Routine`]
+///   and accumulates every constraint emitted directly at circuit scope
+///   (outside any routine call).
+/// - **Indices 1+** each correspond to one [`Routine`] invocation and capture
+///   only the constraints *local* to that routine's scope. Constraints
+///   delegated to a nested sub-routine are counted in the sub-routine's own
+///   segment, not in the parent's.
 ///
 /// # Example
 ///
 /// Consider a circuit with this synthesis order:
 ///
 /// ```text
-/// [gap0]  RoutineA  [gap1]  RoutineB{ [gapB0]  RoutineC  [gapB1] }  [gap2]
+/// [c0]  RoutineA  [c1]  RoutineB{ [b0]  RoutineC  [b1] }  [c2]
 ///
-/// Root Routine: { gap0: 3*mul + 2*lc, gap1: 1*mul + 1*lc, gap2: 1*lc }
+/// root segment: { c0: 3*mul + 2*lc, c1: 1*mul + 1*lc, c2: 1*lc }
 /// RoutineA: 2*mul + 3*lc
-/// RoutineB: { gapB0: 1*mul + 2*lc, gapB1: 1*lc }
+/// RoutineB: { b0: 1*mul + 2*lc, b1: 1*lc }
 /// RoutineC: 1*mul + 2*lc
 /// ```
 ///
-/// The resulting records vector (DFS order) is:
+/// The resulting segment records (DFS order) are:
 ///
-/// | index | what        | mul | lc | note                                 |
-/// |-------|-------------|-----|----|--------------------------------------|
-/// | 0     | root        |  4  |  4 | gaps 0+1+2; **not** a `Routine`      |
-/// | 1     | `RoutineA`  |  2  |  3 | A's own constraints                  |
-/// | 2     | `RoutineB`  |  1  |  3 | gB0+gB1 only; `RoutineC` excluded    |
-/// | 3     | `RoutineC`  |  1  |  2 | C's own constraints                  |
+/// | index | segment        | mul | lc | note                       |
+/// |-------|----------------|-----|----|----------------------------|
+/// | 0     | root segment   |  4  |  4 | c0+c1+c2                   |
+/// | 1     | `RoutineA`     |  2  |  3 | A's own constraints        |
+/// | 2     | `RoutineB`     |  1  |  3 | b0+b1; `RoutineC` excluded |
+/// | 3     | `RoutineC`     |  1  |  2 | C's own constraints        |
 #[derive(Default)]
-pub struct RoutineRecord {
-    /// The number of multiplication constraints in this routine.
+pub struct SegmentRecord {
+    /// The number of multiplication constraints in this segment.
     pub num_multiplication_constraints: usize,
 
-    /// The number of linear constraints in this routine, including constraints
-    /// on wires of the input gadget and on wires allocated within the routine.
+    /// The number of linear constraints in this segment, including constraints
+    /// on wires of the input gadget and on wires allocated within the segment.
     pub num_linear_constraints: usize,
 }
 
@@ -80,24 +80,25 @@ pub struct CircuitMetrics {
     #[allow(dead_code)]
     pub degree_ky: usize,
 
-    /// Per-routine constraint records in synthesis order.
+    /// Per-segment constraint records in DFS synthesis order.
     ///
-    /// See [`RoutineRecord`] for the indexing convention, including the
-    /// special root record (index 0), which is not a [`Routine`].
-    pub routines: Vec<RoutineRecord>,
+    /// See [`SegmentRecord`] for the indexing convention: index 0 is the
+    /// root segment (not backed by a [`Routine`]); indices 1+ each correspond
+    /// to a [`Routine`] invocation.
+    pub segments: Vec<SegmentRecord>,
 }
 
-/// Per-routine state that is saved and restored by [`DriverScope`].
+/// Per-segment state that is saved and restored by [`DriverScope`].
 struct CounterScope {
     available_b: bool,
-    current_record: usize,
+    current_segment: usize,
 }
 
 struct Counter<F> {
     scope: CounterScope,
     num_linear_constraints: usize,
     num_multiplication_constraints: usize,
-    records: Vec<RoutineRecord>,
+    segments: Vec<SegmentRecord>,
     _marker: PhantomData<F>,
 }
 
@@ -137,7 +138,7 @@ impl<'dr, F: Field> Driver<'dr> for Counter<F> {
         _: impl Fn() -> Result<(Coeff<F>, Coeff<F>, Coeff<F>)>,
     ) -> Result<(Self::Wire, Self::Wire, Self::Wire)> {
         self.num_multiplication_constraints += 1;
-        self.records[self.scope.current_record].num_multiplication_constraints += 1;
+        self.segments[self.scope.current_segment].num_multiplication_constraints += 1;
 
         Ok(((), (), ()))
     }
@@ -146,7 +147,7 @@ impl<'dr, F: Field> Driver<'dr> for Counter<F> {
 
     fn enforce_zero(&mut self, _: impl Fn(Self::LCenforce) -> Self::LCenforce) -> Result<()> {
         self.num_linear_constraints += 1;
-        self.records[self.scope.current_record].num_linear_constraints += 1;
+        self.segments[self.scope.current_segment].num_linear_constraints += 1;
         Ok(())
     }
 
@@ -155,12 +156,12 @@ impl<'dr, F: Field> Driver<'dr> for Counter<F> {
         routine: Ro,
         input: Bound<'dr, Self, Ro::Input>,
     ) -> Result<Bound<'dr, Self, Ro::Output>> {
-        self.records.push(RoutineRecord::default());
-        let record = self.records.len() - 1;
+        self.segments.push(SegmentRecord::default());
+        let segment_idx = self.segments.len() - 1;
         self.with_scope(
             CounterScope {
                 available_b: false,
-                current_record: record,
+                current_segment: segment_idx,
             },
             |this| {
                 let mut dummy = Emulator::wireless();
@@ -168,10 +169,10 @@ impl<'dr, F: Field> Driver<'dr> for Counter<F> {
                 let aux = routine.predict(&mut dummy, &dummy_input)?.into_aux();
                 let result = routine.execute(this, input, aux)?;
 
-                // Verify internal consistency: current_record unchanged.
+                // Verify internal consistency: current_segment unchanged.
                 assert_eq!(
-                    this.scope.current_record, record,
-                    "current_record must remain stable during routine execution"
+                    this.scope.current_segment, segment_idx,
+                    "current_segment must remain stable during routine execution"
                 );
 
                 Ok(result)
@@ -184,11 +185,11 @@ pub fn eval<F: Field, C: Circuit<F>>(circuit: &C) -> Result<CircuitMetrics> {
     let mut collector = Counter {
         scope: CounterScope {
             available_b: false,
-            current_record: 0,
+            current_segment: 0,
         },
         num_linear_constraints: 0,
         num_multiplication_constraints: 0,
-        records: alloc::vec![RoutineRecord::default()],
+        segments: alloc::vec![SegmentRecord::default()],
         _marker: PhantomData,
     };
     let mut degree_ky = 0usize;
@@ -212,12 +213,12 @@ pub fn eval<F: Field, C: Circuit<F>>(circuit: &C) -> Result<CircuitMetrics> {
     collector.enforce_zero(|lc| lc)?;
 
     let recorded_multiplications: usize = collector
-        .records
+        .segments
         .iter()
         .map(|r| r.num_multiplication_constraints)
         .sum();
     let recorded_linear_constraints: usize = collector
-        .records
+        .segments
         .iter()
         .map(|r| r.num_linear_constraints)
         .sum();
@@ -234,7 +235,7 @@ pub fn eval<F: Field, C: Circuit<F>>(circuit: &C) -> Result<CircuitMetrics> {
         num_linear_constraints: collector.num_linear_constraints,
         num_multiplication_constraints: collector.num_multiplication_constraints,
         degree_ky,
-        routines: collector.records,
+        segments: collector.segments,
     })
 }
 

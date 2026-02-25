@@ -19,14 +19,14 @@ use ragu_primitives::GadgetExt;
 use alloc::{vec, vec::Vec};
 
 use super::{
-    Circuit, DriverScope, Rank, floor_planner::RoutineSegment, metrics::RoutineRecord, registry,
+    Circuit, DriverScope, Rank, floor_planner::ConstraintSegment, metrics::SegmentRecord, registry,
     structured,
 };
 
 /// A contiguous group of multiplication gates.
 ///
-/// Segment 0 is the root segment and holds the placeholder `ONE` gate at
-/// position 0. Routine calls create additional segments (see
+/// Segment 0 is the root segment and holds the placeholder `ONE` gate
+/// at position 0. Routine calls create additional segments (see
 /// [`Evaluator::routine`]).
 pub(crate) struct Segment<F> {
     pub(crate) a: Vec<F>,
@@ -39,8 +39,8 @@ pub(crate) struct Segment<F> {
 /// Pass to [`Registry::assemble`](crate::registry::Registry::assemble)
 /// to obtain the corresponding [`structured::Polynomial`].
 pub struct Trace<F> {
-    /// Per-routine gate groups. Segment 0 is the root; segments 1+ are
-    /// created by [`Driver::routine`] calls.
+    /// Gate groups in DFS order. Segment 0 is the root segment;
+    /// segments 1+ are created by [`Driver::routine`] calls.
     pub(crate) segments: Vec<Segment<F>>,
 }
 
@@ -77,17 +77,17 @@ impl<F: Field> Trace<F> {
     ///
     /// **Note:** This synthesizes a trivial floor plan from segment lengths with
     /// zero linear constraints. It is only correct for traces produced by
-    /// circuits (or stages) that have no linear constraints in any routine.
+    /// circuits (or stages) that have no linear constraints in any segment.
     pub fn assemble_trivial<R: Rank>(&self) -> Result<structured::Polynomial<F, R>> {
-        let records: Vec<RoutineRecord> = self
+        let segment_records: Vec<SegmentRecord> = self
             .segments
             .iter()
-            .map(|seg| RoutineRecord {
+            .map(|seg| SegmentRecord {
                 num_multiplication_constraints: seg.a.len(),
                 num_linear_constraints: 0,
             })
             .collect();
-        let plan = super::floor_planner::floor_plan(&records);
+        let plan = super::floor_planner::floor_plan(&segment_records);
         self.assemble_with_key(&registry::Key::default(), &plan)
     }
 
@@ -101,16 +101,16 @@ impl<F: Field> Trace<F> {
     pub(crate) fn assemble_with_key<R: Rank>(
         &self,
         key: &registry::Key<F>,
-        floor_plan: &[RoutineSegment],
+        floor_plan: &[ConstraintSegment],
     ) -> Result<structured::Polynomial<F, R>> {
         assert_eq!(
             floor_plan.len(),
             self.segments.len(),
-            "floor plan and trace must have the same number of routine entries"
+            "floor plan and trace must have the same number of segment entries"
         );
         assert_eq!(
             floor_plan[0].multiplication_start, 0,
-            "root routine must be placed at the polynomial origin"
+            "root segment must be placed at the polynomial origin"
         );
 
         let total_gates = self
@@ -119,7 +119,7 @@ impl<F: Field> Trace<F> {
             .enumerate()
             .map(|(i, seg)| floor_plan[i].multiplication_start + seg.a.len())
             .max()
-            .expect("floor plan is never empty (root record always exists)");
+            .expect("floor plan is never empty (root segment always exists)");
         if total_gates > R::n() {
             return Err(Error::MultiplicationBoundExceeded(R::n()));
         }

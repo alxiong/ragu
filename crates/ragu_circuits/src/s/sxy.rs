@@ -61,7 +61,7 @@ use ragu_primitives::GadgetExt;
 
 use alloc::vec;
 
-use crate::{Circuit, DriverScope, floor_planner::RoutineSegment, polynomials::Rank, registry};
+use crate::{Circuit, DriverScope, floor_planner::ConstraintSegment, polynomials::Rank, registry};
 
 use super::{
     DriverExt,
@@ -132,7 +132,7 @@ struct Evaluator<'fp, F, R> {
     base_v_x: F,
 
     /// Floor plan mapping DFS routine index to absolute offsets.
-    floor_plan: &'fp [RoutineSegment],
+    floor_plan: &'fp [ConstraintSegment],
 
     /// Global monotonic DFS counter for routine entries.
     current_routine: usize,
@@ -321,7 +321,7 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
     x: F,
     y: F,
     key: &registry::Key<F>,
-    floor_plan: &[RoutineSegment],
+    floor_plan: &[ConstraintSegment],
 ) -> Result<F> {
     if x == F::ZERO {
         // The polynomial is zero if x is zero.

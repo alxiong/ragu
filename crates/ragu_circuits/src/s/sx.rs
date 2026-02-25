@@ -50,14 +50,15 @@
 //! synthesis completes. This per-routine reversal ensures that both this module
 //! and [`sxy`] agree on which constraint maps to which $Y$-power.
 //!
-//! After reversal, the root routine's coefficients are ordered as:
+//! After reversal, the root segment's coefficients are ordered as:
 //! 1. $c\_{0}$: `ONE` wire constraint (the constant $x^{4n - 1}$)
 //! 2. $c\_{1}, \ldots, c\_{p}$: public output constraints
 //! 3. $c\_{p+1}, \ldots, c\_{p+m}$: circuit-specific constraints
 //! 4. $c\_{p+m+1}$: registry key binding constraint
 //!
-//! This follows from the root's synthesis order — registry key first, then
-//! circuit body, public outputs, and ONE last — being flipped by the reversal.
+//! This follows from the root segment's synthesis order — registry key
+//! first, then circuit body, public outputs, and ONE last — being flipped by
+//! the reversal.
 //!
 //! [`Driver`]: ragu_core::drivers::Driver
 //! [`Driver::add`]: ragu_core::drivers::Driver::add
@@ -81,7 +82,7 @@ use alloc::vec;
 
 use crate::{
     Circuit, DriverScope,
-    floor_planner::RoutineSegment,
+    floor_planner::ConstraintSegment,
     polynomials::{
         Rank,
         unstructured::{self, Polynomial},
@@ -155,7 +156,7 @@ struct Evaluator<'fp, F: Field, R: Rank> {
     base_v_x: F,
 
     /// Floor plan mapping DFS routine index to absolute offsets.
-    floor_plan: &'fp [RoutineSegment],
+    floor_plan: &'fp [ConstraintSegment],
 
     /// Global monotonic DFS counter for routine entries.
     current_routine: usize,
@@ -336,7 +337,7 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
     circuit: &C,
     x: F,
     key: &registry::Key<F>,
-    floor_plan: &[RoutineSegment],
+    floor_plan: &[ConstraintSegment],
 ) -> Result<unstructured::Polynomial<F, R>> {
     if x == F::ZERO {
         return Ok(Polynomial::new());

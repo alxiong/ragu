@@ -83,7 +83,7 @@ use core::cell::RefCell;
 use super::DriverExt;
 use crate::{
     Circuit, DriverScope,
-    floor_planner::RoutineSegment,
+    floor_planner::ConstraintSegment,
     polynomials::{Rank, structured},
     registry,
 };
@@ -384,7 +384,7 @@ struct Evaluator<'table, 'sy, 'fp, F: Field, R: Rank> {
     virtual_table: &'table RefCell<VirtualTable<'sy, F, R>>,
 
     /// Floor plan mapping DFS routine index to absolute offsets.
-    floor_plan: &'fp [RoutineSegment],
+    floor_plan: &'fp [ConstraintSegment],
 
     /// Global monotonic DFS counter for routine entries.
     current_routine: usize,
@@ -654,17 +654,17 @@ impl<'table, 'sy, F: Field, R: Rank> Driver<'table> for Evaluator<'table, 'sy, '
 ///   enforcing `key_wire - key = 0` as a constraint. This randomizes
 ///   evaluations of $s(X, y)$, preventing trivial forgeries across registry
 ///   contexts.
-/// - `floor_plan`: Per-routine absolute offsets, computed by
-///   [`floor_plan()`](crate::floor_planner::floor_plan). The root routine's
-///   `num_linear_constraints` determines the initial `current_y = y^{q-1}` for
-///   reverse Horner iteration.
+/// - `floor_plan`: Per-segment absolute offsets, computed by
+///   [`floor_plan()`](crate::floor_planner::floor_plan). The root segment's
+///   `num_linear_constraints` determines the initial `current_y = y^{q-1}`
+///   for reverse Horner iteration.
 ///
 /// [`Registry`]: crate::registry::Registry
 pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
     circuit: &C,
     y: F,
     key: &registry::Key<F>,
-    floor_plan: &[RoutineSegment],
+    floor_plan: &[ConstraintSegment],
 ) -> Result<structured::Polynomial<F, R>> {
     let mut sy = structured::Polynomial::<F, R>::new();
 
@@ -680,12 +680,12 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
         .map(|s| s.num_multiplication_constraints)
         .sum();
 
-    // Root routine's linear constraint count (for initial current_y).
-    // The root always has at least the registry key and ONE constraints.
+    // Circuit-scope segment's linear constraint count (for initial current_y).
+    // This segment always has at least the registry key and ONE constraints.
     let root_linear_constraints = floor_plan[0].num_linear_constraints;
     assert!(
         root_linear_constraints > 0,
-        "root routine must have at least one linear constraint"
+        "root segment must have at least one linear constraint"
     );
 
     {

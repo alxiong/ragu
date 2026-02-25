@@ -51,28 +51,22 @@
 //! inputs and to provide guarantees about those inputs that drivers can safely
 //! exploit to memoize.
 //!
-//! ### Routine Scope Jumps
+//! ### Polynomial Encoding and Scope Jumps
 //!
-//! When entering a routine, each evaluator does **not** continue from the
-//! parent scope's running position. Instead, it _jumps_ directly to the
-//! absolute offset assigned to that routine by the floor plan.
+//! The floor plan maps each segment to contiguous ranges of $Y$-powers and
+//! gate indices. Specifically, the $j$-th linear constraint emitted within
+//! segment $i$ is placed at
 //!
-//! This is necessary because the floor plan consolidates each routine's
-//! constraints into a single contiguous range, even though in synthesis order
-//! a parent's constraints appear as *gaps* interspersed with child routine
-//! calls. For example, with:
+//! $$Y^{\mathtt{floor\_plan}\[i\].\mathtt{linear\_start} + j}$$
 //!
-//! ```text
-//! synthesis order:  [gap0]  RoutineA  [gap1]  RoutineB  [gap2]
-//! polynomial:       [root: gap0+gap1+gap2]  [A: A's constraints]  [B: B's constraints]
-//! ```
+//! in $s(X, Y)$, and the $k$-th multiplication gate in segment $i$ occupies
+//! absolute gate index $\mathtt{floor\_plan}\[i\].\mathtt{multiplication\_start} + k$.
 //!
-//! When RoutineA is entered, the parent scope's running counter is part-way
-//! through the root's range (after `gap0`). But RoutineA's constraints
-//! belong at `floor_plan[1].linear_start`, which follows the root's *entire*
-//! block (including `gap1` and `gap2` not yet processed). The evaluator must
-//! jump to that assigned position rather than continuing from the parent's
-//! current counter.
+//! Because synthesis order interleaves a segment's own constraints with nested
+//! routine calls that belong to *separate* segments, the running $Y$-power
+//! counter is **not** continuous across routine boundaries. When entering a
+//! routine, each evaluator **jumps** to `floor_plan[i].linear_start` for that
+//! segment, and restores the parent's offset on return.
 //!
 //! # Overview
 //!
