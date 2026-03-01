@@ -64,19 +64,21 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
 
         let (preamble, preamble_witness) =
             self.compute_preamble(rng, &left, &right, &application)?;
-        Point::constant(&mut dr, preamble.nested_commitment)?.write(&mut dr, &mut transcript)?;
+        Point::constant(&mut dr, preamble.nested_rx.commitment())?
+            .write(&mut dr, &mut transcript)?;
         let w = transcript.squeeze(&mut dr)?;
         let registry_at_w = self.native_registry.at(*w.value().take());
 
         let s_prime = self.compute_s_prime(rng, &registry_at_w, &left, &right)?;
-        Point::constant(&mut dr, s_prime.nested_s_prime_commitment)?
+        Point::constant(&mut dr, s_prime.nested_s_prime_rx.commitment())?
             .write(&mut dr, &mut transcript)?;
         let y = transcript.squeeze(&mut dr)?;
         let z = transcript.squeeze(&mut dr)?;
 
         let (error_m, error_m_witness, claims) =
             self.compute_errors_m(rng, &registry_at_w, &y, &z, &left, &right)?;
-        Point::constant(&mut dr, error_m.nested_commitment)?.write(&mut dr, &mut transcript)?;
+        Point::constant(&mut dr, error_m.nested_rx.commitment())?
+            .write(&mut dr, &mut transcript)?;
 
         let saved_transcript_state = transcript
             .clone()
@@ -100,28 +102,29 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             &nu,
             saved_transcript_state,
         )?;
-        Point::constant(&mut dr, error_n.nested_commitment)?.write(&mut dr, &mut transcript)?;
+        Point::constant(&mut dr, error_n.nested_rx.commitment())?
+            .write(&mut dr, &mut transcript)?;
         let mu_prime = transcript.squeeze(&mut dr)?;
         let nu_prime = transcript.squeeze(&mut dr)?;
 
         let ab = self.compute_ab(rng, a, b, &mu_prime, &nu_prime)?;
-        Point::constant(&mut dr, ab.nested_commitment)?.write(&mut dr, &mut transcript)?;
+        Point::constant(&mut dr, ab.nested_rx.commitment())?.write(&mut dr, &mut transcript)?;
         let x = transcript.squeeze(&mut dr)?;
 
         let (query, query_witness) =
             self.compute_query(rng, &w, &x, &y, &z, &error_m, &left, &right)?;
-        Point::constant(&mut dr, query.nested_commitment)?.write(&mut dr, &mut transcript)?;
+        Point::constant(&mut dr, query.nested_rx.commitment())?.write(&mut dr, &mut transcript)?;
         let alpha = transcript.squeeze(&mut dr)?;
 
         let f = self.compute_f(
             rng, &w, &y, &z, &x, &alpha, &s_prime, &error_m, &ab, &query, &left, &right,
         )?;
-        Point::constant(&mut dr, f.nested_commitment)?.write(&mut dr, &mut transcript)?;
+        Point::constant(&mut dr, f.nested_rx.commitment())?.write(&mut dr, &mut transcript)?;
         let u = transcript.squeeze(&mut dr)?;
 
         let (eval, eval_witness) =
             self.compute_eval(rng, &u, &left, &right, &s_prime, &error_m, &ab, &query)?;
-        Point::constant(&mut dr, eval.nested_commitment)?.write(&mut dr, &mut transcript)?;
+        Point::constant(&mut dr, eval.nested_rx.commitment())?.write(&mut dr, &mut transcript)?;
         let pre_beta = transcript.squeeze(&mut dr)?;
 
         let p = self.compute_p(
@@ -184,37 +187,52 @@ impl<'rx, C: Cycle, R: Rank> Source for FuseProofSource<'rx, C, R> {
     fn rx(&self, component: RxComponent) -> impl Iterator<Item = Self::Rx> {
         use RxComponent::*;
         let (left_poly, right_poly) = match component {
-            AbA => (&self.left.ab.a_poly, &self.right.ab.a_poly),
-            AbB => (&self.left.ab.b_poly, &self.right.ab.b_poly),
-            Application => (&self.left.application.rx, &self.right.application.rx),
+            AbA => (self.left.ab.a.poly(), self.right.ab.a.poly()),
+            AbB => (self.left.ab.b.poly(), self.right.ab.b.poly()),
+            Application => (
+                self.left.application.rx.poly(),
+                self.right.application.rx.poly(),
+            ),
             Hashes1 => (
-                &self.left.circuits.hashes_1_rx,
-                &self.right.circuits.hashes_1_rx,
+                self.left.circuits.hashes_1.poly(),
+                self.right.circuits.hashes_1.poly(),
             ),
             Hashes2 => (
-                &self.left.circuits.hashes_2_rx,
-                &self.right.circuits.hashes_2_rx,
+                self.left.circuits.hashes_2.poly(),
+                self.right.circuits.hashes_2.poly(),
             ),
             PartialCollapse => (
-                &self.left.circuits.partial_collapse_rx,
-                &self.right.circuits.partial_collapse_rx,
+                self.left.circuits.partial_collapse.poly(),
+                self.right.circuits.partial_collapse.poly(),
             ),
             FullCollapse => (
-                &self.left.circuits.full_collapse_rx,
-                &self.right.circuits.full_collapse_rx,
+                self.left.circuits.full_collapse.poly(),
+                self.right.circuits.full_collapse.poly(),
             ),
             ComputeV => (
-                &self.left.circuits.compute_v_rx,
-                &self.right.circuits.compute_v_rx,
+                self.left.circuits.compute_v.poly(),
+                self.right.circuits.compute_v.poly(),
             ),
             Preamble => (
-                &self.left.preamble.native_rx,
-                &self.right.preamble.native_rx,
+                self.left.preamble.native_rx.poly(),
+                self.right.preamble.native_rx.poly(),
             ),
-            ErrorM => (&self.left.error_m.native_rx, &self.right.error_m.native_rx),
-            ErrorN => (&self.left.error_n.native_rx, &self.right.error_n.native_rx),
-            Query => (&self.left.query.native_rx, &self.right.query.native_rx),
-            Eval => (&self.left.eval.native_rx, &self.right.eval.native_rx),
+            ErrorM => (
+                self.left.error_m.native_rx.poly(),
+                self.right.error_m.native_rx.poly(),
+            ),
+            ErrorN => (
+                self.left.error_n.native_rx.poly(),
+                self.right.error_n.native_rx.poly(),
+            ),
+            Query => (
+                self.left.query.native_rx.poly(),
+                self.right.query.native_rx.poly(),
+            ),
+            Eval => (
+                self.left.eval.native_rx.poly(),
+                self.right.eval.native_rx.poly(),
+            ),
         };
         [left_poly, right_poly].into_iter()
     }
