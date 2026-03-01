@@ -2,23 +2,23 @@
 //! arrangement.
 
 use ff::Field;
-use ragu_arithmetic::CurveAffine;
+use ragu_arithmetic::{CurveAffine, FixedGenerators};
 use rand::CryptoRng;
 
-use alloc::{vec, vec::Vec};
+use alloc::{sync::Arc, vec, vec::Vec};
 use core::ops::{AddAssign, Deref, DerefMut};
 
 use super::Rank;
 
 /// Represents a polynomial in an unstructured (monomial basis) arrangement.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Polynomial<F: Field, R: Rank> {
+pub struct RawPolynomial<F: Field, R: Rank> {
     /// Coefficients of the polynomial.
-    pub(super) coeffs: Vec<F>,
-    pub(super) _marker: core::marker::PhantomData<R>,
+    pub(crate) coeffs: Vec<F>,
+    pub(crate) _marker: core::marker::PhantomData<R>,
 }
 
-impl<F: Field, R: Rank> Deref for Polynomial<F, R> {
+impl<F: Field, R: Rank> Deref for RawPolynomial<F, R> {
     type Target = [F];
 
     fn deref(&self) -> &Self::Target {
@@ -26,19 +26,19 @@ impl<F: Field, R: Rank> Deref for Polynomial<F, R> {
     }
 }
 
-impl<F: Field, R: Rank> DerefMut for Polynomial<F, R> {
+impl<F: Field, R: Rank> DerefMut for RawPolynomial<F, R> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.coeffs
     }
 }
 
-impl<F: Field, R: Rank> Default for Polynomial<F, R> {
+impl<F: Field, R: Rank> Default for RawPolynomial<F, R> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<F: Field, R: Rank> Polynomial<F, R> {
+impl<F: Field, R: Rank> RawPolynomial<F, R> {
     /// Create a new (zero) polynomial.
     pub fn new() -> Self {
         Self {
@@ -127,10 +127,10 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
             .for_each(|(coeff, val)| *coeff += val);
     }
 
-    /// Compute a commitment to this polynomial using the provided generators.
+    /// Compute the Pedersen commitment to this polynomial.
     pub fn commit<C: CurveAffine<ScalarExt = F>>(
         &self,
-        generators: &impl ragu_arithmetic::FixedGenerators<C>,
+        generators: &impl FixedGenerators<C>,
         blind: F,
     ) -> C {
         assert!(generators.g().len() >= R::num_coeffs()); // TODO(ebfull)
@@ -144,6 +144,73 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
                 .chain(Some(generators.h())),
         )
         .into() // TODO(ebfull)
+    }
+}
+
+impl<F: Field, R: Rank> AddAssign<&Self> for RawPolynomial<F, R> {
+    fn add_assign(&mut self, rhs: &Self) {
+        self.add_unstructured(rhs);
+    }
+}
+
+/// An `Arc`-wrapped snapshot of a [`RawPolynomial`] in monomial basis.
+///
+/// All polynomial data and operations live on [`RawPolynomial`]; this type
+/// adds cheap clone-on-write ownership on top via [`Arc`].
+///
+/// ## Clone-on-write semantics
+///
+/// - `Clone` is O(1): increments the `Arc` reference count, no data is copied.
+/// - Mutation via `DerefMut` calls [`Arc::make_mut`] internally:
+///   - **Uniquely owned** (refcount = 1): zero-cost, same as `&mut RawPolynomial`.
+///   - **Shared** (refcount > 1): clones the `RawPolynomial` exactly once, then
+///     mutates the fresh copy, leaving other clones unaffected.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Polynomial<F: Field, R: Rank> {
+    inner: Arc<RawPolynomial<F, R>>,
+}
+
+impl<F: Field, R: Rank> Deref for Polynomial<F, R> {
+    type Target = RawPolynomial<F, R>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<F: Field, R: Rank> DerefMut for Polynomial<F, R> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        Arc::make_mut(&mut self.inner)
+    }
+}
+
+impl<F: Field, R: Rank> Default for Polynomial<F, R> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<F: Field, R: Rank> Polynomial<F, R> {
+    /// Create a new (zero) polynomial.
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(RawPolynomial::new()),
+        }
+    }
+
+    /// Creates a new polynomial with random coefficients.
+    pub fn random<RNG: CryptoRng>(rng: &mut RNG) -> Self {
+        Self {
+            inner: Arc::new(RawPolynomial::random(rng)),
+        }
+    }
+
+    /// Create a polynomial from the given coefficients. Panics if the number of
+    /// coefficients exceeds the rank's limit.
+    pub fn from_coeffs(coeffs: Vec<F>) -> Self {
+        Self {
+            inner: Arc::new(RawPolynomial::from_coeffs(coeffs)),
+        }
     }
 }
 
@@ -183,12 +250,14 @@ fn test_add_structured() {
         }
     }
 
+    // expected: add q to p's unstructured form
     let mut expected = p.unstructured();
     expected.add_structured(&q);
 
-    let mut computed = p;
+    // computed: add q to p in structured space, then convert to unstructured
+    let mut computed = p.clone();
     computed.add_assign(&q);
     let computed = computed.unstructured();
 
-    assert_eq!(expected.coeffs, computed.coeffs);
+    assert_eq!(expected, computed);
 }
