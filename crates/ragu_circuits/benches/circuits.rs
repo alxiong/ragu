@@ -6,7 +6,7 @@ use std::hint::black_box;
 
 use gungraun::{library_benchmark, library_benchmark_group, main};
 use ragu_arithmetic::Cycle;
-use ragu_circuits::polynomials::{ProductionRank, TestRank, structured, unstructured};
+use ragu_circuits::polynomials::{Committable, ProductionRank, TestRank, structured, unstructured};
 use ragu_circuits::registry::{Registry, RegistryBuilder};
 use ragu_circuits::{Circuit, CircuitExt};
 use ragu_pasta::{Fp, Pasta};
@@ -27,7 +27,7 @@ fn commit_structured(
         (structured::Polynomial<Fp, ProductionRank>, Fp),
     ),
 ) {
-    black_box(poly.commit(generators, blind));
+    black_box(poly.commit_with_blind(generators, blind).commitment());
 }
 
 #[library_benchmark(setup = setup_with_rng)]
@@ -38,7 +38,7 @@ fn commit_unstructured(
         (unstructured::Polynomial<Fp, ProductionRank>, Fp),
     ),
 ) {
-    black_box(poly.commit(generators, blind));
+    black_box(poly.commit_with_blind(generators, blind).commitment());
 }
 
 library_benchmark_group!(

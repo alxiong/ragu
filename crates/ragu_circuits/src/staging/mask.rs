@@ -189,33 +189,33 @@ impl<F: Field, R: Rank> CircuitObject<F, R> for StageMask<R> {
         let y_inv = y.invert().expect("y is not zero");
 
         {
-            let poly = poly.backward();
+            let view = poly.backward();
 
             // Placeholder contribution: Y^q - k * Y^q.
-            poly.a.push(yq);
-            poly.b.push(F::ZERO);
-            poly.c.push(-key.value() * yq);
+            view.a.push(yq);
+            view.b.push(F::ZERO);
+            view.c.push(-key.value() * yq);
             yq *= y_inv;
 
             for _ in 0..self.skip_multiplications {
-                poly.a.push(yq);
+                view.a.push(yq);
                 yq *= y_inv;
-                poly.b.push(yq);
+                view.b.push(yq);
                 yq *= y_inv;
-                poly.c.push(yq);
+                view.c.push(yq);
                 yq *= y_inv;
             }
             for _ in 0..self.num_multiplications {
-                poly.a.push(F::ZERO);
-                poly.b.push(F::ZERO);
-                poly.c.push(F::ZERO);
+                view.a.push(F::ZERO);
+                view.b.push(F::ZERO);
+                view.c.push(F::ZERO);
             }
             for _ in 0..reserved {
-                poly.a.push(yq);
+                view.a.push(yq);
                 yq *= y_inv;
-                poly.b.push(yq);
+                view.b.push(yq);
                 yq *= y_inv;
-                poly.c.push(yq);
+                view.c.push(yq);
                 yq *= y_inv;
             }
         }
@@ -255,7 +255,7 @@ mod tests {
 
     use crate::{
         CircuitExt, CircuitObject, metrics,
-        polynomials::{Rank, structured},
+        polynomials::{Committable, Rank, structured},
         registry,
         staging::StageBuilder,
         tests::SquareCircuit,
@@ -955,7 +955,7 @@ mod tests {
         let blind = Fp::ZERO;
 
         let rx: structured::Polynomial<Fp, R> = ChildOfParentAOnlyStage::rx(challenges).unwrap();
-        let poly_commitment: EqAffine = rx.commit(generators, blind);
+        let poly_commitment: EqAffine = rx.commit_with_blind(generators, blind).commitment();
 
         let mut manual_commitment = EqAffine::identity();
         for (i, &challenge) in challenges.iter().enumerate() {
@@ -981,7 +981,7 @@ mod tests {
         let blind = Fp::ZERO;
 
         let rx: structured::Polynomial<Fp, R> = ParentAOnlyStage::rx(challenges).unwrap();
-        let poly_commitment: EqAffine = rx.commit(generators, blind);
+        let poly_commitment: EqAffine = rx.commit_with_blind(generators, blind).commitment();
 
         // Manually compute expected commitment using StageExt::generator_index_for_a.
         let mut manual_commitment = EqAffine::identity();

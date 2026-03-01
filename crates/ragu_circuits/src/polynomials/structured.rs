@@ -1,11 +1,13 @@
 //! Polynomials with coefficients in a split structure arrangement.
 
 use ff::Field;
-use ragu_arithmetic::CurveAffine;
+use ragu_arithmetic::{CurveAffine, FixedGenerators};
 use rand::CryptoRng;
 
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::borrow::Borrow;
+use core::ops::{Deref, DerefMut};
 
 use super::Rank;
 
@@ -24,62 +26,32 @@ use super::Rank;
 ///
 /// ## Usage
 ///
-/// Given a [`Polynomial`] you can obtain a [`View`] of the polynomial from the
-/// standard perspective using [`Polynomial::forward`], which exposes only the
-/// $\mathbf{a}, \mathbf{b}, \mathbf{c}$ coefficient vectors. Alternatively, you
-/// can obtain a view of the polynomial with its coefficients reversed. Only
-/// using a [`View`] can the coefficient vectors be accessed and mutated.
-#[derive(Clone, Debug)]
-pub struct Polynomial<F: Field, R: Rank> {
+/// Use [`forward`](Self::forward) or [`backward`](Self::backward) to obtain a
+/// [`View`] giving mutable access to the coefficient vectors.
+#[derive(Clone, Debug, Default)]
+pub struct RawPolynomial<F: Field, R: Rank> {
     // Note: We use `u`, `v`, `w`, and `d` to represent the coefficient vectors
     // in the general polynomial so they cannot be confused with the vectors in
     // the structured `View`.
     //
     // In the forward perspective, a -> u, b -> v, c -> w, and in the backward
     // perspective, a -> v, b -> u, c -> d.
-    pub(super) u: Vec<F>,
-    pub(super) v: Vec<F>,
-    pub(super) w: Vec<F>,
-    pub(super) d: Vec<F>,
+    pub(crate) u: Vec<F>,
+    pub(crate) v: Vec<F>,
+    pub(crate) w: Vec<F>,
+    pub(crate) d: Vec<F>,
     _marker: core::marker::PhantomData<R>,
 }
 
-impl<F: Field, R: Rank> ragu_arithmetic::Ring for Polynomial<F, R> {
-    type R = Self;
-    type F = F;
-
-    fn scale_assign(r: &mut Self, by: Self::F) {
-        r.scale(by);
-    }
-    fn add_assign(r: &mut Self, other: &Self) {
-        Self::add_assign(r, other);
-    }
-    fn sub_assign(r: &mut Self, other: &Self) {
-        Self::sub_assign(r, other);
-    }
-}
-
-impl<F: Field, R: Rank> Default for Polynomial<F, R> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<F: Field, R: Rank> Polynomial<F, R> {
+impl<F: Field, R: Rank> RawPolynomial<F, R> {
     /// Creates a new polynomial with empty coefficient vectors.
     pub fn new() -> Self {
-        Self {
-            u: Vec::new(),
-            v: Vec::new(),
-            w: Vec::new(),
-            d: Vec::new(),
-            _marker: core::marker::PhantomData,
-        }
+        Self::default()
     }
 
     /// Creates a new polynomial with random coefficients.
     pub fn random<RNG: CryptoRng>(rng: &mut RNG) -> Self {
-        let mut random_vec = || (0..R::n()).map(|_| F::random(&mut *rng)).collect();
+        let mut random_vec = || (0..R::n()).map(|_| F::random(rng)).collect();
         Self {
             u: random_vec(),
             v: random_vec(),
@@ -87,20 +59,6 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
             d: random_vec(),
             _marker: core::marker::PhantomData,
         }
-    }
-
-    /// Computes a weighted sum of the polynomials yielded by an iterator by the
-    /// powers of the provided `scale_factor`.
-    ///
-    /// Horner's method is used to evaluate the weighted sum, effectively
-    /// scaling the first element by the highest power of `scale_factor` and the
-    /// last element by nothing at all.
-    pub fn fold<E: Borrow<Self>>(polys: impl IntoIterator<Item = E>, scale_factor: F) -> Self {
-        polys.into_iter().fold(Self::default(), |mut acc, poly| {
-            acc.scale(scale_factor);
-            acc.add_assign(poly.borrow());
-            acc
-        })
     }
 
     /// Iterate over the coefficients of this polynomial in ascending order of
@@ -216,7 +174,7 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
     /// Compute a commitment to this polynomial using the provided generators.
     pub fn commit<C: CurveAffine<ScalarExt = F>>(
         &self,
-        generators: &impl ragu_arithmetic::FixedGenerators<C>,
+        generators: &impl FixedGenerators<C>,
         blind: F,
     ) -> C {
         self.assert_bounds();
@@ -246,12 +204,9 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
         .into() // TODO(ebfull)
     }
 
-    /// Reduce this polynomial into its unstructured representation,
+    /// Reduce this polynomial into its unstructured representation.
     pub fn unstructured(&self) -> super::unstructured::Polynomial<F, R> {
-        super::unstructured::Polynomial {
-            coeffs: self.iter_coeffs().collect(),
-            _marker: core::marker::PhantomData,
-        }
+        super::unstructured::Polynomial::from_coeffs(self.iter_coeffs().collect())
     }
 
     /// Assert that all coefficient vectors are within the rank bound.
@@ -317,6 +272,107 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
     }
 }
 
+/// An `Arc`-wrapped snapshot of a [`RawPolynomial`].
+///
+/// All polynomial data and operations live on [`RawPolynomial`]; this type
+/// adds cheap clone-on-write ownership on top via [`Arc`].
+///
+/// ## Clone-on-write semantics
+///
+/// - `Clone` is O(1): increments the `Arc` reference count, no data is copied.
+/// - Mutation via `DerefMut` (e.g. `poly.dilate(z)`, `*poly += &other`) calls
+///   [`Arc::make_mut`] internally:
+///   - **Uniquely owned** (refcount = 1): zero-cost, same as `&mut RawPolynomial`.
+///   - **Shared** (refcount > 1): clones the `RawPolynomial` exactly once, then
+///     mutates the fresh copy, leaving other clones unaffected.
+#[derive(Clone, Debug)]
+pub struct Polynomial<F: Field, R: Rank> {
+    inner: Arc<RawPolynomial<F, R>>,
+}
+
+impl<F: Field, R: Rank> Deref for Polynomial<F, R> {
+    type Target = RawPolynomial<F, R>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<F: Field, R: Rank> DerefMut for Polynomial<F, R> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        Arc::make_mut(&mut self.inner)
+    }
+}
+
+impl<F: Field, R: Rank> Default for Polynomial<F, R> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<F: Field, R: Rank> Polynomial<F, R> {
+    /// Creates a new polynomial with empty coefficient vectors.
+    pub fn new() -> Self {
+        Self::from_raw(RawPolynomial::new())
+    }
+
+    /// Creates a new polynomial with random coefficients.
+    pub fn random<RNG: CryptoRng>(rng: &mut RNG) -> Self {
+        Self::from_raw(RawPolynomial::random(rng))
+    }
+
+    /// Wraps a [`RawPolynomial`] in an `Arc`, producing a cheaply-cloneable
+    /// [`Polynomial`].
+    pub(crate) fn from_raw(raw: RawPolynomial<F, R>) -> Self {
+        Self {
+            inner: Arc::new(raw),
+        }
+    }
+
+    /// Computes a weighted sum of the polynomials yielded by an iterator by the
+    /// powers of the provided `scale_factor`.
+    ///
+    /// Horner's method is used to evaluate the weighted sum, effectively
+    /// scaling the first element by the highest power of `scale_factor` and the
+    /// last element by nothing at all.
+    pub fn fold<E: Borrow<Polynomial<F, R>>>(
+        polys: impl IntoIterator<Item = E>,
+        scale_factor: F,
+    ) -> Self {
+        Self::from_raw(
+            polys
+                .into_iter()
+                .fold(RawPolynomial::new(), |mut acc, poly| {
+                    acc.scale(scale_factor);
+                    // poly.borrow(): &Polynomial, &**poly.borrow(): &RawPolynomial (via Deref chain)
+                    acc.add_assign(&**poly.borrow());
+                    acc
+                }),
+        )
+    }
+}
+
+impl<F: Field, R: Rank> ragu_arithmetic::Ring for Polynomial<F, R> {
+    type R = Self;
+    type F = F;
+
+    fn scale_assign(r: &mut Self, by: Self::F) {
+        r.scale(by);
+    }
+    fn add_assign(r: &mut Self, other: &Self) {
+        r.add_assign(other);
+    }
+    fn sub_assign(r: &mut Self, other: &Self) {
+        r.sub_assign(other);
+    }
+}
+
+impl<F: Field, R: Rank> PartialEq for Polynomial<F, R> {
+    fn eq(&self, other: &Self) -> bool {
+        self.iter_coeffs().eq(other.iter_coeffs())
+    }
+}
+
 /// Marker trait for distinguishing between different polynomial views.
 pub trait Perspective {}
 
@@ -346,7 +402,7 @@ pub struct View<'a, F, R: Rank, M: Perspective> {
     _marker: core::marker::PhantomData<(R, M)>,
 }
 
-impl<F: Field, R: Rank> Polynomial<F, R> {
+impl<F: Field, R: Rank> RawPolynomial<F, R> {
     /// Obtain a view of the polynomial from the forward perspective.
     pub fn forward(&mut self) -> View<'_, F, R, Forward> {
         View {
@@ -559,11 +615,11 @@ fn test_prod() {
     rzx.dilate(z);
     rzx.add_assign(&R::tz::<Fp>(z));
 
-    let a = rx.unstructured().coeffs;
-    let mut b = rzx.unstructured().coeffs;
+    let a = &rx.unstructured().coeffs;
+    let mut b = rzx.unstructured().coeffs.clone();
     b.reverse();
 
-    assert_eq!(ragu_arithmetic::dot(&a, &b), Fp::ZERO);
+    assert_eq!(ragu_arithmetic::dot(a, &b), Fp::ZERO);
 }
 
 #[test]
