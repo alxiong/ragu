@@ -28,7 +28,7 @@ use super::Rank;
 ///
 /// Use [`forward`](Self::forward) or [`backward`](Self::backward) to obtain a
 /// [`View`] giving mutable access to the coefficient vectors.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RawPolynomial<F: Field, R: Rank> {
     // Note: We use `u`, `v`, `w`, and `d` to represent the coefficient vectors
     // in the general polynomial so they cannot be confused with the vectors in
@@ -277,7 +277,7 @@ impl<F: Field, R: Rank> RawPolynomial<F, R> {
 /// All polynomial data and operations live on [`RawPolynomial`]; this type
 /// adds cheap cloning: clones are O(1) and mutating a shared clone copies
 /// the data lazily, leaving other clones unaffected.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Polynomial<F: Field, R: Rank> {
     inner: Arc<RawPolynomial<F, R>>,
 }
@@ -357,12 +357,6 @@ impl<F: Field, R: Rank> ragu_arithmetic::Ring for Polynomial<F, R> {
     }
     fn sub_assign(r: &mut Self, other: &Self) {
         RawPolynomial::sub_assign(r, other);
-    }
-}
-
-impl<F: Field, R: Rank> PartialEq for Polynomial<F, R> {
-    fn eq(&self, other: &Self) -> bool {
-        self.u == other.u && self.v == other.v && self.w == other.w && self.d == other.d
     }
 }
 

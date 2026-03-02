@@ -73,19 +73,19 @@ impl<C: Cycle, R: Rank> Proof<C, R> {
     ) -> &structured::Polynomial<C::CircuitField, R> {
         use RxComponent::*;
         match component {
-            AbA => &self.ab.a_poly,
-            AbB => &self.ab.b_poly,
-            Application => &self.application.rx,
-            Hashes1 => &self.circuits.hashes_1_rx,
-            Hashes2 => &self.circuits.hashes_2_rx,
-            PartialCollapse => &self.circuits.partial_collapse_rx,
-            FullCollapse => &self.circuits.full_collapse_rx,
-            ComputeV => &self.circuits.compute_v_rx,
-            Preamble => &self.preamble.native_rx,
-            ErrorM => &self.error_m.native_rx,
-            ErrorN => &self.error_n.native_rx,
-            Query => &self.query.native_rx,
-            Eval => &self.eval.native_rx,
+            AbA => self.ab.a.poly(),
+            AbB => self.ab.b.poly(),
+            Application => self.application.rx.poly(),
+            Hashes1 => self.circuits.hashes_1.poly(),
+            Hashes2 => self.circuits.hashes_2.poly(),
+            PartialCollapse => self.circuits.partial_collapse.poly(),
+            FullCollapse => self.circuits.full_collapse.poly(),
+            ComputeV => self.circuits.compute_v.poly(),
+            Preamble => self.preamble.native_rx.poly(),
+            ErrorM => self.error_m.native_rx.poly(),
+            ErrorN => self.error_n.native_rx.poly(),
+            Query => self.query.native_rx.poly(),
+            Eval => self.eval.native_rx.poly(),
         }
     }
 }
@@ -155,7 +155,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
                 nested_rx: cp_nested.clone(),
             },
             p: P {
-                poly: cp_unstructured,
+                aggregated: cp_unstructured,
                 v: C::CircuitField::ZERO,
                 endoscalar_rx: zero_structured_nested.clone(),
                 points_rx: zero_structured_nested.clone(),

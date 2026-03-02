@@ -95,7 +95,7 @@ pub(crate) struct Eval<C: Cycle, R: Rank> {
 
 #[derive(Clone)]
 pub(crate) struct P<C: Cycle, R: Rank> {
-    pub(crate) poly:
+    pub(crate) aggregated:
         CommittedPolynomial<unstructured::Polynomial<C::CircuitField, R>, C::HostCurve>,
     pub(crate) v: C::CircuitField,
     pub(crate) endoscalar_rx: structured::Polynomial<C::ScalarField, R>,

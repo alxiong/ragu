@@ -14,7 +14,7 @@ use core::ops::AddAssign;
 use ragu_arithmetic::Cycle;
 use ragu_circuits::{
     CircuitExt,
-    polynomials::{Committable, CommittedPolynomial, Rank, unstructured},
+    polynomials::{CommittedPolynomial, Rank, unstructured},
     staging::{MultiStage, StageExt},
 };
 use ragu_core::{
@@ -102,7 +102,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 acc.acc(&proof.query.native_rx);
                 acc.acc(&proof.query.registry_xy);
                 acc.acc(&proof.eval.native_rx);
-                acc.acc(&proof.p.poly);
+                acc.acc(&proof.p.aggregated);
                 acc.acc(&proof.circuits.hashes_1);
                 acc.acc(&proof.circuits.hashes_2);
                 acc.acc(&proof.circuits.partial_collapse);
@@ -120,7 +120,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
 
         // Construct commitment via PointsWitness Horner evaluation.
         // Points order: [f.poly.commitment(), commitments...] computes β^n·f + β^{n-1}·C₀ + ...
-        let (endoscalar_rx, points_rx, step_rxs) = {
+        let (commitment, endoscalar_rx, points_rx, step_rxs) = {
             let mut points = Vec::with_capacity(NUM_ENDOSCALING_POINTS);
             points.push(f.poly.commitment());
             points.extend_from_slice(&commitments);
@@ -153,14 +153,22 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 step_rxs.push(step_rx);
             }
 
-            (endoscalar_rx, points_rx, step_rxs)
+            (
+                *witness
+                    .interstitials
+                    .last()
+                    .expect("NumStepsLen guarantees at least one interstitial"),
+                endoscalar_rx,
+                points_rx,
+                step_rxs,
+            )
         };
 
         let v = poly.eval(*u.value().take());
-        let poly = poly.commit_with_blind(C::host_generators(self.params), blind);
+        let aggregated = CommittedPolynomial::new_unchecked(poly, blind, commitment);
 
         Ok(proof::P {
-            poly,
+            aggregated,
             v,
             endoscalar_rx,
             points_rx,

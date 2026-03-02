@@ -3,7 +3,7 @@
 use ff::Field;
 use ragu_arithmetic::Cycle;
 use ragu_circuits::{
-    polynomials::{Rank, structured},
+    polynomials::{Committable, Rank, structured},
     registry::CircuitIndex,
 };
 use ragu_core::{Result, drivers::emulator::Emulator, maybe::Maybe};
@@ -98,7 +98,21 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         };
 
         // Check polynomial evaluation claim.
-        let p_eval_claim = pcd.proof.p.poly.poly().eval(pcd.proof.challenges.u) == pcd.proof.p.v;
+        let p_eval_claim =
+            pcd.proof.p.aggregated.poly().eval(pcd.proof.challenges.u) == pcd.proof.p.v;
+
+        // Check P commitment corresponds to polynomial and blind.
+        let p_commitment_claim = pcd
+            .proof
+            .p
+            .aggregated
+            .poly()
+            .commit_with_blind(
+                C::host_generators(self.params),
+                pcd.proof.p.aggregated.blind(),
+            )
+            .commitment()
+            == pcd.proof.p.aggregated.commitment();
 
         // Check registry_xy polynomial evaluation at the sampled w.
         // registry_xy_poly is m(W, x, y) - the registry evaluated at current x, y, free in W.
@@ -114,7 +128,11 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         // - registry_wx0/wx1: need child proof x challenges (x₀, x₁) which "disappear" in preamble
         // - registry_wy: interstitial value that will be elided later
 
-        Ok(native_revdot_claims && nested_revdot_claims && p_eval_claim && registry_xy_claim)
+        Ok(native_revdot_claims
+            && nested_revdot_claims
+            && p_eval_claim
+            && p_commitment_claim
+            && registry_xy_claim)
     }
 }
 
@@ -301,6 +319,29 @@ mod tests {
         let pcd = proof.carry::<()>(());
         let result = app.verify(&pcd, &mut rng).expect("verify should not error");
         assert!(!result, "verify should reject wrong right_header size");
+    }
+
+    #[test]
+    fn verify_rejects_corrupted_p_commitment() {
+        use ragu_circuits::polynomials::CommittedPolynomial;
+
+        let app = create_test_app();
+        let mut rng = StdRng::seed_from_u64(1234);
+
+        // Create a valid trivial proof
+        let mut proof = app.trivial_proof();
+
+        // Corrupt the P commitment by changing the blind (creates an inconsistent triple)
+        let old = proof.p.aggregated.clone();
+        proof.p.aggregated = CommittedPolynomial::new_unchecked(
+            old.poly().clone(),
+            <Pasta as Cycle>::CircuitField::from(999u64),
+            old.commitment(),
+        );
+
+        let pcd = proof.carry::<()>(());
+        let result = app.verify(&pcd, &mut rng).expect("verify should not error");
+        assert!(!result, "verify should reject corrupted P commitment");
     }
 
     #[test]

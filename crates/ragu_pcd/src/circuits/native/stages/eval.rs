@@ -50,7 +50,7 @@ impl<F: PrimeField> ChildEvaluationsWitness<F> {
             query: proof.query.native_rx.poly().eval(u),
             registry_xy_poly: proof.query.registry_xy.poly().eval(u),
             eval: proof.eval.native_rx.poly().eval(u),
-            p_poly: proof.p.poly.poly().eval(u),
+            p_poly: proof.p.aggregated.poly().eval(u),
             hashes_1: proof.circuits.hashes_1.poly().eval(u),
             hashes_2: proof.circuits.hashes_2.poly().eval(u),
             partial_collapse: proof.circuits.partial_collapse.poly().eval(u),
