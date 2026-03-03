@@ -255,7 +255,7 @@ mod tests {
 
     use crate::{
         CircuitExt, CircuitObject, metrics,
-        polynomials::{Committable, Rank, structured},
+        polynomials::{Rank, structured},
         registry,
         staging::StageBuilder,
         tests::SquareCircuit,

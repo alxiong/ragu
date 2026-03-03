@@ -4,6 +4,8 @@ use ff::Field;
 use ragu_arithmetic::{CurveAffine, FixedGenerators};
 use rand::CryptoRng;
 
+use super::committed::CommittedPolynomial;
+
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::borrow::Borrow;
@@ -343,6 +345,25 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
                 }),
         )
     }
+
+    /// Commit to this polynomial using the provided blinding factor.
+    pub fn commit_with_blind<C: CurveAffine<ScalarExt = F>>(
+        &self,
+        generators: &impl FixedGenerators<C>,
+        blind: C::Scalar,
+    ) -> CommittedPolynomial<Self, C> {
+        let commitment = RawPolynomial::commit(self, generators, blind);
+        CommittedPolynomial::from_parts(self.clone(), blind, commitment)
+    }
+
+    /// Commit to this polynomial, sampling a fresh blinding factor from `rng`.
+    pub fn commit<C: CurveAffine<ScalarExt = F>>(
+        &self,
+        generators: &impl FixedGenerators<C>,
+        rng: &mut impl CryptoRng,
+    ) -> CommittedPolynomial<Self, C> {
+        self.commit_with_blind(generators, C::Scalar::random(rng))
+    }
 }
 
 impl<F: Field, R: Rank> ragu_arithmetic::Ring for Polynomial<F, R> {
@@ -636,8 +657,11 @@ fn test_commit_consistency() {
         poly.d.push(Fp::random(&mut rand::rng()));
     }
 
-    let structured_commitment = poly.commit(generators, blind);
-    let unstructured_commitment = poly.unstructured().commit(generators, blind);
+    let structured_commitment = poly.commit_with_blind(generators, blind).commitment();
+    let unstructured_commitment = poly
+        .unstructured()
+        .commit_with_blind(generators, blind)
+        .commitment();
 
     assert_eq!(structured_commitment, unstructured_commitment);
 }

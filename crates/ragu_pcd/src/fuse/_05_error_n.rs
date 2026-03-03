@@ -9,7 +9,7 @@
 use ff::Field;
 use ragu_arithmetic::Cycle;
 use ragu_circuits::{
-    polynomials::{Committable, Rank, structured},
+    polynomials::{Rank, structured},
     staging::{Stage as StageTrait, StageExt},
 };
 use ragu_core::{

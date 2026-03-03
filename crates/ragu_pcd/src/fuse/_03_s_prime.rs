@@ -4,11 +4,7 @@
 //! the $m(w, x_i, Y)$ polynomials for the $i$th child proof's $x$ challenge.
 
 use ragu_arithmetic::Cycle;
-use ragu_circuits::{
-    polynomials::{Committable, Rank},
-    registry::RegistryAt,
-    staging::StageExt,
-};
+use ragu_circuits::{polynomials::Rank, registry::RegistryAt, staging::StageExt};
 use ragu_core::Result;
 use rand::CryptoRng;
 

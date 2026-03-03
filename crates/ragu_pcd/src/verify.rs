@@ -3,7 +3,7 @@
 use ff::Field;
 use ragu_arithmetic::Cycle;
 use ragu_circuits::{
-    polynomials::{Committable, Rank, structured},
+    polynomials::{Rank, structured},
     registry::CircuitIndex,
 };
 use ragu_core::{Result, drivers::emulator::Emulator, maybe::Maybe};
@@ -98,21 +98,17 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         };
 
         // Check polynomial evaluation claim.
-        let p_eval_claim =
-            pcd.proof.p.aggregated.poly().eval(pcd.proof.challenges.u) == pcd.proof.p.v;
+        let p_eval_claim = pcd.proof.p.agg_qx.poly().eval(pcd.proof.challenges.u) == pcd.proof.p.v;
 
         // Check P commitment corresponds to polynomial and blind.
         let p_commitment_claim = pcd
             .proof
             .p
-            .aggregated
+            .agg_qx
             .poly()
-            .commit_with_blind(
-                C::host_generators(self.params),
-                pcd.proof.p.aggregated.blind(),
-            )
+            .commit_with_blind(C::host_generators(self.params), pcd.proof.p.agg_qx.blind())
             .commitment()
-            == pcd.proof.p.aggregated.commitment();
+            == pcd.proof.p.agg_qx.commitment();
 
         // Check registry_xy polynomial evaluation at the sampled w.
         // registry_xy_poly is m(W, x, y) - the registry evaluated at current x, y, free in W.
@@ -332,8 +328,8 @@ mod tests {
         let mut proof = app.trivial_proof();
 
         // Corrupt the P commitment by changing the blind (creates an inconsistent triple)
-        let old = proof.p.aggregated.clone();
-        proof.p.aggregated = CommittedPolynomial::new_unchecked(
+        let old = proof.p.agg_qx.clone();
+        proof.p.agg_qx = CommittedPolynomial::from_parts(
             old.poly().clone(),
             <Pasta as Cycle>::CircuitField::from(999u64),
             old.commitment(),

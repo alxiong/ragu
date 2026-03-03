@@ -9,10 +9,7 @@
 //! restriction.
 
 use ragu_arithmetic::Cycle;
-use ragu_circuits::{
-    polynomials::{Committable, Rank},
-    staging::StageExt,
-};
+use ragu_circuits::{polynomials::Rank, staging::StageExt};
 use ragu_core::{
     Result,
     drivers::Driver,

@@ -12,7 +12,7 @@ pub(crate) use components::*;
 use ff::Field;
 use ragu_arithmetic::Cycle;
 use ragu_circuits::{
-    polynomials::{Committable, Rank, structured, unstructured},
+    polynomials::{Rank, structured, unstructured},
     registry::CircuitIndex,
 };
 use ragu_primitives::vec::Len;
@@ -147,7 +147,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
                 nested_rx: cp_nested.clone(),
             },
             f: F {
-                poly: cp_unstructured.clone(),
+                aggregated: cp_unstructured.clone(),
                 nested_rx: cp_nested.clone(),
             },
             eval: Eval {
@@ -155,7 +155,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
                 nested_rx: cp_nested.clone(),
             },
             p: P {
-                aggregated: cp_unstructured,
+                agg_qx: cp_unstructured,
                 v: C::CircuitField::ZERO,
                 endoscalar_rx: zero_structured_nested.clone(),
                 points_rx: zero_structured_nested.clone(),

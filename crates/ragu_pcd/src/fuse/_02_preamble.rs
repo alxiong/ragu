@@ -4,10 +4,7 @@
 //! to the instance and trace polynomials used in the fuse step.
 
 use ragu_arithmetic::Cycle;
-use ragu_circuits::{
-    polynomials::{Committable, Rank},
-    staging::StageExt,
-};
+use ragu_circuits::{polynomials::Rank, staging::StageExt};
 use ragu_core::Result;
 use rand::CryptoRng;
 

@@ -79,7 +79,8 @@ pub(crate) struct Query<C: Cycle, R: Rank> {
 
 #[derive(Clone)]
 pub(crate) struct F<C: Cycle, R: Rank> {
-    pub(crate) poly:
+    /// Final aggregated polynomial.
+    pub(crate) aggregated:
         CommittedPolynomial<unstructured::Polynomial<C::CircuitField, R>, C::HostCurve>,
     pub(crate) nested_rx:
         CommittedPolynomial<structured::Polynomial<C::ScalarField, R>, C::NestedCurve>,
@@ -95,7 +96,8 @@ pub(crate) struct Eval<C: Cycle, R: Rank> {
 
 #[derive(Clone)]
 pub(crate) struct P<C: Cycle, R: Rank> {
-    pub(crate) aggregated:
+    /// Aggregated quotient polynomial.
+    pub(crate) agg_qx:
         CommittedPolynomial<unstructured::Polynomial<C::CircuitField, R>, C::HostCurve>,
     pub(crate) v: C::CircuitField,
     pub(crate) endoscalar_rx: structured::Polynomial<C::ScalarField, R>,

@@ -7,10 +7,7 @@
 //! synthesis.
 
 use ragu_arithmetic::Cycle;
-use ragu_circuits::{
-    CircuitExt,
-    polynomials::{Committable, Rank},
-};
+use ragu_circuits::{CircuitExt, polynomials::Rank};
 use ragu_core::Result;
 use rand::CryptoRng;
 

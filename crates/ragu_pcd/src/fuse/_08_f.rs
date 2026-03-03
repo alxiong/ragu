@@ -11,7 +11,7 @@
 
 use ragu_arithmetic::Cycle;
 use ragu_circuits::{
-    polynomials::{Committable, Rank, unstructured},
+    polynomials::{Rank, unstructured},
     staging::StageExt,
 };
 use ragu_core::{
@@ -63,8 +63,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         // This must exactly match the ordering of the `poly_queries` function
         // in the `compute_v` circuit.
         let mut iters = [
-            factor_iter(left.p.aggregated.poly().iter_coeffs(), left.challenges.u),
-            factor_iter(right.p.aggregated.poly().iter_coeffs(), right.challenges.u),
+            factor_iter(left.p.agg_qx.poly().iter_coeffs(), left.challenges.u),
+            factor_iter(right.p.agg_qx.poly().iter_coeffs(), right.challenges.u),
             factor_iter(left.query.registry_xy.poly().iter_coeffs(), w),
             factor_iter(right.query.registry_xy.poly().iter_coeffs(), w),
             factor_iter(s_prime.registry_wx0.poly().iter_coeffs(), left.challenges.y),
@@ -178,6 +178,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let nested_rx = f::Stage::<C::HostCurve, R>::rx(&nested_f_witness)?
             .commit(C::nested_generators(self.params), rng);
 
-        Ok(proof::F { poly, nested_rx })
+        Ok(proof::F {
+            aggregated: poly,
+            nested_rx,
+        })
     }
 }

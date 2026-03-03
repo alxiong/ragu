@@ -5,6 +5,8 @@ use ff::Field;
 use ragu_arithmetic::{CurveAffine, FixedGenerators};
 use rand::CryptoRng;
 
+use super::committed::CommittedPolynomial;
+
 use alloc::{sync::Arc, vec, vec::Vec};
 use core::ops::{AddAssign, Deref, DerefMut};
 
@@ -206,6 +208,25 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
         Self {
             inner: Arc::new(RawPolynomial::from_coeffs(coeffs)),
         }
+    }
+
+    /// Commit to this polynomial using the provided blinding factor.
+    pub fn commit_with_blind<C: CurveAffine<ScalarExt = F>>(
+        &self,
+        generators: &impl FixedGenerators<C>,
+        blind: C::Scalar,
+    ) -> CommittedPolynomial<Self, C> {
+        let commitment = RawPolynomial::commit(self, generators, blind);
+        CommittedPolynomial::from_parts(self.clone(), blind, commitment)
+    }
+
+    /// Commit to this polynomial, sampling a fresh blinding factor from `rng`.
+    pub fn commit<C: CurveAffine<ScalarExt = F>>(
+        &self,
+        generators: &impl FixedGenerators<C>,
+        rng: &mut impl CryptoRng,
+    ) -> CommittedPolynomial<Self, C> {
+        self.commit_with_blind(generators, C::Scalar::random(rng))
     }
 }
 

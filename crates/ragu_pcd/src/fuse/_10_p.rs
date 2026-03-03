@@ -67,8 +67,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     where
         D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
     {
-        let mut poly = f.poly.poly().clone();
-        let mut blind = f.poly.blind();
+        let mut poly = f.aggregated.poly().clone();
+        let mut blind = f.aggregated.blind();
 
         // Collect commitments for PointsWitness construction.
         let mut commitments: Vec<C::HostCurve> = Vec::new();
@@ -102,7 +102,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 acc.acc(&proof.query.native_rx);
                 acc.acc(&proof.query.registry_xy);
                 acc.acc(&proof.eval.native_rx);
-                acc.acc(&proof.p.aggregated);
+                acc.acc(&proof.p.agg_qx);
                 acc.acc(&proof.circuits.hashes_1);
                 acc.acc(&proof.circuits.hashes_2);
                 acc.acc(&proof.circuits.partial_collapse);
@@ -119,10 +119,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         }
 
         // Construct commitment via PointsWitness Horner evaluation.
-        // Points order: [f.poly.commitment(), commitments...] computes β^n·f + β^{n-1}·C₀ + ...
+        // Points order: [f.aggregated.commitment(), commitments...] computes β^n·f + β^{n-1}·C₀ + ...
         let (commitment, endoscalar_rx, points_rx, step_rxs) = {
             let mut points = Vec::with_capacity(NUM_ENDOSCALING_POINTS);
-            points.push(f.poly.commitment());
+            points.push(f.aggregated.commitment());
             points.extend_from_slice(&commitments);
 
             let witness =
@@ -165,10 +165,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         };
 
         let v = poly.eval(*u.value().take());
-        let aggregated = CommittedPolynomial::new_unchecked(poly, blind, commitment);
+        let aggregated = CommittedPolynomial::from_parts(poly, blind, commitment);
 
         Ok(proof::P {
-            aggregated,
+            agg_qx: aggregated,
             v,
             endoscalar_rx,
             points_rx,

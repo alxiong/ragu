@@ -8,11 +8,7 @@
 //! restriction.
 
 use ragu_arithmetic::Cycle;
-use ragu_circuits::{
-    polynomials::{Committable, Rank},
-    registry::RegistryAt,
-    staging::StageExt,
-};
+use ragu_circuits::{polynomials::Rank, registry::RegistryAt, staging::StageExt};
 use ragu_core::{
     Result,
     drivers::Driver,

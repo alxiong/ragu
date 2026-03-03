@@ -3,66 +3,7 @@
 //! [`CommittedPolynomial`] bundles a polynomial, its blinding factor, and a
 //! pre-computed commitment into one immutable type.
 
-use ff::Field;
-use ragu_arithmetic::{CurveAffine, FixedGenerators};
-use rand::CryptoRng;
-
-use crate::polynomials::{Rank, structured, unstructured};
-
-/// A trait implemented by polynomial types that know how to Pedersen-commit
-/// themselves, producing a [`CommittedPolynomial`].
-pub trait Committable<C: CurveAffine>: Sized {
-    /// Commit to this polynomial using the provided blinding factor.
-    fn commit_with_blind(
-        &self,
-        generators: &impl FixedGenerators<C>,
-        blind: C::Scalar,
-    ) -> CommittedPolynomial<Self, C>;
-
-    /// Commit to this polynomial, sampling a fresh blinding factor from `rng`.
-    fn commit(
-        &self,
-        generators: &impl FixedGenerators<C>,
-        rng: &mut impl CryptoRng,
-    ) -> CommittedPolynomial<Self, C> {
-        let blind = C::Scalar::random(rng);
-        self.commit_with_blind(generators, blind)
-    }
-}
-
-impl<F: Field, R: Rank, C: CurveAffine<ScalarExt = F>> Committable<C>
-    for structured::Polynomial<F, R>
-{
-    fn commit_with_blind(
-        &self,
-        generators: &impl FixedGenerators<C>,
-        blind: C::Scalar,
-    ) -> CommittedPolynomial<Self, C> {
-        let commitment = structured::RawPolynomial::commit(self, generators, blind);
-        CommittedPolynomial {
-            poly: self.clone(),
-            blind,
-            commitment,
-        }
-    }
-}
-
-impl<F: Field, R: Rank, C: CurveAffine<ScalarExt = F>> Committable<C>
-    for unstructured::Polynomial<F, R>
-{
-    fn commit_with_blind(
-        &self,
-        generators: &impl FixedGenerators<C>,
-        blind: C::Scalar,
-    ) -> CommittedPolynomial<Self, C> {
-        let commitment = unstructured::RawPolynomial::commit(self, generators, blind);
-        CommittedPolynomial {
-            poly: self.clone(),
-            blind,
-            commitment,
-        }
-    }
-}
+use ragu_arithmetic::CurveAffine;
 
 /// A polynomial together with its blinding factor and eagerly-computed
 /// commitment.
@@ -98,7 +39,7 @@ impl<P, C: CurveAffine> CommittedPolynomial<P, C> {
     /// Intended for cases where the commitment is known externally (e.g. from
     /// a proof transcript) or for tests that deliberately craft an inconsistent
     /// triple.
-    pub fn new_unchecked(poly: P, blind: C::Scalar, commitment: C) -> Self {
+    pub fn from_parts(poly: P, blind: C::Scalar, commitment: C) -> Self {
         Self {
             poly,
             blind,
