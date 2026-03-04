@@ -202,7 +202,7 @@ pub fn eval<F: Field, C: Circuit<F>>(circuit: &C) -> Result<CircuitMetrics> {
 
     // Circuit synthesis
     let (io, _) = circuit.witness(&mut collector, Empty)?;
-    io.write(&mut collector, &mut degree_ky)?;
+    io.write(&mut degree_ky)?;
 
     // Public output constraints
     for _ in 0..degree_ky {

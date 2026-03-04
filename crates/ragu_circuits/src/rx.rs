@@ -403,8 +403,7 @@ pub fn eval<'witness, F: Field, C: Circuit<F>>(
         let mut evaluator = Evaluator::new(Vec::new(), &mut thunks);
 
         let aux = {
-            let (io, aux) = circuit.witness(&mut evaluator, Always::maybe_just(|| witness))?;
-            io.write(&mut evaluator, &mut ())?;
+            let (_io, aux) = circuit.witness(&mut evaluator, Always::maybe_just(|| witness))?;
             aux.take()
         };
 

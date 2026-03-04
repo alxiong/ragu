@@ -21,7 +21,7 @@ pub fn eval<F: Field, C: Circuit<F>>(circuit: &C, instance: C::Instance<'_>) -> 
     let mut pubinputs = vec![];
     circuit
         .instance(&mut dr, Always::maybe_just(|| instance))?
-        .write(&mut dr, &mut pubinputs)?;
+        .write(&mut pubinputs)?;
 
     Ok(pubinputs
         .into_iter()

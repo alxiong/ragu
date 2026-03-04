@@ -380,7 +380,7 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
 
     let mut outputs = vec![];
     let (io, _) = circuit.witness(&mut evaluator, Empty)?;
-    io.write(&mut evaluator, &mut outputs)?;
+    io.write(&mut outputs)?;
 
     // Enforcing public inputs
     evaluator.enforce_public_outputs(outputs.iter().map(|output| output.wire()))?;
