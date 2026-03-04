@@ -18,7 +18,7 @@ use core::{marker::PhantomData, panic};
 
 use crate::{
     Element,
-    io::{Buffer, Write},
+    io::{Sink, Write},
     multiadd,
     vec::{FixedVec, Len},
 };
@@ -91,7 +91,7 @@ impl<'dr, D: Driver<'dr>, P: ragu_arithmetic::PoseidonPermutation<D::F>> Clone
     }
 }
 
-impl<'dr, D: Driver<'dr>, P: ragu_arithmetic::PoseidonPermutation<D::F>> Buffer<'dr, D>
+impl<'dr, D: Driver<'dr>, P: ragu_arithmetic::PoseidonPermutation<D::F>> Sink<'dr, D>
     for Sponge<'dr, D, P>
 {
     fn write(&mut self, dr: &mut D, value: &Element<'dr, D>) -> Result<()> {

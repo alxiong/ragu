@@ -2,10 +2,13 @@ use ragu_core::{Result, drivers::Driver, maybe::Maybe};
 
 use core::marker::PhantomData;
 
-use crate::{Element, io::Buffer};
+use crate::{
+    Element,
+    io::{Buffer, Sink},
+};
 
-/// Implementation of [`Buffer`] that acts as a pipe, writing elements to an
-/// underlying buffer through allocation.
+/// Implementation of [`Sink`] that acts as a pipe, writing elements to an
+/// underlying buffer through allocation on the destination driver.
 pub struct Pipe<'a, 'dr, D: Driver<'dr>, B: Buffer<'dr, D>> {
     dr: &'a mut D,
     buf: B,
@@ -26,12 +29,12 @@ impl<'a, 'dr, D: Driver<'dr>, B: Buffer<'dr, D>> Pipe<'a, 'dr, D, B> {
     }
 }
 
-impl<'dr, S: Driver<'dr, F = D::F>, D: Driver<'dr>, B: Buffer<'dr, D>> Buffer<'dr, S>
+impl<'dr, S: Driver<'dr, F = D::F>, D: Driver<'dr>, B: Buffer<'dr, D>> Sink<'dr, S>
     for Pipe<'_, 'dr, D, B>
 {
     fn write(&mut self, _: &mut S, value: &Element<'dr, S>) -> Result<()> {
         let elem = Element::alloc(self.dr, D::just(|| *value.value().take()))?;
-        self.buf.write(self.dr, &elem)
+        self.buf.write(&elem)
     }
 }
 

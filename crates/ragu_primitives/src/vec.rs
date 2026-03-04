@@ -169,13 +169,12 @@ impl<T: Clone, L: Len> Clone for FixedVec<T, L> {
 }
 
 impl<F: Field, G: Write<F>, L: Len> Write<F> for FixedVec<PhantomData<G>, L> {
-    fn write_gadget<'dr, D: Driver<'dr, F = F>, B: Buffer<'dr, D>>(
+    fn write_gadget<'dr, D: Driver<'dr, F = F>>(
         this: &FixedVec<Bound<'dr, D, G>, L>,
-        dr: &mut D,
-        buf: &mut B,
+        buf: &mut impl Buffer<'dr, D>,
     ) -> Result<()> {
         for item in &this.v {
-            G::write_gadget(item, dr, buf)?;
+            G::write_gadget(item, buf)?;
         }
         Ok(())
     }

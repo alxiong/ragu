@@ -347,41 +347,40 @@ impl<'dr, D: Driver<'dr>> Element<'dr, D> {
 }
 
 impl<F: Field> Write<F> for Kind![F; @Element<'_, _>] {
-    fn write_gadget<'dr, D: Driver<'dr, F = F>, B: Buffer<'dr, D>>(
+    fn write_gadget<'dr, D: Driver<'dr, F = F>>(
         this: &Element<'dr, D>,
-        dr: &mut D,
-        buf: &mut B,
+        buf: &mut impl Buffer<'dr, D>,
     ) -> Result<()> {
-        buf.write(dr, this)
+        buf.write(this)
     }
 }
 
-/// Simple buffer that collects pushed values into a vector.
+/// Simple buffer that collects pushed elements into a vector.
 impl<'dr, D: Driver<'dr>> Buffer<'dr, D> for Vec<Element<'dr, D>> {
-    fn write(&mut self, _: &mut D, value: &Element<'dr, D>) -> Result<()> {
+    fn write(&mut self, value: &Element<'dr, D>) -> Result<()> {
         Vec::push(self, value.clone());
         Ok(())
     }
 }
 
-/// Simple buffer that does nothing.
+/// Simple buffer that discards all elements.
 impl<'dr, D: Driver<'dr>> Buffer<'dr, D> for () {
-    fn write(&mut self, _: &mut D, _: &Element<'dr, D>) -> Result<()> {
+    fn write(&mut self, _: &Element<'dr, D>) -> Result<()> {
         Ok(())
     }
 }
 
-/// Simple buffer that counts the number of pushes.
+/// Simple buffer that counts the number of writes.
 impl<'dr, D: Driver<'dr>> Buffer<'dr, D> for usize {
-    fn write(&mut self, _: &mut D, _: &Element<'dr, D>) -> Result<()> {
+    fn write(&mut self, _: &Element<'dr, D>) -> Result<()> {
         *self += 1;
         Ok(())
     }
 }
 
 impl<'dr, D: Driver<'dr>, B: Buffer<'dr, D>> Buffer<'dr, D> for &mut B {
-    fn write(&mut self, dr: &mut D, value: &Element<'dr, D>) -> Result<()> {
-        B::write(self, dr, value)
+    fn write(&mut self, value: &Element<'dr, D>) -> Result<()> {
+        B::write(self, value)
     }
 }
 

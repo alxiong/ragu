@@ -5,7 +5,7 @@
 //! gadgets are just containers for wires and witness data, they can usually
 //! reconstitute their encapsulated [`Element`]s via promotion.
 //!
-//! The [`Buffer`] trait allows destination buffers to receive a [`Driver`] for
+//! The [`Sink`] trait allows destination sinks to receive a [`Driver`] for
 //! processing the elements they receive. This is handy for streaming hash
 //! functions. Specific gadgets can have more optimal serialization strategies
 //! by leveraging the provided [`Driver`] as well: as an example, a gadget that
@@ -25,6 +25,13 @@ use crate::Element;
 
 pub use pipe::Pipe;
 
+/// A plain destination for [`Element`]s that does not cause any side effects
+/// on the driver context when being written.
+pub trait Buffer<'dr, D: Driver<'dr>> {
+    /// Push a single [`Element`] into this buffer.
+    fn write(&mut self, value: &Element<'dr, D>) -> Result<()>;
+}
+
 /// Represents a gadget that can be serialized into a sequence of [`Element`]s
 /// that are written to a [`Buffer`].
 ///
@@ -38,19 +45,19 @@ pub use pipe::Pipe;
 /// Gadgets that consist mainly of other gadgets are candidates for [automatic
 /// derivation](derive@Write) of this trait.
 pub trait Write<F: Field>: GadgetKind<F> {
-    /// Write this gadget into wires that are written the provided buffer,
-    /// using the driver to synthesize the elements if needed.
-    fn write_gadget<'dr, D: Driver<'dr, F = F>, B: Buffer<'dr, D>>(
+    /// Write this gadget's elements into the provided buffer.
+    fn write_gadget<'dr, D: Driver<'dr, F = F>>(
         this: &Bound<'dr, D, Self>,
-        dr: &mut D,
-        buf: &mut B,
+        buf: &mut impl Buffer<'dr, D>,
     ) -> Result<()>;
 }
 
-/// Represents a destination for [`Element`]s to be written to using the
-/// provided driver context.
-pub trait Buffer<'dr, D: Driver<'dr>> {
-    /// Push an `Element` into this buffer using the provided driver `D`.
+/// Represents a general destination for [`Element`]s to be written to and
+/// processed using a provided [`Driver`] context. This may cause side effects
+/// on the driver in contrast to a [`Buffer`], which is a passive destination
+/// for elements.
+pub trait Sink<'dr, D: Driver<'dr>> {
+    /// Push an `Element` into this sink using the provided driver `D`.
     fn write(&mut self, dr: &mut D, value: &Element<'dr, D>) -> Result<()>;
 }
 

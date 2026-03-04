@@ -15,7 +15,7 @@ use ragu_core::{
 use alloc::vec::Vec;
 
 use crate::{
-    Element, GadgetExt,
+    Element,
     io::{Buffer, Write},
     promotion::{Demoted, Promotion},
     util::InternalMaybe,
@@ -187,12 +187,11 @@ pub(crate) fn is_zero<'dr, D: Driver<'dr>>(
 }
 
 impl<F: Field> Write<F> for Kind![F; @Boolean<'_, _>] {
-    fn write_gadget<'dr, D: Driver<'dr, F = F>, B: Buffer<'dr, D>>(
+    fn write_gadget<'dr, D: Driver<'dr, F = F>>(
         this: &Boolean<'dr, D>,
-        dr: &mut D,
-        buf: &mut B,
+        buf: &mut impl Buffer<'dr, D>,
     ) -> Result<()> {
-        this.element().write(dr, buf)
+        buf.write(&this.element())
     }
 }
 

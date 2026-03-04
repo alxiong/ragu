@@ -113,9 +113,9 @@ pub fn derive(
     let kind_subst_arguments = driver.kind_subst_arguments(&ty_generics);
 
     let serialize_calls = fields.iter().filter_map(|(id, ty)| match ty {
-        FieldType::Serialize => {
-            Some(quote! { #ragu_primitives_path::GadgetExt::write(&this.#id, dr, buf)?; })
-        }
+        FieldType::Serialize => Some(quote! {
+            #ragu_primitives_path::GadgetExt::write(&this.#id, buf)?;
+        }),
         FieldType::Skip => None,
     });
 
@@ -125,10 +125,9 @@ pub fn derive(
         quote! {
             #[automatically_derived]
             impl #gadget_kind_generic_params #ragu_primitives_path::io::Write<#driverfield_ident> for #struct_ident #kind_subst_arguments {
-                fn write_gadget<#driver_lifetime, #driver_ident: #ragu_core_path::drivers::Driver<#driver_lifetime, F = #driverfield_ident>, B: #ragu_primitives_path::io::Buffer<#driver_lifetime, #driver_ident> >(
+                fn write_gadget<#driver_lifetime, #driver_ident: #ragu_core_path::drivers::Driver<#driver_lifetime, F = #driverfield_ident>>(
                     this: &#ragu_core_path::gadgets::Bound<#driver_lifetime, #driver_ident, Self>,
-                    dr: &mut #driver_ident,
-                    buf: &mut B
+                    buf: &mut impl #ragu_primitives_path::io::Buffer<#driver_lifetime, #driver_ident>
                 ) -> #ragu_core_path::Result<()> {
                     #( #serialize_calls )*
                     Ok(())
@@ -166,13 +165,12 @@ fn test_gadget_serialize_derive() {
             impl<C: CurveAffine, const N: usize, DriverField: ::ff::Field> ::ragu_primitives::io::Write<DriverField>
                 for MyGadget<'static, ::core::marker::PhantomData< DriverField >, C, N>
             {
-                fn write_gadget<'my_dr, MyD: ::ragu_core::drivers::Driver<'my_dr, F = DriverField>, B: ::ragu_primitives::io::Buffer<'my_dr, MyD> >(
+                fn write_gadget<'my_dr, MyD: ::ragu_core::drivers::Driver<'my_dr, F = DriverField>>(
                     this: &::ragu_core::gadgets::Bound<'my_dr, MyD, Self>,
-                    dr: &mut MyD,
-                    buf: &mut B
+                    buf: &mut impl ::ragu_primitives::io::Buffer<'my_dr, MyD>
                 ) -> ::ragu_core::Result<()> {
-                    ::ragu_primitives::GadgetExt::write(&this.field1, dr, buf)?;
-                    ::ragu_primitives::GadgetExt::write(&this.field2, dr, buf)?;
+                    ::ragu_primitives::GadgetExt::write(&this.field1, buf)?;
+                    ::ragu_primitives::GadgetExt::write(&this.field2, buf)?;
                     Ok(())
                 }
             }

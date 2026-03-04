@@ -29,7 +29,9 @@ pub mod vec;
 
 use ragu_core::{Result, drivers::Driver, gadgets::Gadget};
 
-use io::{Buffer, Write};
+use core::marker::PhantomData;
+
+use io::{Sink, Write};
 use promotion::Demoted;
 
 pub use boolean::{Boolean, multipack};
@@ -41,13 +43,39 @@ pub use simulator::Simulator;
 
 /// Primitive extension trait for all gadgets.
 pub trait GadgetExt<'dr, D: Driver<'dr>>: Gadget<'dr, D> {
-    /// Write this gadget into a buffer, assuming the gadget's
+    /// Write this gadget into a [`Buffer`](io::Buffer), assuming the gadget's
     /// [`Kind`](Gadget::Kind) implements [`Write`].
-    fn write<B: Buffer<'dr, D>>(&self, dr: &mut D, buf: &mut B) -> Result<()>
+    fn write(&self, buf: &mut impl io::Buffer<'dr, D>) -> Result<()>
     where
         Self::Kind: Write<D::F>,
     {
-        <Self::Kind as Write<D::F>>::write_gadget(self, dr, buf)
+        <Self::Kind as Write<D::F>>::write_gadget(self, buf)
+    }
+
+    /// Write this gadget into a [`Sink`], assuming the gadget's
+    /// [`Kind`](Gadget::Kind) implements [`Write`].
+    fn sink<B: Sink<'dr, D>>(&self, dr: &mut D, buf: &mut B) -> Result<()>
+    where
+        Self::Kind: Write<D::F>,
+    {
+        // Adapts a Sink into a Buffer by capturing the driver reference,
+        // allowing write_gadget (which only receives a Buffer) to forward
+        // element writes to a driver-aware Sink.
+        struct BufferSink<'a, 'dr, D: Driver<'dr>, B: Sink<'dr, D>> {
+            dr: &'a mut D,
+            buf: &'a mut B,
+            _marker: PhantomData<&'dr ()>,
+        }
+        impl<'dr, D: Driver<'dr>, B: Sink<'dr, D>> io::Buffer<'dr, D> for BufferSink<'_, 'dr, D, B> {
+            fn write(&mut self, value: &Element<'dr, D>) -> Result<()> {
+                self.buf.write(self.dr, value)
+            }
+        }
+        self.write(&mut BufferSink {
+            dr,
+            buf,
+            _marker: PhantomData,
+        })
     }
 
     /// Demote this gadget by stripping its witness data.
