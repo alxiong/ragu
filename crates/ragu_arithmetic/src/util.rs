@@ -1,6 +1,7 @@
-use alloc::{boxed::Box, vec, vec::Vec};
 use ff::{Field, PrimeField};
 use pasta_curves::{arithmetic::CurveAffine, group::Group};
+
+use alloc::{boxed::Box, vec, vec::Vec};
 
 use crate::domain::Domain;
 use crate::multicore::*;
