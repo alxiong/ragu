@@ -451,7 +451,7 @@ mod tests {
 
             let staged_s = staged.clone().into_object()?;
             let staged_floor_plan =
-                ragu_circuits::floor_planner::floor_plan(staged_s.routine_records());
+                ragu_circuits::floor_planner::floor_plan(staged_s.segment_records());
             let y = Fp::random(&mut rand::rng());
 
             // Verify revdot identities for each stage.
@@ -520,7 +520,7 @@ mod tests {
 
             let staged_s = staged.clone().into_object()?;
             let staged_floor_plan =
-                ragu_circuits::floor_planner::floor_plan(staged_s.routine_records());
+                ragu_circuits::floor_planner::floor_plan(staged_s.segment_records());
             let y = Fp::random(&mut rand::rng());
 
             let endoscalar_rx = <EndoscalarStage as StageExt<Fp, R>>::rx(endoscalar)?;
