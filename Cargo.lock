@@ -750,6 +750,7 @@ name = "ragu_circuits"
 version = "0.0.0"
 dependencies = [
  "blake2b_simd",
+ "criterion",
  "ff",
  "group",
  "gungraun",
