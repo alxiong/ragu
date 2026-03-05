@@ -289,11 +289,7 @@ impl<'scope, 'env, F: Field> Driver<'env> for Evaluator<'scope, 'env, F> {
         routine: Ro,
         input: Bound<'env, Self, Ro::Input>,
     ) -> Result<Bound<'env, Self, Ro::Output>> {
-        let prediction = {
-            let mut dummy = Emulator::wireless();
-            let input = input.map(&mut WirelessFrom::<Self>::default())?;
-            routine.predict(&mut dummy, &input)?
-        };
+        let prediction = Emulator::predict(&routine, &input)?;
 
         let routine_index = self.state.routine_counter;
         self.state.routine_counter += 1;
@@ -307,7 +303,7 @@ impl<'scope, 'env, F: Field> Driver<'env> for Evaluator<'scope, 'env, F> {
                 // Remap the input gadget to a driver-independent representation,
                 // then wrap in `Sendable` to satisfy the `Send` bound on the
                 // thunk closure.
-                let input = input.map(&mut WirelessFrom::<Self>::default())?.sendable();
+                let input = input.map(&mut WirelessFrom::default())?.sendable();
 
                 self.thunks.push(Thunk(Box::new(move |thunks| {
                     let mut eval = Evaluator::new(child_prefix, thunks);

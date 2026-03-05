@@ -1,7 +1,7 @@
 //! Wire conversion between drivers.
 //!
-//! Gadgets must be remappable between different [`Driver`](crate::drivers::Driver)
-//! contexts --- for example, to send a gadget from a real driver into a wireless
+//! Gadgets must be remappable between different [`Driver`] contexts --- for
+//! example, to send a gadget from a real driver into a wireless
 //! [`Emulator`](crate::drivers::emulator::Emulator) during routine prediction.
 //! The [`WireMap`] trait provides the conversion context for these
 //! transformations.

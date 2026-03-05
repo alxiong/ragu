@@ -74,7 +74,7 @@ use core::marker::PhantomData;
 use crate::{
     Result,
     convert::WireMap,
-    drivers::{Coeff, DirectSum, Driver, DriverTypes, LinearExpression},
+    drivers::{Coeff, DirectSum, Driver, DriverTypes, DriverValue, LinearExpression},
     gadgets::{Bound, Gadget, GadgetKind},
     maybe::{Always, Empty, MaybeKind, Perhaps},
     routines::{Prediction, Routine},
@@ -250,6 +250,20 @@ impl<M: MaybeKind, F: Field> Emulator<Wireless<M, F>> {
     /// the existence of a witness.
     pub fn wireless() -> Self {
         Emulator(PhantomData)
+    }
+
+    /// Runs [`Routine::predict`] on a fresh wireless emulator, converting the
+    /// input gadget from the source driver automatically via [`WirelessFrom`].
+    pub fn predict<'w, 'dr, D, Ro>(
+        routine: &Ro,
+        input: &Bound<'dr, D, Ro::Input>,
+    ) -> Result<Prediction<Bound<'w, Self, Ro::Output>, DriverValue<Self, Ro::Aux<'w>>>>
+    where
+        D: Driver<'dr, F = F, MaybeKind = M>,
+        Ro: Routine<F>,
+    {
+        let input = input.map(&mut WirelessFrom::default())?;
+        routine.predict(&mut Self::wireless(), &input)
     }
 }
 
