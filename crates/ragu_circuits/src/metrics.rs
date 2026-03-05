@@ -8,7 +8,10 @@ use ff::Field;
 use ragu_arithmetic::Coeff;
 use ragu_core::{
     Result,
-    drivers::{Driver, DriverTypes, emulator::Emulator},
+    drivers::{
+        Driver, DriverTypes,
+        emulator::{Emulator, WirelessFrom},
+    },
     gadgets::{Bound, GadgetKind},
     maybe::Empty,
     routines::Routine,
@@ -165,7 +168,8 @@ impl<'dr, F: Field> Driver<'dr> for Counter<F> {
             },
             |this| {
                 let mut dummy = Emulator::wireless();
-                let dummy_input = Ro::Input::map_gadget(&input, &mut dummy)?;
+                let dummy_input =
+                    Ro::Input::map_gadget(&input, &mut WirelessFrom::<Self>::default())?;
                 let aux = routine.predict(&mut dummy, &dummy_input)?.into_aux();
                 let result = routine.execute(this, input, aux)?;
 

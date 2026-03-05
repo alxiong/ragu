@@ -21,7 +21,8 @@
 use ff::Field;
 use ragu_core::{
     Error, Result,
-    drivers::{Driver, FromDriver},
+    convert::WireMap,
+    drivers::Driver,
     gadgets::{Bound, Consistent, Gadget, GadgetKind},
 };
 
@@ -224,10 +225,14 @@ impl<'dr, D: Driver<'dr>, G: Consistent<'dr, D>, L: Len> Consistent<'dr, D> for 
 unsafe impl<F: Field, G: GadgetKind<F>, L: Len> GadgetKind<F> for FixedVec<PhantomData<G>, L> {
     type Rebind<'dr, D: Driver<'dr, F = F>> = FixedVec<Bound<'dr, D, G>, L>;
 
-    fn map_gadget<'dr, 'new_dr, D: Driver<'dr, F = F>, ND: FromDriver<'dr, 'new_dr, D>>(
-        this: &Bound<'dr, D, Self>,
-        ndr: &mut ND,
-    ) -> Result<Bound<'new_dr, ND::NewDriver, Self>> {
+    fn map_gadget<'dr, 'dr2, WM: WireMap<F>>(
+        this: &Bound<'dr, WM::Src, Self>,
+        ndr: &mut WM,
+    ) -> Result<Bound<'dr2, WM::Dst, Self>>
+    where
+        WM::Src: Driver<'dr, F = F>,
+        WM::Dst: Driver<'dr2, F = F>,
+    {
         assert_eq!(this.len(), L::len());
 
         this.iter()

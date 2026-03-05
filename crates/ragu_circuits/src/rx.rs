@@ -9,7 +9,11 @@ use ff::Field;
 use ragu_arithmetic::Coeff;
 use ragu_core::{
     Error, Result,
-    drivers::{Driver, DriverTypes, FromDriver, emulator::Emulator},
+    convert::WireMap,
+    drivers::{
+        Driver, DriverTypes,
+        emulator::{Emulator, WirelessFrom},
+    },
     gadgets::{Bound, Gadget},
     maybe::{Always, Maybe, MaybeKind},
     routines::{Prediction, Routine},
@@ -24,10 +28,10 @@ use super::{
     structured,
 };
 
-/// Deferred `execute()` for a Known-predicted routine.                                                                                                                                                                                            
-///                                                                                                            
-/// Created when `predict()` returns [`Known`](Prediction::Known), allowing                                                                                                                                                                        
-/// the main traversal to continue with the predicted output while deferring                                   
+/// Deferred `execute()` for a Known-predicted routine.
+///
+/// Created when `predict()` returns [`Known`](Prediction::Known), allowing
+/// the main traversal to continue with the predicted output while deferring
 /// the actual witness computation. When invoked, runs `execute()` in a fresh
 /// [`Evaluator`] and returns the resulting trace segments.
 struct Thunk<'env, F: Field>(
@@ -288,7 +292,7 @@ impl<'scope, 'env, F: Field> Driver<'env> for Evaluator<'scope, 'env, F> {
     ) -> Result<Bound<'env, Self, Ro::Output>> {
         let prediction = {
             let mut dummy = Emulator::wireless();
-            let input = input.map(&mut dummy)?;
+            let input = input.map(&mut WirelessFrom::<Self>::default())?;
             routine.predict(&mut dummy, &input)?
         };
 
@@ -300,17 +304,17 @@ impl<'scope, 'env, F: Field> Driver<'env> for Evaluator<'scope, 'env, F> {
 
         match prediction {
             Prediction::Known(predicted_output, aux) => {
-                let output = predicted_output.map(&mut Lifter::lift())?;
+                let output = predicted_output.map(&mut Lifter::<_, Self>::lift())?;
                 // Remap the input gadget to a driver-independent representation,
                 // then wrap in `Sendable` to satisfy the `Send` bound on the
                 // thunk closure.
-                let input = input.map(&mut Lifter::lift())?.sendable();
+                let input = input.map(&mut WirelessFrom::<Self>::default())?.sendable();
 
                 self.thunks.push(Thunk(Box::new(move |thunks| {
                     let mut eval = Evaluator::new(child_prefix, thunks);
                     input
                         .into_inner()
-                        .map(&mut Lifter::lift())
+                        .map(&mut Lifter::<_, Evaluator<'_, '_, F>>::lift())
                         .and_then(|input| routine.execute(&mut eval, input, aux))
                         // Discard the output gadget; we already have the predicted output.
                         .map(|_| {
@@ -350,24 +354,27 @@ impl<'scope, 'env, F: Field> Driver<'env> for Evaluator<'scope, 'env, F> {
     }
 }
 
-/// [`FromDriver`] adapter that trivially converts `()` wires between any
-/// `Driver` and an [`Evaluator`].
+/// [`WireMap`] adapter that trivially converts `()` wires between any two
+/// drivers that both use unit wires.
 ///
-/// Because every `Evaluator` wire is `()`, conversion is a no-op. The
-/// `'scope` and `'env` lifetimes tie the adapter to a particular
-/// `Evaluator` so the compiler can verify the remapped gadgets stay valid.
-struct Lifter<'scope, 'env, F: Field>(PhantomData<Evaluator<'scope, 'env, F>>);
+/// Because both wire types are `()`, conversion is a no-op. The struct is
+/// parameterized by both source and destination types to satisfy `WireMap`'s
+/// associated-type design.
+struct Lifter<Src: DriverTypes, Dst: DriverTypes>(PhantomData<(Src, Dst)>);
 
-impl<'scope, 'env, F: Field> Lifter<'scope, 'env, F> {
+impl<Src: DriverTypes, Dst: DriverTypes> Lifter<Src, Dst> {
     fn lift() -> Self {
         Self(PhantomData)
     }
 }
 
-impl<'dr, 'scope, 'env, F: Field, D: Driver<'dr, Wire = (), F = F>> FromDriver<'dr, 'env, D>
-    for Lifter<'scope, 'env, F>
+impl<F: Field, Src, Dst> WireMap<F> for Lifter<Src, Dst>
+where
+    Src: DriverTypes<ImplField = F, ImplWire = ()>,
+    Dst: DriverTypes<ImplField = F, ImplWire = ()>,
 {
-    type NewDriver = Evaluator<'scope, 'env, F>;
+    type Src = Src;
+    type Dst = Dst;
 
     fn convert_wire(&mut self, _: &()) -> Result<()> {
         Ok(())

@@ -43,7 +43,7 @@ handled by the
 [`GadgetKind::map_gadget`](ragu_core::gadgets::GadgetKind::map_gadget)
 method implementation for every gadget, which simply translates the gadget's
 wires and witness information from one driver to another using the
-[`FromDriver`][fromdriver-trait] trait.
+[`WireMap`][wiremap-trait] trait.
 
 The [`Gadget::map`](ragu_core::gadgets::Gadget::map) is a proxy for its
 corresponding
@@ -79,4 +79,4 @@ see it.
 [bound-alias]: ragu_core::gadgets::Bound
 [driver-trait]: ragu_core::drivers::Driver
 [enforce-equal]: ragu_core::gadgets::GadgetKind::enforce_equal_gadget
-[fromdriver-trait]: ragu_core::drivers::FromDriver
+[wiremap-trait]: ragu_core::convert::WireMap

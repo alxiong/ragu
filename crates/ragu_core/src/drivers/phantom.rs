@@ -1,4 +1,4 @@
-use super::{Coeff, Driver, DriverTypes, Field, FromDriver, Result};
+use super::{Coeff, Driver, DriverTypes, Field, Result};
 
 /// This is a dummy driver that does absolutely nothing.
 impl<F: Field> Driver<'_> for core::marker::PhantomData<F> {
@@ -26,12 +26,4 @@ impl<F: Field> DriverTypes for core::marker::PhantomData<F> {
     type MaybeKind = crate::maybe::Empty;
     type LCadd = ();
     type LCenforce = ();
-}
-
-impl<'dr, 'new_dr, D: Driver<'dr>> FromDriver<'dr, 'new_dr, D> for core::marker::PhantomData<D::F> {
-    type NewDriver = Self;
-
-    fn convert_wire(&mut self, _: &D::Wire) -> Result<<Self::NewDriver as Driver<'new_dr>>::Wire> {
-        Ok(())
-    }
 }

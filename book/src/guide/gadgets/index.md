@@ -122,7 +122,7 @@ will produce a helpful error because those types don't implement `Gadget`.
 [gadget-thread-guarantees]: ragu_core::gadgets::GadgetKind#safety
 [maybe-trait]: ragu_core::maybe::Maybe
 [map-gadget-method]: ragu_core::gadgets::GadgetKind::map_gadget
-[fromdriver-trait]: ragu_core::drivers::FromDriver
+[wiremap-trait]: ragu_core::convert::WireMap
 
 ### Transformations
 
@@ -135,5 +135,5 @@ these optimizations are applied involves the inputs and outputs of
 
 In order to transform a gadget from one driver to another, gadgets provide a
 [`map_gadget`][map-gadget-method] method implementation which uses the
-[`FromDriver`][fromdriver-trait] to map a gadget's constituent wires and witness
+[`WireMap`][wiremap-trait] to map a gadget's constituent wires and witness
 data to a new [`Driver`][driver-trait].

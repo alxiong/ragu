@@ -41,8 +41,9 @@
 use ragu_arithmetic::Coeff;
 use ragu_core::{
     Result,
+    convert::WireMap,
     drivers::{
-        Driver, DriverValue, FromDriver,
+        Driver, DriverValue,
         emulator::{Emulator, Wireless},
     },
     gadgets::{Bound, Consistent, Gadget},
@@ -86,10 +87,9 @@ struct StageWireInjector<'a, 'dr, D: Driver<'dr>> {
     _marker: PhantomData<&'dr ()>,
 }
 
-impl<'dr, D: Driver<'dr>> FromDriver<'_, 'dr, Emulator<Wireless<D::MaybeKind, D::F>>>
-    for StageWireInjector<'_, 'dr, D>
-{
-    type NewDriver = D;
+impl<'dr, D: Driver<'dr>> WireMap<D::F> for StageWireInjector<'_, 'dr, D> {
+    type Src = Emulator<Wireless<D::MaybeKind, D::F>>;
+    type Dst = D;
 
     fn convert_wire(&mut self, _: &()) -> Result<D::Wire> {
         self.stage_wires

@@ -39,5 +39,5 @@ the fully qualified syntax, while still referring to the exact same type.
 [gadget-trait]: ragu_core::gadgets::Gadget
 [gadgetkind-trait]: ragu_core::gadgets::GadgetKind
 [driver-trait]: ragu_core::drivers::Driver
-[fromdriver-trait]: ragu_core::drivers::FromDriver
+[wiremap-trait]: ragu_core::convert::WireMap
 [kind-macro]: ragu_core::gadgets::Kind

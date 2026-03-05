@@ -55,9 +55,8 @@
 //!
 //! Gadgets must define a canonical mapping between their instantiations over
 //! different [`Driver`] types. This mapping is described using an associated
-//! [`GadgetKind`] implementation and uses the [`FromDriver`] trait to
-//! facilitate the transformation of wires and witness data from one driver to
-//! another.
+//! [`GadgetKind`] implementation and uses the [`WireMap`] trait to facilitate
+//! the transformation of wires and witness data from one driver to another.
 //!
 //! It is required that the transformation of wires for a gadget does not depend
 //! on the gadget's state. This naturally follows from fungibility, and is
@@ -86,7 +85,8 @@ use ff::Field;
 
 use super::{
     Result,
-    drivers::{Driver, FromDriver},
+    convert::WireMap,
+    drivers::{Driver, DriverTypes},
 };
 
 /// Alias for the concrete rebinding of a [`GadgetKind`] `K` to a driver `D`. This simplifies
@@ -115,10 +115,13 @@ pub trait Gadget<'dr, D: Driver<'dr>>: Clone {
     type Kind: GadgetKind<D::F, Rebind<'dr, D> = Self>;
 
     /// Proxy for the `GadgetKind::map_gadget` method.
-    fn map<'new_dr, ND: FromDriver<'dr, 'new_dr, D>>(
+    fn map<'dr2, WM: WireMap<D::F, Src = D>>(
         &self,
-        ndr: &mut ND,
-    ) -> Result<Bound<'new_dr, ND::NewDriver, Self::Kind>> {
+        ndr: &mut WM,
+    ) -> Result<Bound<'dr2, WM::Dst, Self::Kind>>
+    where
+        WM::Dst: Driver<'dr2, F = D::F>,
+    {
         Self::Kind::map_gadget(self, ndr)
     }
 
@@ -137,20 +140,25 @@ pub trait Gadget<'dr, D: Driver<'dr>>: Clone {
     /// return the same quantity regardless of the specific instance of this
     /// [`Gadget`] implementation.
     fn num_wires(&self) -> usize {
-        struct WireCounter {
+        struct WireCounter<Src: DriverTypes> {
             count: usize,
+            _marker: core::marker::PhantomData<Src>,
         }
 
-        impl<'dr, D: Driver<'dr>> FromDriver<'dr, 'dr, D> for WireCounter {
-            type NewDriver = core::marker::PhantomData<D::F>;
+        impl<F: Field, Src: DriverTypes<ImplField = F>> WireMap<F> for WireCounter<Src> {
+            type Src = Src;
+            type Dst = core::marker::PhantomData<F>;
 
-            fn convert_wire(&mut self, _: &D::Wire) -> Result<()> {
+            fn convert_wire(&mut self, _: &Src::ImplWire) -> Result<()> {
                 self.count += 1;
                 Ok(())
             }
         }
 
-        let mut dr = WireCounter { count: 0 };
+        let mut dr = WireCounter::<D> {
+            count: 0,
+            _marker: core::marker::PhantomData,
+        };
         self.map(&mut dr).expect("wire counting should never fail");
         dr.count
     }
@@ -169,7 +177,7 @@ pub trait Gadget<'dr, D: Driver<'dr>>: Clone {
 /// bound to a specific driver. The `map` method defines how a gadget
 /// `Rebind<'dr, D1>` of one driver `D1` can be translated into a gadget
 /// `Rebind<'dr, D2>` for another driver `D2`. The mapping can leverage the
-/// [`FromDriver`] trait to convert wires.
+/// [`WireMap`] trait to convert wires.
 ///
 /// # Safety
 ///
@@ -188,10 +196,13 @@ pub unsafe trait GadgetKind<F: Field>: core::any::Any {
     type Rebind<'dr, D: Driver<'dr, F = F>>: Gadget<'dr, D, Kind = Self>;
 
     /// Maps a gadget of this kind to a new driver type.
-    fn map_gadget<'dr, 'new_dr, D: Driver<'dr, F = F>, ND: FromDriver<'dr, 'new_dr, D>>(
-        this: &Bound<'dr, D, Self>,
-        ndr: &mut ND,
-    ) -> Result<Bound<'new_dr, ND::NewDriver, Self>>;
+    fn map_gadget<'dr, 'dr2, WM: WireMap<F>>(
+        this: &Bound<'dr, WM::Src, Self>,
+        ndr: &mut WM,
+    ) -> Result<Bound<'dr2, WM::Dst, Self>>
+    where
+        WM::Src: Driver<'dr, F = F>,
+        WM::Dst: Driver<'dr2, F = F>;
 
     /// Enforces that two gadgets' wires are equal.
     ///
@@ -236,7 +247,7 @@ pub unsafe trait GadgetKind<F: Field>: core::any::Any {
 /// * Fields without any annotation default to gadget fields, which are
 ///   converted using [`GadgetKind::map_gadget`].
 /// * `#[ragu(wire)]` for fields that represent wires in the driver, which are
-///   converted using [`FromDriver::convert_wire`].
+///   converted using [`WireMap::convert_wire`].
 /// * `#[ragu(value)]` for fields that represent driver-specific values, which
 ///   are converted or cloned using
 ///   [`DriverValue::just`](crate::maybe::Maybe::just).

@@ -40,9 +40,9 @@
 //! boundaries called [routines](crate::routines). In exchange for a slightly
 //! stricter API, users can give drivers flexibility in how circuit synthesis is
 //! performed---permitting aggressive parallelization, memoization and other
-//! optimizations. In order to achieve this, drivers implement the
-//! [`FromDriver`] trait to specify how wires can be translated from one driver
-//! to another.
+//! optimizations. In order to achieve this,
+//! [`WireMap`](crate::convert::WireMap) is used to specify how wires can
+//! be translated from one driver to another.
 
 pub mod emulator;
 mod linexp;
@@ -207,27 +207,9 @@ pub trait Driver<'dr>: DriverTypes<ImplWire = Self::Wire, ImplField = Self::F> +
         input: Bound<'dr, Self, R::Input>,
     ) -> Result<Bound<'dr, Self, R::Output>> {
         let mut dummy = emulator::Emulator::wireless();
-        let dummy_input = R::Input::map_gadget(&input, &mut dummy)?;
+        let dummy_input =
+            R::Input::map_gadget(&input, &mut emulator::WirelessFrom::<Self>::default())?;
         let aux = routine.predict(&mut dummy, &dummy_input)?.into_aux();
         routine.execute(self, input, aux)
     }
-}
-
-/// Conversion context that is capable of transforming wires from one driver to
-/// another.
-pub trait FromDriver<'dr, 'new_dr, D: Driver<'dr>> {
-    /// The new driver type that uses the same field.
-    type NewDriver: Driver<'new_dr, F = D::F>;
-
-    /// Proxy for the `Witness::just` method for the new driver.
-    fn just<R: Send>(f: impl FnOnce() -> R) -> DriverValue<Self::NewDriver, R> {
-        <DriverValue<Self::NewDriver, R> as Maybe<R>>::just(f)
-    }
-
-    /// Converts a wire from `D` to the new driver's wire type, based on
-    /// contextual information.
-    fn convert_wire(
-        &mut self,
-        wire: &D::Wire,
-    ) -> Result<<Self::NewDriver as Driver<'new_dr>>::Wire>;
 }

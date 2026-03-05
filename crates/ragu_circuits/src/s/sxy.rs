@@ -52,7 +52,10 @@ use ff::Field;
 use ragu_arithmetic::Coeff;
 use ragu_core::{
     Error, Result,
-    drivers::{Driver, DriverTypes, emulator::Emulator},
+    drivers::{
+        Driver, DriverTypes,
+        emulator::{Emulator, WirelessFrom},
+    },
     gadgets::{Bound, GadgetKind},
     maybe::Empty,
     routines::Routine,
@@ -272,7 +275,7 @@ impl<'dr, F: Field, R: Rank> Driver<'dr> for Evaluator<'_, F, R> {
         let saved = core::mem::replace(&mut self.scope, init_scope);
         let exec_result = {
             let mut dummy = Emulator::wireless();
-            let dummy_input = Ro::Input::map_gadget(&input, &mut dummy)?;
+            let dummy_input = Ro::Input::map_gadget(&input, &mut WirelessFrom::<Self>::default())?;
             let aux = routine.predict(&mut dummy, &dummy_input)?.into_aux();
             routine.execute(self, input, aux)
         };

@@ -73,7 +73,8 @@ use core::marker::PhantomData;
 
 use crate::{
     Result,
-    drivers::{Coeff, DirectSum, Driver, DriverTypes, FromDriver, LinearExpression},
+    convert::WireMap,
+    drivers::{Coeff, DirectSum, Driver, DriverTypes, LinearExpression},
     gadgets::{Bound, Gadget, GadgetKind},
     maybe::{Always, Empty, MaybeKind, Perhaps},
     routines::{Prediction, Routine},
@@ -209,13 +210,11 @@ impl<F: Field> Emulator<Wired<F>> {
             wires: Vec<F>,
         }
 
-        impl<F: Field> FromDriver<'_, '_, Emulator<Wired<F>>> for WireExtractor<F> {
-            type NewDriver = PhantomData<F>;
+        impl<F: Field> WireMap<F> for WireExtractor<F> {
+            type Src = Emulator<Wired<F>>;
+            type Dst = PhantomData<F>;
 
-            fn convert_wire(
-                &mut self,
-                wire: &WiredValue<F>,
-            ) -> Result<<Self::NewDriver as Driver<'_>>::Wire> {
+            fn convert_wire(&mut self, wire: &WiredValue<F>) -> Result<()> {
                 self.wires.push(wire.clone().value());
                 Ok(())
             }
@@ -388,12 +387,28 @@ fn short_circuit_routine<'dr, D: Driver<'dr>, R: Routine<D::F> + 'dr>(
     }
 }
 
-/// Conversion utility useful for passing wireless gadgets into
-/// [`Routine::predict`] to fulfill type system obligations.
-impl<'dr, D: Driver<'dr>> FromDriver<'dr, '_, D> for Emulator<Wireless<D::MaybeKind, D::F>> {
-    type NewDriver = Self;
+/// Maps any driver's wires to `()` for use with
+/// `Emulator<Wireless<D::MaybeKind, D::ImplField>>`, discarding wire
+/// values.
+///
+/// Useful for passing a gadget from a concrete driver into
+/// [`Routine::predict`], which operates
+/// on a [`Wireless`] emulator. A wrapper struct is required because
+/// [`WireMap`] uses associated types for source and destination; different
+/// source drivers therefore need distinct implementors.
+pub struct WirelessFrom<D: DriverTypes>(PhantomData<D>);
 
-    fn convert_wire(&mut self, _: &D::Wire) -> Result<()> {
+impl<D: DriverTypes> Default for WirelessFrom<D> {
+    fn default() -> Self {
+        WirelessFrom(PhantomData)
+    }
+}
+
+impl<F: Field, D: DriverTypes<ImplField = F>> WireMap<F> for WirelessFrom<D> {
+    type Src = D;
+    type Dst = Emulator<Wireless<D::MaybeKind, F>>;
+
+    fn convert_wire(&mut self, _: &D::ImplWire) -> Result<()> {
         Ok(())
     }
 }
@@ -402,6 +417,7 @@ impl<'dr, D: Driver<'dr>> FromDriver<'dr, '_, D> for Emulator<Wireless<D::MaybeK
 mod tests {
     use super::*;
     use crate::Result;
+    use crate::convert::WireMap;
     use crate::drivers::{Coeff, Driver, LinearExpression};
     use crate::maybe::Always;
     use ff::Field;
@@ -436,15 +452,14 @@ mod tests {
     unsafe impl<FieldType: Field> crate::gadgets::GadgetKind<FieldType> for TwoWiresKind {
         type Rebind<'dr, D: Driver<'dr, F = FieldType>> = TwoWires<'dr, D>;
 
-        fn map_gadget<
-            'dr,
-            'new_dr,
-            D: Driver<'dr, F = FieldType>,
-            ND: crate::drivers::FromDriver<'dr, 'new_dr, D>,
-        >(
-            this: &Bound<'dr, D, Self>,
-            ndr: &mut ND,
-        ) -> Result<Bound<'new_dr, ND::NewDriver, Self>> {
+        fn map_gadget<'dr, 'dr2, WM: WireMap<FieldType>>(
+            this: &Bound<'dr, WM::Src, Self>,
+            ndr: &mut WM,
+        ) -> Result<Bound<'dr2, WM::Dst, Self>>
+        where
+            WM::Src: Driver<'dr, F = FieldType>,
+            WM::Dst: Driver<'dr2, F = FieldType>,
+        {
             Ok(TwoWires {
                 a: ndr.convert_wire(&this.a)?,
                 b: ndr.convert_wire(&this.b)?,
