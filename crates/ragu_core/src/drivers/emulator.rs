@@ -259,7 +259,7 @@ impl<M: MaybeKind, F: Field> Emulator<Wireless<M, F>> {
     /// so that witness availability is preserved across the conversion. Unlike
     /// calling [`Routine::predict`] directly, this associated function handles
     /// emulator construction and wire remapping in a single step.
-    pub fn predict<'dst, 'src, D, Ro>(
+    pub fn predict<'src, 'dst, D, Ro>(
         routine: &Ro,
         input: &Bound<'src, D, Ro::Input>,
     ) -> Result<Prediction<Bound<'dst, Self, Ro::Output>, DriverValue<Self, Ro::Aux<'dst>>>>
