@@ -31,7 +31,7 @@ impl<'a, 'dr, D: Driver<'dr>> Clone for Horner<'a, 'dr, D> {
 }
 
 impl<'a, 'dr, D: Driver<'dr>> Horner<'a, 'dr, D> {
-    /// Creates a new buffer that evaluates a polynomial at `point`.
+    /// Creates a new sink that evaluates a polynomial at `point`.
     pub fn new(point: &'a Element<'dr, D>) -> Self {
         Horner {
             point,

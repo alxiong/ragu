@@ -424,7 +424,9 @@ pub fn eval<'witness, F: Field, C: Circuit<F>>(
 mod tests {
     use super::*;
     use crate::tests::SquareCircuit;
+    use ragu_core::gadgets::Kind;
     use ragu_pasta::Fp;
+    use ragu_primitives::Element;
 
     #[test]
     fn test_rx() {
@@ -436,5 +438,77 @@ mod tests {
                 assert_eq!(seg.a[i] * seg.b[i], seg.c[i]);
             }
         }
+    }
+
+    /// Gadget whose [`Sink`](ragu_primitives::io::Sink) impl calls `dr.mul()`
+    /// and `dr.enforce_zero()` during serialization, proving that `.sink()`
+    /// threads the driver to `Sink::write`.
+    #[derive(ragu_core::gadgets::Gadget)]
+    struct MulOnSink<'dr, #[ragu(driver)] D: Driver<'dr>> {
+        #[ragu(gadget)]
+        element: Element<'dr, D>,
+    }
+
+    impl<F: ff::Field> ragu_primitives::io::Write<F> for Kind![F; @MulOnSink<'_, _>] {
+        fn write_gadget<'dr, D: Driver<'dr, F = F>>(
+            this: &MulOnSink<'dr, D>,
+            buf: &mut impl ragu_primitives::io::Buffer<'dr, D>,
+        ) -> Result<()> {
+            buf.write(&this.element)
+        }
+    }
+
+    struct MulOnSinkImpl;
+
+    impl<'dr, D: Driver<'dr>> ragu_primitives::io::Sink<'dr, D> for MulOnSinkImpl {
+        fn write(&mut self, dr: &mut D, _value: &Element<'dr, D>) -> Result<()> {
+            // These calls synthesize constraints during serialization.
+            // If .sink() did not thread dr to Sink::write, they would be lost.
+            dr.mul(|| Ok((Coeff::One, Coeff::One, Coeff::One)))?;
+            dr.enforce_zero(|lc| lc)?;
+            Ok(())
+        }
+    }
+
+    struct MulOnSinkCircuit;
+
+    impl crate::Circuit<Fp> for MulOnSinkCircuit {
+        type Instance<'instance> = Fp;
+        type Output = Kind![Fp; MulOnSink<'_, _>];
+        type Witness<'witness> = Fp;
+        type Aux<'witness> = ();
+
+        fn instance<'dr, 'instance: 'dr, D: Driver<'dr, F = Fp>>(
+            &self,
+            dr: &mut D,
+            instance: ragu_core::drivers::DriverValue<D, Self::Instance<'instance>>,
+        ) -> Result<Bound<'dr, D, Self::Output>> {
+            let element = Element::alloc(dr, instance)?;
+            Ok(MulOnSink { element })
+        }
+
+        fn witness<'dr, 'witness: 'dr, D: Driver<'dr, F = Fp>>(
+            &self,
+            dr: &mut D,
+            witness: ragu_core::drivers::DriverValue<D, Self::Witness<'witness>>,
+        ) -> Result<(
+            Bound<'dr, D, Self::Output>,
+            ragu_core::drivers::DriverValue<D, Self::Aux<'witness>>,
+        )> {
+            let element = Element::alloc(dr, witness)?;
+            let gadget = MulOnSink { element };
+            gadget.sink(dr, &mut MulOnSinkImpl)?;
+            Ok((gadget, D::just(|| ())))
+        }
+    }
+
+    #[test]
+    fn test_sink_synthesizes_into_trace() {
+        let circuit = MulOnSinkCircuit;
+        let witness = Fp::from(42u64);
+        let (trace, _) = eval::<Fp, _>(&circuit, witness).unwrap();
+
+        let root_gates = trace.segments[0].a.len();
+        assert_eq!(root_gates, 3, "sink's dr.mul() must produce a trace gate");
     }
 }

@@ -21,7 +21,7 @@ impl<'a, 'dr, D: Driver<'dr>> Clone for Ky<'a, 'dr, D> {
 }
 
 impl<'a, 'dr, D: Driver<'dr>> Ky<'a, 'dr, D> {
-    /// Creates a new buffer that evaluates k(Y) at point `y`.
+    /// Creates a new sink that evaluates k(Y) at point `y`.
     pub fn new(y: &'a Element<'dr, D>) -> Self {
         Ky {
             inner: Horner::new(y),
