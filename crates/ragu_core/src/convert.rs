@@ -37,16 +37,31 @@ use crate::{
 
 /// Conversion context that maps wires from one driver to another.
 ///
-/// Each implementor fixes a specific source and destination via associated
-/// types. When the same conversion logic applies to a whole family of source
-/// types, a wrapper struct parameterized by the source allows each distinct
-/// source to map to a fixed destination through a single blanket impl. See
-/// [`EraseWires`] for an example.
+/// Each implementor fixes a specific source and destination driver via
+/// associated types. When the same conversion logic applies to multiple
+/// source/destination pairs, use a wrapper struct parameterized by those
+/// types. See [`WirelessFrom`](crate::drivers::emulator::WirelessFrom)
+/// for an example.
+///
+/// `Src` and `Dst` are bounded by [`DriverTypes`] here so that
+/// `convert_wire` can name their wire types. The stronger [`Driver`] bound
+/// is only required at call sites that actually traverse a gadget (for instance
+/// [`Gadget::map`] and [`GadgetKind::map_gadget`](crate::gadgets::GadgetKind::map_gadget)),
+/// where it appears as a where-clause on the method rather than on the
+/// trait itself. This keeps `WireMap` implementors free of lifetime
+/// parameters while still ensuring full `Driver` constraints are checked
+/// wherever wires are converted through a gadget.
 pub trait WireMap<F: Field> {
-    /// The source [`DriverTypes`] whose wires are being converted.
+    /// The source driver whose wires are being converted.
+    ///
+    /// Must implement [`Driver<'dr>`](Driver) at every call site that
+    /// passes this `WireMap` to [`Gadget::map`].
     type Src: DriverTypes<ImplField = F>;
 
-    /// The destination [`DriverTypes`] whose wires are produced.
+    /// The destination driver whose wires are produced.
+    ///
+    /// Must implement [`Driver<'dr>`](Driver) at every call site that
+    /// passes this `WireMap` to [`Gadget::map`].
     type Dst: DriverTypes<ImplField = F>;
 
     /// Converts a wire from the source driver to the destination driver.
