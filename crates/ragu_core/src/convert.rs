@@ -5,8 +5,8 @@
 //! fundamental operation. Any code that operates across multiple driver
 //! contexts will need this: [routines](crate::routines) translate their inputs
 //! onto [`Wireless`] [`Emulator`]s for prediction, wire-counting passes discard
-//! wire values entirely, and driver implementations may need to inject or rewrite
-//! wires during circuit analysis.
+//! wire values entirely, and driver implementations may need to inject or
+//! rewrite wires during circuit analysis.
 //!
 //! [`WireMap`] provides a uniform mechanism for these conversions: an
 //! implementor fixes a source and destination driver via associated types, then
@@ -44,14 +44,12 @@ use crate::{
 /// source/destination pairs, use a wrapper struct parameterized by those
 /// types. See [`StripWires`] for an example.
 ///
-/// `Src` and `Dst` are bounded by [`DriverTypes`] here so that
-/// `convert_wire` can name their wire types. The stronger [`Driver`] bound
-/// is only required at call sites that actually traverse a gadget (for instance
-/// [`Gadget::map`] and [`GadgetKind::map_gadget`](crate::gadgets::GadgetKind::map_gadget)),
-/// where it appears as a where-clause on the method rather than on the
-/// trait itself. This keeps `WireMap` implementors free of lifetime
-/// parameters while still ensuring full `Driver` constraints are checked
-/// wherever wires are converted through a gadget.
+/// `Src` and `Dst` are bounded by [`DriverTypes`] (not [`Driver<'dr>`](Driver))
+/// so the trait itself carries no lifetime parameter. The full [`Driver`]
+/// bound is instead introduced on individual methods like [`Gadget::map`]
+/// and [`GadgetKind::map_gadget`](crate::gadgets::GadgetKind::map_gadget),
+/// where source and destination lifetimes are constrained via `where`
+/// clauses.
 pub trait WireMap<F: Field> {
     /// The source driver whose wires are being converted.
     ///
