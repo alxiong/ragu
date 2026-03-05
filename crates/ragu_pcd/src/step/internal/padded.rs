@@ -7,7 +7,7 @@ use ragu_core::{
 };
 use ragu_primitives::{
     Element,
-    io::{Buffer, Write},
+    io::{Buffer, Counter, Write},
 };
 
 use core::marker::PhantomData;
@@ -44,8 +44,9 @@ pub(crate) fn for_header<
     gadget: Bound<'dr, D, H::Output>,
 ) -> Result<Padded<'dr, D, H::Output, HEADER_SIZE>> {
     // Count the elements the gadget writes, and validate against HEADER_SIZE.
-    let mut count = 0usize;
-    H::Output::write_gadget(&gadget, &mut CountingBuffer(&mut count))?;
+    let mut count = Counter::default();
+    H::Output::write_gadget(&gadget, &mut count)?;
+    let count = count.value();
 
     let pad_count = (HEADER_SIZE - 1).checked_sub(count).ok_or_else(|| {
         ragu_core::Error::MalformedEncoding(
@@ -143,16 +144,6 @@ impl<F: Field, G: GadgetKind<F> + Write<F>, const HEADER_SIZE: usize> Write<F>
         for zero in &this.padding {
             buf.write(zero)?;
         }
-        Ok(())
-    }
-}
-
-/// A [`Buffer`] that counts written elements without storing them.
-struct CountingBuffer<'a>(&'a mut usize);
-
-impl<'dr, D: Driver<'dr>> Buffer<'dr, D> for CountingBuffer<'_> {
-    fn write(&mut self, _: &Element<'dr, D>) -> Result<()> {
-        *self.0 += 1;
         Ok(())
     }
 }

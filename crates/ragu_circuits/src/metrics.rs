@@ -13,7 +13,7 @@ use ragu_core::{
     maybe::Empty,
     routines::Routine,
 };
-use ragu_primitives::GadgetExt;
+use ragu_primitives::{GadgetExt, io::Counter as ElementCounter};
 
 use alloc::vec::Vec;
 use core::marker::PhantomData;
@@ -192,7 +192,7 @@ pub fn eval<F: Field, C: Circuit<F>>(circuit: &C) -> Result<CircuitMetrics> {
         segments: alloc::vec![SegmentRecord::default()],
         _marker: PhantomData,
     };
-    let mut degree_ky = 0usize;
+    let mut degree_ky = ElementCounter::default();
 
     // ONE gate
     collector.mul(|| Ok((Coeff::One, Coeff::One, Coeff::One)))?;
@@ -205,7 +205,7 @@ pub fn eval<F: Field, C: Circuit<F>>(circuit: &C) -> Result<CircuitMetrics> {
     io.write(&mut degree_ky)?;
 
     // Public output constraints
-    for _ in 0..degree_ky {
+    for _ in 0..degree_ky.value() {
         collector.enforce_zero(|lc| lc)?;
     }
 
@@ -234,7 +234,7 @@ pub fn eval<F: Field, C: Circuit<F>>(circuit: &C) -> Result<CircuitMetrics> {
     Ok(CircuitMetrics {
         num_linear_constraints: collector.num_linear_constraints,
         num_multiplication_constraints: collector.num_multiplication_constraints,
-        degree_ky,
+        degree_ky: degree_ky.value(),
         segments: collector.segments,
     })
 }

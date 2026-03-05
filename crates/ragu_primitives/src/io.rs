@@ -87,3 +87,21 @@ pub trait Sink<'dr, D: Driver<'dr>> {
 /// }
 /// ```
 pub use ragu_macros::Write;
+
+/// A [`Buffer`] that counts the number of [`Element`]s written, discarding their values.
+#[derive(Default)]
+pub struct Counter(usize);
+
+impl Counter {
+    /// Returns the number of elements written so far.
+    pub fn value(&self) -> usize {
+        self.0
+    }
+}
+
+impl<'dr, D: Driver<'dr>> Buffer<'dr, D> for Counter {
+    fn write(&mut self, _: &Element<'dr, D>) -> Result<()> {
+        self.0 += 1;
+        Ok(())
+    }
+}

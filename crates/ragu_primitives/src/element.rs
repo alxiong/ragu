@@ -363,21 +363,6 @@ impl<'dr, D: Driver<'dr>> Buffer<'dr, D> for Vec<Element<'dr, D>> {
     }
 }
 
-/// Simple buffer that discards all elements.
-impl<'dr, D: Driver<'dr>> Buffer<'dr, D> for () {
-    fn write(&mut self, _: &Element<'dr, D>) -> Result<()> {
-        Ok(())
-    }
-}
-
-/// Simple buffer that counts the number of writes.
-impl<'dr, D: Driver<'dr>> Buffer<'dr, D> for usize {
-    fn write(&mut self, _: &Element<'dr, D>) -> Result<()> {
-        *self += 1;
-        Ok(())
-    }
-}
-
 impl<'dr, D: Driver<'dr>, B: Buffer<'dr, D>> Buffer<'dr, D> for &mut B {
     fn write(&mut self, value: &Element<'dr, D>) -> Result<()> {
         B::write(self, value)

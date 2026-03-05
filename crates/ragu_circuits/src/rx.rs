@@ -403,6 +403,8 @@ pub fn eval<'witness, F: Field, C: Circuit<F>>(
         let mut evaluator = Evaluator::new(Vec::new(), &mut thunks);
 
         let aux = {
+            // The output gadget is already fully allocated and constrained inside
+            // `circuit.witness()`; no extra driver-level processing is needed here.
             let (_io, aux) = circuit.witness(&mut evaluator, Always::maybe_just(|| witness))?;
             aux.take()
         };
