@@ -20,7 +20,7 @@
 //!
 //! - [`WireMap`], the core conversion trait.
 //! - [`CloneWires`], a [`WireMap`] that clones wires unchanged.
-//! - [`EraseWires`], a [`WireMap`] that discards wire values for use with
+//! - [`StripWires`], a [`WireMap`] that discards wire values for use with
 //!   wireless emulators.
 //!
 //! [`Routine::predict`]: crate::routines::Routine::predict
@@ -137,15 +137,15 @@ where
 /// type gets its own blanket [`WireMap`] impl.
 ///
 /// [`Routine::predict`]: crate::routines::Routine::predict
-pub struct EraseWires<D: DriverTypes>(PhantomData<D>);
+pub struct StripWires<D: DriverTypes>(PhantomData<D>);
 
-impl<D: DriverTypes> Default for EraseWires<D> {
+impl<D: DriverTypes> Default for StripWires<D> {
     fn default() -> Self {
-        EraseWires(PhantomData)
+        StripWires(PhantomData)
     }
 }
 
-impl<F: Field, D: DriverTypes<ImplField = F>> WireMap<F> for EraseWires<D> {
+impl<F: Field, D: DriverTypes<ImplField = F>> WireMap<F> for StripWires<D> {
     type Src = D;
     type Dst = Emulator<Wireless<D::MaybeKind, F>>;
 

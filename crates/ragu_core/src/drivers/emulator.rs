@@ -73,7 +73,7 @@ use core::marker::PhantomData;
 
 use crate::{
     Result,
-    convert::{EraseWires, WireMap},
+    convert::{StripWires, WireMap},
     drivers::{Coeff, DirectSum, Driver, DriverTypes, DriverValue, LinearExpression},
     gadgets::{Bound, Gadget, GadgetKind},
     maybe::{Always, Empty, MaybeKind, Perhaps},
@@ -253,7 +253,7 @@ impl<M: MaybeKind, F: Field> Emulator<Wireless<M, F>> {
     }
 
     /// Runs [`Routine::predict`] on a fresh wireless emulator, converting the
-    /// input gadget from the source driver automatically via [`EraseWires`].
+    /// input gadget from the source driver automatically via [`StripWires`].
     ///
     /// The source driver `D` must share the same [`MaybeKind`] as this emulator
     /// so that witness availability is preserved across the conversion. Unlike
@@ -267,7 +267,7 @@ impl<M: MaybeKind, F: Field> Emulator<Wireless<M, F>> {
         D: Driver<'src, F = F, MaybeKind = M>,
         Ro: Routine<F>,
     {
-        let input = input.map(&mut EraseWires::default())?;
+        let input = input.map(&mut StripWires::default())?;
         routine.predict(&mut Self::wireless(), &input)
     }
 }
