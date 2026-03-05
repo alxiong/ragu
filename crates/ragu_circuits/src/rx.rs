@@ -296,7 +296,7 @@ impl<'scope, 'env, F: Field> Driver<'env> for Evaluator<'scope, 'env, F> {
 
         match prediction {
             Prediction::Known(predicted_output, aux) => {
-                let output = CloneWires::convert(&predicted_output)?;
+                let output = CloneWires::remap(&predicted_output)?;
                 // Remap the input gadget to a driver-independent representation,
                 // then wrap in `Sendable` to satisfy the `Send` bound on the
                 // thunk closure.
@@ -304,7 +304,7 @@ impl<'scope, 'env, F: Field> Driver<'env> for Evaluator<'scope, 'env, F> {
 
                 self.thunks.push(Thunk(Box::new(move |thunks| {
                     let mut eval = Evaluator::new(child_prefix, thunks);
-                    CloneWires::convert(&input.into_inner())
+                    CloneWires::remap(&input.into_inner())
                         .and_then(|input| routine.execute(&mut eval, input, aux))
                         // Discard the output gadget; we already have the predicted output.
                         .map(|_| {

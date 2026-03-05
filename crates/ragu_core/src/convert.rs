@@ -97,11 +97,11 @@ where
     ///
     /// ```ignore
     /// // Inferred from context:
-    /// let output: Bound<'_, DstDriver, _> = CloneWires::convert(&gadget)?;
+    /// let output: Bound<'_, DstDriver, _> = CloneWires::remap(&gadget)?;
     /// // Explicit:
     /// let output = CloneWires::<_, DstDriver>::convert(&gadget)?;
     /// ```
-    pub fn convert<'src, 'dst, G: Gadget<'src, Src>>(
+    pub fn remap<'src, 'dst, G: Gadget<'src, Src>>(
         gadget: &G,
     ) -> Result<Bound<'dst, Dst, G::Kind>>
     where
