@@ -99,3 +99,20 @@ impl<T, A> Prediction<T, A> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Prediction;
+
+    #[test]
+    fn prediction_into_aux_known() {
+        let p = Prediction::Known("output", 42u64);
+        assert_eq!(p.into_aux(), 42);
+    }
+
+    #[test]
+    fn prediction_into_aux_unknown() {
+        let p = Prediction::<&str, u64>::Unknown(99);
+        assert_eq!(p.into_aux(), 99);
+    }
+}

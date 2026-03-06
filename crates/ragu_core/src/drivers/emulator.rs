@@ -580,8 +580,6 @@ mod tests {
         Ok(())
     }
 
-    // ── Routine short-circuit tests ─────────────────────────────────
-
     use alloc::sync::Arc;
     use core::sync::atomic::{AtomicBool, Ordering};
 
@@ -756,7 +754,210 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // ── Error propagation tests ─────────────────────────────────────
+    #[test]
+    fn wireless_always_routine_short_circuits_on_known() -> Result<()> {
+        let executed = Arc::new(AtomicBool::new(false));
+        let mut dr = Emulator::<Wireless<Always<()>, F>>::execute();
+        let routine = AlwaysKnownRoutine {
+            executed: executed.clone(),
+        };
+        dr.routine(routine, ())?;
+        assert!(
+            !executed.load(Ordering::Relaxed),
+            "execute should not be called on Known prediction"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn wireless_always_routine_executes_on_unknown() -> Result<()> {
+        let executed = Arc::new(AtomicBool::new(false));
+        let mut dr = Emulator::<Wireless<Always<()>, F>>::execute();
+        let routine = AlwaysUnknownRoutine {
+            aux_value: 456,
+            executed: executed.clone(),
+        };
+        dr.routine(routine, ())?;
+        assert!(
+            executed.load(Ordering::Relaxed),
+            "execute should be called on Unknown prediction"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn wireless_always_routine_predict_error_propagates() {
+        let mut dr = Emulator::<Wireless<Always<()>, F>>::execute();
+        let result = dr.routine(FailingPredictRoutine, ());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn wireless_always_routine_execute_error_propagates() {
+        let mut dr = Emulator::<Wireless<Always<()>, F>>::execute();
+        let result = dr.routine(FailingExecuteRoutine, ());
+        assert!(result.is_err());
+    }
+
+    // A routine compatible with Empty MaybeKind: Aux = () and execute does
+    // not call .take() on aux.
+    #[derive(Clone)]
+    struct NoAuxUnknownRoutine {
+        executed: Arc<AtomicBool>,
+    }
+
+    impl Routine<F> for NoAuxUnknownRoutine {
+        type Input = ();
+        type Output = ();
+        type Aux<'dr> = ();
+
+        fn execute<'dr, D: Driver<'dr, F = F>>(
+            &self,
+            _dr: &mut D,
+            _input: Bound<'dr, D, Self::Input>,
+            _aux: DriverValue<D, Self::Aux<'dr>>,
+        ) -> Result<Bound<'dr, D, Self::Output>> {
+            self.executed.store(true, Ordering::Relaxed);
+            Ok(())
+        }
+
+        fn predict<'dr, D: Driver<'dr, F = F>>(
+            &self,
+            _dr: &mut D,
+            _input: &Bound<'dr, D, Self::Input>,
+        ) -> Result<Prediction<Bound<'dr, D, Self::Output>, DriverValue<D, Self::Aux<'dr>>>>
+        {
+            Ok(Prediction::Unknown(D::just(|| ())))
+        }
+    }
+
+    #[test]
+    fn wireless_counter_routine_short_circuits_on_known() -> Result<()> {
+        let executed = Arc::new(AtomicBool::new(false));
+        let mut dr = Emulator::<Wireless<crate::maybe::Empty, F>>::counter();
+        let routine = AlwaysKnownRoutine {
+            executed: executed.clone(),
+        };
+        dr.routine(routine, ())?;
+        assert!(
+            !executed.load(Ordering::Relaxed),
+            "execute should not be called on Known prediction"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn wireless_counter_routine_executes_on_unknown() -> Result<()> {
+        let executed = Arc::new(AtomicBool::new(false));
+        let mut dr = Emulator::<Wireless<crate::maybe::Empty, F>>::counter();
+        let routine = NoAuxUnknownRoutine {
+            executed: executed.clone(),
+        };
+        dr.routine(routine, ())?;
+        assert!(
+            executed.load(Ordering::Relaxed),
+            "execute should be called on Unknown prediction"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn wireless_counter_routine_predict_error_propagates() {
+        let mut dr = Emulator::<Wireless<crate::maybe::Empty, F>>::counter();
+        let result = dr.routine(FailingPredictRoutine, ());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn wireless_counter_routine_execute_error_propagates() {
+        let mut dr = Emulator::<Wireless<crate::maybe::Empty, F>>::counter();
+        let result = dr.routine(FailingExecuteRoutine, ());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn predict_known_returns_output() -> Result<()> {
+        let input: Bound<'_, Emulator<Wired<F>>, ()> = ();
+        let prediction = Emulator::<Wireless<Always<()>, F>>::predict::<Emulator<Wired<F>>, _>(
+            &AlwaysKnownRoutine {
+                executed: Arc::new(AtomicBool::new(false)),
+            },
+            &input,
+        )?;
+        assert!(matches!(prediction, Prediction::Known((), _)));
+        Ok(())
+    }
+
+    #[test]
+    fn predict_unknown_returns_aux() -> Result<()> {
+        let input: Bound<'_, Emulator<Wired<F>>, ()> = ();
+        let prediction = Emulator::<Wireless<Always<()>, F>>::predict::<Emulator<Wired<F>>, _>(
+            &AlwaysUnknownRoutine {
+                aux_value: 789,
+                executed: Arc::new(AtomicBool::new(false)),
+            },
+            &input,
+        )?;
+        match prediction {
+            Prediction::Unknown(aux) => assert_eq!(aux.take(), 789),
+            Prediction::Known(..) => panic!("expected Unknown"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn predict_error_propagates() {
+        let input: Bound<'_, Emulator<Wired<F>>, ()> = ();
+        let result = Emulator::<Wireless<Always<()>, F>>::predict::<Emulator<Wired<F>>, _>(
+            &FailingPredictRoutine,
+            &input,
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn wired_just_calls_closure_and_returns_value() {
+        let val = <Emulator<Wired<F>> as Driver>::just(|| 42u64);
+        assert_eq!(val.take(), 42);
+    }
+
+    #[test]
+    fn wired_with_ok_returns_value() -> Result<()> {
+        let val = <Emulator<Wired<F>> as Driver>::with(|| Ok(42u64))?;
+        assert_eq!(val.take(), 42);
+        Ok(())
+    }
+
+    #[test]
+    fn wired_with_err_propagates() {
+        let result = <Emulator<Wired<F>> as Driver>::with(|| -> Result<u64> {
+            Err(crate::Error::InvalidWitness("test".into()))
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn wireless_always_just_calls_closure() {
+        let val = <Emulator<Wireless<Always<()>, F>> as Driver>::just(|| 42u64);
+        assert_eq!(val.take(), 42);
+    }
+
+    #[test]
+    fn wireless_counter_just_skips_closure() {
+        let _: crate::maybe::Empty =
+            <Emulator<Wireless<crate::maybe::Empty, F>> as Driver>::just(|| {
+                panic!("must not be called")
+            });
+    }
+
+    #[test]
+    fn wireless_counter_with_err_swallowed() -> Result<()> {
+        let _: crate::maybe::Empty =
+            <Emulator<Wireless<crate::maybe::Empty, F>> as Driver>::with(|| -> Result<()> {
+                Err(crate::Error::InvalidWitness("swallowed".into()))
+            })?;
+        Ok(())
+    }
 
     #[test]
     fn wired_mul_propagates_closure_error() {
@@ -771,8 +972,6 @@ mod tests {
         let result = dr.alloc(|| Err(crate::Error::InvalidWitness("alloc error".into())));
         assert!(result.is_err());
     }
-
-    // ── Witness data flow tests ─────────────────────────────────────
 
     #[test]
     fn wired_emulate_wired_witness_flows_through() -> Result<()> {
@@ -796,8 +995,6 @@ mod tests {
         assert_eq!(result, 84);
         Ok(())
     }
-
-    // ── wires() edge case ───────────────────────────────────────────
 
     #[test]
     fn wired_wires_empty_gadget() -> Result<()> {

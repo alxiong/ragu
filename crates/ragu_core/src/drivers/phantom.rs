@@ -56,3 +56,99 @@ impl<F: Field> DriverTypes for core::marker::PhantomData<F> {
     type LCadd = ();
     type LCenforce = ();
 }
+
+#[cfg(test)]
+mod tests {
+    use core::cell::Cell;
+    use core::marker::PhantomData;
+
+    use crate::Result;
+    use crate::drivers::{Coeff, Driver};
+    use crate::maybe::Empty;
+    use ragu_pasta::Fp;
+
+    type F = Fp;
+
+    #[test]
+    fn phantom_closures_never_invoked() -> Result<()> {
+        let mut dr = PhantomData::<F>;
+        let called = Cell::new(0u32);
+
+        dr.mul(|| {
+            called.set(called.get() + 1);
+            Ok((Coeff::One, Coeff::One, Coeff::One))
+        })?;
+
+        dr.add(|lc| {
+            called.set(called.get() + 1);
+            lc
+        });
+
+        dr.enforce_zero(|lc| {
+            called.set(called.get() + 1);
+            lc
+        })?;
+
+        dr.alloc(|| {
+            called.set(called.get() + 1);
+            Ok(Coeff::One)
+        })?;
+
+        dr.constant(Coeff::One);
+
+        assert_eq!(called.get(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn phantom_mul_returns_unit_triple() -> Result<()> {
+        let mut dr = PhantomData::<F>;
+        let (_a, _b, _c): ((), (), ()) = dr.mul(|| panic!("must not be called"))?;
+        Ok(())
+    }
+
+    #[test]
+    fn phantom_add_returns_unit() {
+        let mut dr = PhantomData::<F>;
+        let _: () = dr.add(|_lc| panic!("must not be called"));
+    }
+
+    #[test]
+    fn phantom_enforce_zero_succeeds() -> Result<()> {
+        let mut dr = PhantomData::<F>;
+        dr.enforce_zero(|_lc| panic!("must not be called"))?;
+        Ok(())
+    }
+
+    #[test]
+    fn phantom_alloc_returns_unit() -> Result<()> {
+        let mut dr = PhantomData::<F>;
+        let _: () = dr.alloc(|| panic!("must not be called"))?;
+        Ok(())
+    }
+
+    #[test]
+    fn phantom_constant_returns_unit() {
+        let mut dr = PhantomData::<F>;
+        let _: () = dr.constant(Coeff::Arbitrary(F::from(42)));
+    }
+
+    #[test]
+    fn phantom_enforce_equal_succeeds() -> Result<()> {
+        let mut dr = PhantomData::<F>;
+        dr.enforce_equal(&(), &())?;
+        Ok(())
+    }
+
+    #[test]
+    fn phantom_one_is_unit() {
+        let _: () = PhantomData::<F>::ONE;
+    }
+
+    #[test]
+    fn phantom_just_and_with_skip_closures() -> Result<()> {
+        let _: Empty = PhantomData::<F>::just(|| panic!("must not be called"));
+        let _: Empty = PhantomData::<F>::with(|| -> Result<()> { panic!("must not be called") })?;
+        Ok(())
+    }
+}
