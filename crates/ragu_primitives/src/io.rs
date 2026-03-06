@@ -45,6 +45,15 @@ pub trait Buffer<'dr, D: Driver<'dr>> {
 /// Gadgets that consist mainly of other gadgets are candidates for [automatic
 /// derivation](derive@Write) of this trait.
 pub trait Write<F: Field>: GadgetKind<F> {
+    // TODO: use `const LEN` once `const-generic-expressions` is stabilized.
+    /// Returns the number of [`Element`]s this gadget writes via [`write_gadget`].
+    ///
+    /// This must always return the same value for a given type and must agree
+    /// with the actual number of elements written by [`write_gadget`].
+    ///
+    /// [`write_gadget`]: Write::write_gadget
+    fn len() -> usize;
+
     /// Write this gadget's elements into the provided buffer.
     fn write_gadget<'dr, D: Driver<'dr, F = F>>(
         this: &Bound<'dr, D, Self>,

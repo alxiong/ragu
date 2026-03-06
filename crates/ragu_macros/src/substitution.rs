@@ -1,7 +1,12 @@
 use syn::{
-    GenericArgument, GenericParam, Ident, Lifetime, PathArguments, Type, TypeParam, TypeParamBound,
-    TypePath, parse_quote,
+    GenericArgument, GenericParam, Ident, Lifetime, Macro, PathArguments, Type, TypeParam,
+    TypeParamBound, TypePath,
+    parse::{ParseStream, Parser},
+    parse_quote,
+    punctuated::Punctuated,
 };
+
+use crate::proc::kind::Input;
 
 trait Strategy {
     fn ty_path(&self, _: &mut TypePath) -> bool {
@@ -78,7 +83,34 @@ impl Substitution for Type {
                     elem.substitute(strategy);
                 }
             }
+            Type::Macro(type_macro) => {
+                type_macro.mac.substitute(strategy);
+            }
             _ => {}
+        }
+    }
+}
+
+impl Substitution for Macro {
+    fn substitute(&mut self, strategy: &impl Strategy) {
+        if let Ok(mut input) = syn::parse2::<Input>(self.tokens.clone()) {
+            // Kind![F; [@] path] — substitute in both the field type and the gadget path.
+            input.f.substitute(strategy);
+            input.path.substitute(strategy);
+            let (f, cast, path) = (&input.f, &input.cast, &input.path);
+            self.tokens = quote::quote!(#f ; #cast #path);
+        } else {
+            // Comma-separated generic arguments, e.g. `unified_output_type!(Point, 'dr, D, C)`.
+            // If this also fails, the macro form is unsupported and we surface a clear error
+            // rather than silently passing through with unsubstituted driver types.
+            type GenericArgs = Punctuated<GenericArgument, syn::Token![,]>;
+            let parser = |input: ParseStream| GenericArgs::parse_terminated(input);
+            let mut args = Parser::parse2(parser, self.tokens.clone())
+                .expect("unsupported macro in Write derive: expected Kind![..] or comma-separated generic arguments");
+            for arg in &mut args {
+                arg.substitute(strategy);
+            }
+            self.tokens = quote::quote!(#args);
         }
     }
 }
@@ -94,6 +126,26 @@ impl Substitution for TypeParamBound {
                 }
             }
         }
+    }
+}
+
+/// Replaces `D::F` with `driverfield_ident` in type paths.
+struct DriverFieldSubstitution<'a> {
+    driver_id: &'a Ident,
+    driverfield_ident: &'a Ident,
+}
+
+impl Strategy for DriverFieldSubstitution<'_> {
+    fn ty_path(&self, ty_path: &mut TypePath) -> bool {
+        if ty_path.qself.is_none() && ty_path.path.segments.len() == 2 {
+            let segs = &ty_path.path.segments;
+            if segs[0].ident == *self.driver_id && segs[1].ident == "F" {
+                let driverfield_ident = self.driverfield_ident;
+                *ty_path = parse_quote!(#driverfield_ident);
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -134,31 +186,10 @@ pub fn replace_driver_field_in_generic_param(
     driver_id: &syn::Ident,
     driverfield_ident: &syn::Ident,
 ) {
-    struct DriverFieldSubstitution<'a> {
-        driver_id: &'a Ident,
-        driverfield_ident: &'a Ident,
-    }
-
-    impl Strategy for DriverFieldSubstitution<'_> {
-        fn ty_path(&self, ty_path: &mut TypePath) -> bool {
-            if ty_path.qself.is_none() && ty_path.path.segments.len() == 2 {
-                let segs = &ty_path.path.segments;
-                if segs[0].ident == *self.driver_id && segs[1].ident == "F" {
-                    let driverfield_ident = self.driverfield_ident;
-                    *ty_path = parse_quote!(#driverfield_ident);
-                    return true;
-                }
-            }
-
-            false
-        }
-    }
-
     let strategy = &DriverFieldSubstitution {
         driver_id,
         driverfield_ident,
     };
-
     if let GenericParam::Type(TypeParam {
         bounds, default, ..
     }) = param
@@ -170,4 +201,58 @@ pub fn replace_driver_field_in_generic_param(
             default_ty.substitute(strategy);
         }
     }
+}
+
+/// Normalize driver references to inference placeholders for use in `Kind!` macro invocations.
+///
+/// - Replaces `D::F` with `driverfield_ident` (keeps the field type as a concrete ident).
+/// - Replaces `D` with `_` (Type::Infer).
+/// - Replaces `'dr` with `'_`.
+///
+/// The result can be passed to `Kind![DriverField; <normalized>]` which will then substitute
+/// `_` → `PhantomData<DriverField>` and `'_` → `'static`.
+pub fn normalize_for_kind_macro(
+    ty: &Type,
+    driver_ident: &Ident,
+    driver_lifetime: &Lifetime,
+    driverfield_ident: &Ident,
+) -> Type {
+    struct DriverToInference<'a> {
+        driver_ident: &'a Ident,
+        driver_lifetime: &'a Lifetime,
+    }
+
+    impl Strategy for DriverToInference<'_> {
+        fn ty(&self, t: &mut Type) -> bool {
+            let Type::Path(ty_path) = t else { return false };
+            if ty_path.qself.is_none()
+                && ty_path.path.segments.len() == 1
+                && ty_path.path.segments[0].ident == *self.driver_ident
+                && matches!(ty_path.path.segments[0].arguments, PathArguments::None)
+            {
+                *t = parse_quote!(_);
+                return true;
+            }
+            false
+        }
+
+        fn lt(&self, lt: &mut Lifetime) -> bool {
+            if lt.ident == self.driver_lifetime.ident {
+                *lt = parse_quote!('_);
+                return true;
+            }
+            false
+        }
+    }
+
+    let mut ty = ty.clone();
+    ty.substitute(&DriverFieldSubstitution {
+        driver_id: driver_ident,
+        driverfield_ident,
+    });
+    ty.substitute(&DriverToInference {
+        driver_ident,
+        driver_lifetime,
+    });
+    ty
 }

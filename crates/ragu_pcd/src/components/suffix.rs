@@ -26,6 +26,10 @@ impl<'dr, D: Driver<'dr>, G: GadgetKind<D::F>> WithSuffix<'dr, D, G> {
 }
 
 impl<F: Field, K: GadgetKind<F> + Write<F>> Write<F> for Kind![F; @WithSuffix<'_, _, K>] {
+    fn len() -> usize {
+        K::len() + 1
+    }
+
     fn write_gadget<'dr, D: Driver<'dr, F = F>>(
         this: &Bound<'dr, D, Self>,
         buf: &mut impl Buffer<'dr, D>,

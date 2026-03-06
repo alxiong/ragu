@@ -187,6 +187,10 @@ pub(crate) fn is_zero<'dr, D: Driver<'dr>>(
 }
 
 impl<F: Field> Write<F> for Kind![F; @Boolean<'_, _>] {
+    fn len() -> usize {
+        1
+    }
+
     fn write_gadget<'dr, D: Driver<'dr, F = F>>(
         this: &Boolean<'dr, D>,
         buf: &mut impl Buffer<'dr, D>,

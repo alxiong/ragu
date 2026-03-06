@@ -347,6 +347,10 @@ impl<'dr, D: Driver<'dr>> Element<'dr, D> {
 }
 
 impl<F: Field> Write<F> for Kind![F; @Element<'_, _>] {
+    fn len() -> usize {
+        1
+    }
+
     fn write_gadget<'dr, D: Driver<'dr, F = F>>(
         this: &Element<'dr, D>,
         buf: &mut impl Buffer<'dr, D>,

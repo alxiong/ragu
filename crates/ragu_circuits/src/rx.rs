@@ -452,6 +452,10 @@ mod tests {
     }
 
     impl<F: ff::Field> ragu_primitives::io::Write<F> for Kind![F; @MulOnSink<'_, _>] {
+        fn len() -> usize {
+            1
+        }
+
         fn write_gadget<'dr, D: Driver<'dr, F = F>>(
             this: &MulOnSink<'dr, D>,
             buf: &mut impl ragu_primitives::io::Buffer<'dr, D>,

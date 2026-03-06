@@ -8,10 +8,10 @@ use syn::{
 use crate::{path_resolution::RaguCorePath, substitution::replace_inferences};
 
 pub struct Input {
-    f: Type,
+    pub(crate) f: Type,
     _semicolon: Token![;],
-    cast: Option<Token![@]>,
-    path: Type,
+    pub(crate) cast: Option<Token![@]>,
+    pub(crate) path: Type,
 }
 
 impl Parse for Input {

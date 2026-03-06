@@ -2,13 +2,13 @@ use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::{
     AngleBracketedGenericArguments, Data, DeriveInput, Error, Fields, GenericParam, Generics,
-    Ident, Result, parse_quote, spanned::Spanned,
+    Ident, Result, Type, parse_quote, spanned::Spanned,
 };
 
 use crate::{
     helpers::{GenericDriver, attr_is},
     path_resolution::{RaguCorePath, RaguPrimitivesPath},
-    substitution::replace_driver_field_in_generic_param,
+    substitution::{normalize_for_kind_macro, replace_driver_field_in_generic_param},
 };
 
 pub fn derive(
@@ -53,7 +53,7 @@ pub fn derive(
         Skip,
     }
 
-    let fields: Vec<(Ident, FieldType)> = match data {
+    let fields: Vec<(Ident, FieldType, Type)> = match data {
         Data::Struct(s) => {
             let fields = match &s.fields {
                 Fields::Named(named) => &named.named,
@@ -73,9 +73,9 @@ pub fn derive(
                 let is_phantom = f.attrs.iter().any(|a| attr_is(a, "phantom"));
 
                 if is_skip || is_phantom {
-                    res.push((fid, FieldType::Skip));
+                    res.push((fid, FieldType::Skip, f.ty.clone()));
                 } else {
-                    res.push((fid, FieldType::Serialize));
+                    res.push((fid, FieldType::Serialize, f.ty.clone()));
                 }
             }
 
@@ -112,10 +112,21 @@ pub fn derive(
 
     let kind_subst_arguments = driver.kind_subst_arguments(&ty_generics);
 
-    let serialize_calls = fields.iter().filter_map(|(id, ty)| match ty {
+    let serialize_calls = fields.iter().filter_map(|(id, ty, _)| match ty {
         FieldType::Serialize => Some(quote! {
             #ragu_primitives_path::GadgetExt::write(&this.#id, buf)?;
         }),
+        FieldType::Skip => None,
+    });
+
+    let len_calls = fields.iter().filter_map(|(_, ty, field_ty)| match ty {
+        FieldType::Serialize => {
+            let normalized =
+                normalize_for_kind_macro(field_ty, &driver.ident, &driver.lifetime, &driverfield_ident);
+            Some(quote! {
+                <#ragu_core_path::gadgets::Kind![#driverfield_ident; #normalized] as #ragu_primitives_path::io::Write<#driverfield_ident>>::len()
+            })
+        }
         FieldType::Skip => None,
     });
 
@@ -125,6 +136,10 @@ pub fn derive(
         quote! {
             #[automatically_derived]
             impl #gadget_kind_generic_params #ragu_primitives_path::io::Write<#driverfield_ident> for #struct_ident #kind_subst_arguments {
+                fn len() -> usize {
+                    0 #(+ #len_calls)*
+                }
+
                 fn write_gadget<#driver_lifetime, #driver_ident: #ragu_core_path::drivers::Driver<#driver_lifetime, F = #driverfield_ident>>(
                     this: &#ragu_core_path::gadgets::Bound<#driver_lifetime, #driver_ident, Self>,
                     buf: &mut impl #ragu_primitives_path::io::Buffer<#driver_lifetime, #driver_ident>
@@ -165,6 +180,12 @@ fn test_gadget_serialize_derive() {
             impl<C: CurveAffine, const N: usize, DriverField: ::ff::Field> ::ragu_primitives::io::Write<DriverField>
                 for MyGadget<'static, ::core::marker::PhantomData< DriverField >, C, N>
             {
+                fn len() -> usize {
+                    0
+                    + <::ragu_core::gadgets::Kind![DriverField; Element<'_, _>] as ::ragu_primitives::io::Write<DriverField>>::len()
+                    + <::ragu_core::gadgets::Kind![DriverField; Boolean<'_, _>] as ::ragu_primitives::io::Write<DriverField>>::len()
+                }
+
                 fn write_gadget<'my_dr, MyD: ::ragu_core::drivers::Driver<'my_dr, F = DriverField>>(
                     this: &::ragu_core::gadgets::Bound<'my_dr, MyD, Self>,
                     buf: &mut impl ::ragu_primitives::io::Buffer<'my_dr, MyD>

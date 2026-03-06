@@ -168,7 +168,11 @@ impl<T: Clone, L: Len> Clone for FixedVec<T, L> {
     }
 }
 
-impl<F: Field, G: Write<F>, L: Len> Write<F> for FixedVec<PhantomData<G>, L> {
+impl<F: Field, G: Write<F>, L: Len> Write<F> for FixedVec<G, L> {
+    fn len() -> usize {
+        L::len() * G::len()
+    }
+
     fn write_gadget<'dr, D: Driver<'dr, F = F>>(
         this: &FixedVec<Bound<'dr, D, G>, L>,
         buf: &mut impl Buffer<'dr, D>,
@@ -204,7 +208,7 @@ impl<T, L: Len> IntoIterator for FixedVec<T, L> {
 }
 
 impl<'dr, D: Driver<'dr>, G: Gadget<'dr, D>, L: Len> Gadget<'dr, D> for FixedVec<G, L> {
-    type Kind = FixedVec<PhantomData<G::Kind>, L>;
+    type Kind = FixedVec<G::Kind, L>;
 }
 
 impl<'dr, D: Driver<'dr>, G: Consistent<'dr, D>, L: Len> Consistent<'dr, D> for FixedVec<G, L> {
@@ -220,7 +224,7 @@ impl<'dr, D: Driver<'dr>, G: Consistent<'dr, D>, L: Len> Consistent<'dr, D> for 
 /// when `D::Wire` is `Send`, by the safety contract of `GadgetKind`. Because
 /// `FixedVec<Bound<'dr, D, G>, L>` only contains `Bound<'dr, D, G>`, it is
 /// also `Send` when `D::Wire` is `Send`.
-unsafe impl<F: Field, G: GadgetKind<F>, L: Len> GadgetKind<F> for FixedVec<PhantomData<G>, L> {
+unsafe impl<F: Field, G: GadgetKind<F>, L: Len> GadgetKind<F> for FixedVec<G, L> {
     type Rebind<'dr, D: Driver<'dr, F = F>> = FixedVec<Bound<'dr, D, G>, L>;
 
     fn map_gadget<'dr, 'new_dr, D: Driver<'dr, F = F>, ND: FromDriver<'dr, 'new_dr, D>>(

@@ -1,13 +1,13 @@
-use alloc::vec::Vec;
 use ff::{Field, PrimeField};
 use ragu_core::{
     Result,
-    drivers::{Driver, FromDriver},
+    drivers::Driver,
     gadgets::{Bound, Gadget, GadgetKind, Kind},
 };
 use ragu_primitives::{
     Element,
-    io::{Buffer, Counter, Write},
+    io::{Counter, Write},
+    vec::{FixedVec, Len},
 };
 
 use core::marker::PhantomData;
@@ -58,7 +58,7 @@ pub(crate) fn for_header<
         )
     })?;
 
-    let padding = (0..pad_count).map(|_| Element::zero(dr)).collect();
+    let padding = FixedVec::new((0..pad_count).map(|_| Element::zero(dr)).collect())?;
     let suffix = Element::constant(dr, D::F::from(H::SUFFIX.get()));
 
     Ok(Padded {
@@ -66,86 +66,34 @@ pub(crate) fn for_header<
     })
 }
 
+/// Encodes the zero-padding length as a [`Len`] type so that [`PaddedContent`]
+/// can use [`FixedVec`] rather than a dynamic `Vec`.
+///
+/// `len() = HEADER_SIZE - 1 - G::len()`
+struct PadLen<const HEADER_SIZE: usize, F: Field, G: Write<F>>(
+    // a compiler trick to satisfy the `G: Sync` hint for `trait Len: Sync`
+    PhantomData<fn() -> (F, G)>,
+);
+
+impl<const HEADER_SIZE: usize, F: Field, G: Write<F>> Len for PadLen<HEADER_SIZE, F, G> {
+    fn len() -> usize {
+        HEADER_SIZE - 1 - G::len()
+    }
+}
+
 /// Inner gadget that writes the header gadget followed by pre-allocated zero
 /// padding up to `HEADER_SIZE - 1` elements (reserving space for the suffix).
+#[derive(Gadget, Write)]
 pub(crate) struct PaddedContent<
     'dr,
     D: Driver<'dr>,
     G: GadgetKind<D::F> + Write<D::F>,
     const HEADER_SIZE: usize,
 > {
+    #[ragu(gadget)]
     gadget: Bound<'dr, D, G>,
-    padding: Vec<Element<'dr, D>>,
-}
-
-impl<'dr, D: Driver<'dr>, G: GadgetKind<D::F> + Write<D::F>, const HEADER_SIZE: usize> Clone
-    for PaddedContent<'dr, D, G, HEADER_SIZE>
-where
-    Bound<'dr, D, G>: Clone,
-{
-    fn clone(&self) -> Self {
-        PaddedContent {
-            gadget: self.gadget.clone(),
-            padding: self.padding.clone(),
-        }
-    }
-}
-
-impl<'dr, D: Driver<'dr>, G: GadgetKind<D::F> + Write<D::F>, const HEADER_SIZE: usize>
-    Gadget<'dr, D> for PaddedContent<'dr, D, G, HEADER_SIZE>
-{
-    type Kind = PaddedContent<'static, PhantomData<D::F>, G, HEADER_SIZE>;
-}
-
-// Safety: `D::Wire: Send` implies `Bound<'dr, D, G>: Send` (by `G: GadgetKind`)
-// and `Element<'dr, D>: Send` (since `Element` contains `D::Wire`). Therefore
-// `PaddedContent<'dr, D, G, HEADER_SIZE>: Send` when `D::Wire: Send`.
-unsafe impl<F: Field, G: GadgetKind<F> + Write<F>, const HEADER_SIZE: usize> GadgetKind<F>
-    for PaddedContent<'static, PhantomData<F>, G, HEADER_SIZE>
-{
-    type Rebind<'dr, D: Driver<'dr, F = F>> = PaddedContent<'dr, D, G, HEADER_SIZE>;
-
-    fn map_gadget<'dr, 'new_dr, D: Driver<'dr, F = F>, ND: FromDriver<'dr, 'new_dr, D>>(
-        this: &Bound<'dr, D, Self>,
-        ndr: &mut ND,
-    ) -> Result<Bound<'new_dr, ND::NewDriver, Self>> {
-        Ok(PaddedContent {
-            gadget: G::map_gadget(&this.gadget, ndr)?,
-            padding: this
-                .padding
-                .iter()
-                .map(|e| e.map(ndr))
-                .collect::<Result<_>>()?,
-        })
-    }
-
-    fn enforce_equal_gadget<
-        'dr,
-        D1: Driver<'dr, F = F>,
-        D2: Driver<'dr, F = F, Wire = <D1 as Driver<'dr>>::Wire>,
-    >(
-        dr: &mut D1,
-        a: &Bound<'dr, D2, Self>,
-        b: &Bound<'dr, D2, Self>,
-    ) -> Result<()> {
-        G::enforce_equal_gadget(dr, &a.gadget, &b.gadget)
-        // padding elements are always zero constants — equality is trivially satisfied
-    }
-}
-
-impl<F: Field, G: GadgetKind<F> + Write<F>, const HEADER_SIZE: usize> Write<F>
-    for PaddedContent<'static, PhantomData<F>, G, HEADER_SIZE>
-{
-    fn write_gadget<'dr, D: Driver<'dr, F = F>>(
-        this: &Bound<'dr, D, Self>,
-        buf: &mut impl Buffer<'dr, D>,
-    ) -> Result<()> {
-        G::write_gadget(&this.gadget, buf)?;
-        for zero in &this.padding {
-            buf.write(zero)?;
-        }
-        Ok(())
-    }
+    #[ragu(gadget)]
+    padding: FixedVec<Element<'dr, D>, PadLen<HEADER_SIZE, D::F, G>>,
 }
 
 #[cfg(test)]
@@ -163,7 +111,7 @@ mod tests {
         vec::{CollectFixed, ConstLen, FixedVec},
     };
 
-    use super::Padded;
+    use super::{PadLen, Padded};
     use crate::{Header, components::suffix::WithSuffix, header::Suffix};
 
     #[derive(Gadget, Write)]
@@ -203,7 +151,9 @@ mod tests {
         {
             // Create Padded gadget with suffix value 42 and 1 zero padding
             // HEADER_SIZE=6: 4 gadget elements + 1 zero + 1 suffix
-            let padding = vec![Element::zero(dr)];
+            let padding = FixedVec::<_, PadLen<6, F, Kind![F; MySillyGadget<'_, _>]>>::new(vec![
+                Element::zero(dr),
+            ])?;
             let padded_content = super::PaddedContent::<'_, _, Kind![F; MySillyGadget<'_, _>], 6> {
                 gadget: gadget.clone(),
                 padding,
