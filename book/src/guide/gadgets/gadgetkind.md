@@ -51,11 +51,20 @@ corresponding wires individually.
 ## Safety
 
 Notice that the [`Gadget`][gadget-trait] trait is safe to implement, but the
-[`GadgetKind`][gadgetkind-trait] trait is not. All gadgets must implement
-both traits, but it is the [`GadgetKind`][gadgetkind-trait] trait that
-imposes a memory-safety requirement on the types that implement it: gadgets
-should implement `Send` if their wires are `Send` as well. This is impossible
-to express in today's Rust type system, which is why the trait is `unsafe`.
+[`GadgetKind`][gadgetkind-trait] trait is not. All gadgets must implement both
+traits, but it is the [`GadgetKind`][gadgetkind-trait] trait that imposes a
+memory-safety requirement on the types that implement it: gadgets must implement
+`Send` if their wires are `Send` as well. This is impossible to express in
+today's Rust type system, which is why the trait is `unsafe`.
+
+```admonish warning
+The `Send` requirement is the **only** safety invariant that
+[`GadgetKind`][gadgetkind-trait] imposes.
+[Fungibility](index.md#fungibility) — the requirement that gadget behavior
+be fully determined by its type — is a separate correctness contract
+documented on the [`Gadget`][gadget-trait] trait. Violating fungibility may
+produce incorrect circuits but does not cause undefined behavior.
+```
 
 However, due to the complexity of the API contract we generally need to
 [automatically derive](index.md#automatic-derivation) the
