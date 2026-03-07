@@ -194,6 +194,12 @@ pub trait Driver<'dr>: DriverTypes<ImplWire = Self::Wire, ImplField = Self::F> +
         <DriverValue<Self, R> as Maybe<R>>::just(f)
     }
 
+    /// Convenience method returning a unit [`DriverValue`]. Equivalent to
+    /// `D::just(|| ())`.
+    fn unit() -> DriverValue<Self, ()> {
+        Self::just(|| ())
+    }
+
     /// Proxy for the `Witness::with` method for this driver.
     fn with<R: Send>(f: impl FnOnce() -> Result<R>) -> Result<DriverValue<Self, R>> {
         <DriverValue<Self, R> as Maybe<R>>::with(f)

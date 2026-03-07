@@ -297,6 +297,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
         };
 
         let zero = Element::zero(dr);
-        Ok((WithSuffix::new(output, zero), D::just(|| ())))
+        Ok((WithSuffix::new(output, zero), D::unit()))
     }
 }

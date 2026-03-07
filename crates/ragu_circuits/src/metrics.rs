@@ -274,7 +274,7 @@ mod tests {
             _input: &Bound<'dr, D, Self::Input>,
         ) -> Result<Prediction<Bound<'dr, D, Self::Output>, DriverValue<D, Self::Aux<'dr>>>>
         {
-            Ok(Prediction::Unknown(D::just(|| ())))
+            Ok(Prediction::Unknown(D::unit()))
         }
     }
 
@@ -303,7 +303,7 @@ mod tests {
             DriverValue<D, Self::Aux<'source>>,
         )> {
             dr.routine(DanglingAllocRoutine, ())?;
-            Ok(((), D::just(|| ())))
+            Ok(((), D::unit()))
         }
     }
 

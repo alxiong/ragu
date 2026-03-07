@@ -192,6 +192,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
                 .enforce_equal(dr, &error_n.collapsed[i])?;
         }
 
-        Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
+        Ok((unified_output.finish(dr, unified_instance)?, D::unit()))
     }
 }

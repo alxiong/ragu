@@ -242,7 +242,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> MultiStageCircuit<C::CircuitFi
             unified_output.v.set(computed_v);
         }
 
-        Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
+        Ok((unified_output.finish(dr, unified_instance)?, D::unit()))
     }
 }
 

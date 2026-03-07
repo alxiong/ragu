@@ -229,6 +229,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
         };
         unified_output.pre_beta.set(pre_beta);
 
-        Ok((unified_output.finish(dr, unified_instance)?, D::just(|| ())))
+        Ok((unified_output.finish(dr, unified_instance)?, D::unit()))
     }
 }

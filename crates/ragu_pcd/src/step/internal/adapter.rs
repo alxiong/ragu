@@ -183,11 +183,7 @@ mod tests {
             let right_enc = Encoded::from_gadget(right_elem);
             let output_enc = Encoded::from_gadget(output_elem);
 
-            Ok((
-                (left_enc, right_enc, output_enc),
-                output_val,
-                D::just(|| ()),
-            ))
+            Ok(((left_enc, right_enc, output_enc), output_val, D::unit()))
         }
     }
 
