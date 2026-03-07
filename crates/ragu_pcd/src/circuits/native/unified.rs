@@ -170,6 +170,17 @@ macro_rules! define_unified_instance {
             pub coverage: Coverage,
         }
 
+        impl<C: Cycle> Instance<C> {
+            /// Asserts that every Element slot has been covered by some circuit.
+            ///
+            /// # Panics
+            ///
+            /// Panics if any Element slot has not been covered.
+            pub fn assert_complete(self) {
+                self.coverage.assert_complete();
+            }
+        }
+
         /// Builder for constructing an [`Output`] gadget with flexible allocation.
         ///
         /// Each field is a [`Slot`] that can be filled eagerly (via `set`),
@@ -243,18 +254,13 @@ macro_rules! define_unified_instance {
         /// Point fields are always `false` (TODO: coverage validation for
         /// Points is not yet implemented). Element fields reflect whether
         /// [`Slot::set`] or [`Slot::verify`] was called.
-        #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+        #[derive(Debug, Default, PartialEq, Eq)]
         pub struct Coverage {
             $( $field: bool, )+
         }
 
         impl Coverage {
-            /// Asserts that every Element slot is covered.
-            ///
-            /// # Panics
-            ///
-            /// Panics if any Element slot has not been covered.
-            pub fn assert_complete(&self) {
+            fn assert_complete(self) {
                 $( unified_coverage_assert_complete!($field_type, self, $field); )+
             }
         }

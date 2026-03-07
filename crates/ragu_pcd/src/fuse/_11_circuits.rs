@@ -140,7 +140,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         // Cross-circuit coverage validation: all internal recursion circuits
         // together must cover every Element slot exactly once. Overlap is caught
         // eagerly by finish(); missing slots are caught here.
-        unified.coverage.assert_complete();
+        unified.assert_complete();
 
         Ok(proof::InternalCircuits {
             hashes_1_rx,
