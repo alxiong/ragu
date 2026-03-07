@@ -203,7 +203,7 @@ macro_rules! define_unified_instance {
             $(
                 pub $field: Slot<'dr, D, unified_output_type!($field_type, 'dr, D, C), unified_witness_type!($field_type, C)>,
             )+
-            instance: Option<DriverValue<D, Instance<C>>>,
+            instance: DriverValue<D, Instance<C>>,
         }
 
         impl<'dr, D: Driver<'dr>, C: Cycle<CircuitField = D::F>> OutputBuilder<'dr, D, C> {
@@ -219,7 +219,7 @@ macro_rules! define_unified_instance {
                     $(
                         $field: unified_slot_new!($field_type, $field, instance),
                     )+
-                    instance: Some(instance),
+                    instance,
                 }
             }
 
@@ -231,15 +231,14 @@ macro_rules! define_unified_instance {
             /// its output alongside the unified instance, and will handle the
             /// suffix wrapping separately.
             pub fn finish_no_suffix(
-                mut self,
+                self,
                 dr: &mut D,
             ) -> Result<(Output<'dr, D, C>, DriverValue<D, Instance<C>>)> {
-                let instance = self.instance.take().expect("instance already consumed");
                 $( let $field = self.$field.take(dr)?; )+
                 let output = Output {
                     $( $field: $field.0, )+
                 };
-                let instance = instance.map(move |mut inst| {
+                let instance = self.instance.map(move |mut inst| {
                     $( unified_coverage_cover!($field_type, inst.coverage, $field.1, $field); )+
                     inst
                 });
