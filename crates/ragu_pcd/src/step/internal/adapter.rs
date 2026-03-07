@@ -93,7 +93,7 @@ impl<C: Cycle, S: Step<C>, R: Rank, const HEADER_SIZE: usize> Circuit<C::Circuit
         right.write(dr, &mut elements)?;
         output.write(dr, &mut elements)?;
 
-        let result = D::with(|| {
+        let adapter_aux = D::with(|| {
             let left_header = elements[0..HEADER_SIZE]
                 .iter()
                 .map(|e| *e.value().take())
@@ -111,7 +111,7 @@ impl<C: Cycle, S: Step<C>, R: Rank, const HEADER_SIZE: usize> Circuit<C::Circuit
             ))
         })?;
 
-        Ok((FixedVec::try_from(elements)?, result))
+        Ok((FixedVec::try_from(elements)?, adapter_aux))
     }
 }
 

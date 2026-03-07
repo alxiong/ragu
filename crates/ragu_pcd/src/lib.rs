@@ -230,14 +230,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         pcd: Pcd<'source, C, R, H>,
         rng: &mut RNG,
     ) -> Result<Pcd<'source, C, R, H>> {
-        let data = pcd.data.clone();
-
         // Seed a trivial proof for rerandomization.
         // TODO: this is a temporary hack that allows the base case logic to be simple
         let seeded_trivial = self.seeded_trivial_pcd(rng);
 
-        // The Rerandomize step's witness() method returns the left input's data,
-        // preserving it through rerandomization while producing a fresh proof.
+        // The Rerandomize step's witness() returns the left input's data as
+        // output data, preserving it through rerandomization.
         self.fuse(
             rng,
             step::internal::rerandomize::Rerandomize::new(),
@@ -245,6 +243,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             pcd,
             seeded_trivial,
         )
-        .map(|(pcd, ())| pcd.proof.carry(data))
+        .map(|(pcd, ())| pcd)
     }
 }

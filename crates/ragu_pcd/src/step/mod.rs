@@ -163,9 +163,8 @@ pub trait Step<C: Cycle>: Sized + Send + Sync {
     /// The header produced during this step.
     type Output: Header<C::CircuitField>;
 
-    /// Auxiliary information produced during circuit synthesis. This may be
-    /// necessary to construct the [`Header::Data`] for the resulting proof,
-    /// or to pipeline witness data to future steps.
+    /// Auxiliary information produced during circuit synthesis that may be
+    /// used to pipeline witness data to future steps.
     type Aux<'source>: Send;
 
     /// The main synthesis method that checks the validity of this merging step.
