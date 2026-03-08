@@ -233,7 +233,7 @@ impl<'dr, D: Driver<'dr>> Element<'dr, D> {
     ///
     /// This will fail to synthesize if the element is zero.
     pub fn invert(&self, dr: &mut D) -> Result<Self> {
-        let inverse = D::with(|| {
+        let inverse = D::try_just(|| {
             self.value
                 .snag()
                 .invert()
@@ -273,7 +273,7 @@ impl<'dr, D: Driver<'dr>> Element<'dr, D> {
     /// which enforces that `quotient` is equal to `self / by` if and only if
     /// `by` is nonzero.
     pub fn div_nonzero(&self, dr: &mut D, by: &Self) -> Result<Self> {
-        let quotient_value = D::with(|| {
+        let quotient_value = D::try_just(|| {
             Ok(*self.value().take()
                 * by.value()
                     .take()

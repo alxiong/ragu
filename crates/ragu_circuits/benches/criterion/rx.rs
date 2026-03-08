@@ -44,7 +44,7 @@ impl Routine<Fp> for HeavyKnownRoutine {
         // Predict the output by computing the repeated squaring on the value.
         let output = Element::alloc(
             dr,
-            D::with(|| {
+            D::try_just(|| {
                 let mut v = *input.value().take();
                 for _ in 0..self.depth {
                     v = v.square();

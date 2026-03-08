@@ -926,15 +926,15 @@ mod tests {
     }
 
     #[test]
-    fn wired_with_ok_returns_value() -> Result<()> {
-        let val = <Emulator<Wired<F>> as Driver>::with(|| Ok(42u64))?;
+    fn wired_try_just_ok_returns_value() -> Result<()> {
+        let val = <Emulator<Wired<F>> as Driver>::try_just(|| Ok(42u64))?;
         assert_eq!(val.take(), 42);
         Ok(())
     }
 
     #[test]
-    fn wired_with_err_propagates() {
-        let result = <Emulator<Wired<F>> as Driver>::with(|| -> Result<u64> {
+    fn wired_try_just_err_propagates() {
+        let result = <Emulator<Wired<F>> as Driver>::try_just(|| -> Result<u64> {
             Err(crate::Error::InvalidWitness("test".into()))
         });
         assert!(result.is_err());
@@ -955,9 +955,9 @@ mod tests {
     }
 
     #[test]
-    fn wireless_counter_with_err_swallowed() -> Result<()> {
+    fn wireless_counter_try_just_err_swallowed() -> Result<()> {
         let _: crate::maybe::Empty =
-            <Emulator<Wireless<crate::maybe::Empty, F>> as Driver>::with(|| -> Result<()> {
+            <Emulator<Wireless<crate::maybe::Empty, F>> as Driver>::try_just(|| -> Result<()> {
                 Err(crate::Error::InvalidWitness("swallowed".into()))
             })?;
         Ok(())

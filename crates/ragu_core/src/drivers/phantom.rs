@@ -146,9 +146,9 @@ mod tests {
     }
 
     #[test]
-    fn phantom_just_and_with_skip_closures() -> Result<()> {
+    fn phantom_just_and_try_just_skip_closures() -> Result<()> {
         let _: Empty = PhantomData::<F>::just(|| panic!("must not be called"));
-        let _: Empty = PhantomData::<F>::with(|| -> Result<()> { panic!("must not be called") })?;
+        let _: Empty = PhantomData::<F>::try_just(|| -> Result<()> { panic!("must not be called") })?;
         Ok(())
     }
 }

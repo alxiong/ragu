@@ -201,9 +201,9 @@ pub trait Driver<'dr>: DriverTypes<ImplWire = Self::Wire, ImplField = Self::F> +
         <DriverValue<Self, R> as Maybe<R>>::just(f)
     }
 
-    /// Proxy for the `Witness::with` method for this driver.
-    fn with<R: Send>(f: impl FnOnce() -> Result<R>) -> Result<DriverValue<Self, R>> {
-        <DriverValue<Self, R> as Maybe<R>>::with(f)
+    /// Proxy for the `Witness::try_just` method for this driver.
+    fn try_just<R: Send>(f: impl FnOnce() -> Result<R>) -> Result<DriverValue<Self, R>> {
+        <DriverValue<Self, R> as Maybe<R>>::try_just(f)
     }
 
     /// Executes a routine with this driver.

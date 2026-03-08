@@ -156,7 +156,7 @@ impl<'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle, const HEADER_SIZE: usiz
             dr: &mut D,
             data: DriverValue<D, &[D::F]>,
         ) -> Result<FixedVec<Element<'dr, D>, ConstLen<N>>> {
-            D::with(|| {
+            D::try_just(|| {
                 if data.as_ref().take().len() != N {
                     return Err(Error::MalformedEncoding(
                         "Header data length does not match HEADER_SIZE".into(),
@@ -203,7 +203,7 @@ impl<'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle, const HEADER_SIZE: usiz
     where
         'source: 'dr,
     {
-        let header_data = D::with(|| {
+        let header_data = D::try_just(|| {
             use ragu_core::drivers::emulator::{Emulator, Wireless};
             let emulator = &mut Emulator::<Wireless<D::MaybeKind, D::F>>::wireless();
 

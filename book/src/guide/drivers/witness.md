@@ -68,10 +68,10 @@ underlying value and returns a new `Maybe`, while [`and_then`] chains a closure
 that itself returns a `Maybe` of the same kind. Under `Empty`, neither closure
 is invoked.
 
-### [`just`] and [`with`] {#just-and-with}
+### [`just`] and [`try_just`] {#just-and-try-just}
 
 [`just`] constructs a `Maybe<T>` from a closure; under `Empty`, the closure is
-never called. [`with`] is the same, but it accepts a fallible closure and
+never called. [`try_just`] is the same, but it accepts a fallible closure and
 propagates its error. For example, this [`Point`] reconstructs its full witness
 value from the two coordinate elements it stores:
 
@@ -111,7 +111,7 @@ above. Users who need to build abstractions that are themselves generic over
 type alias. These are documented in the [`maybe`] module.
 
 [`just`]: ragu_core::maybe::Maybe::just
-[`with`]: ragu_core::maybe::Maybe::with
+[`try_just`]: ragu_core::maybe::Maybe::try_just
 [`map`]: ragu_core::maybe::Maybe::map
 [`and_then`]: ragu_core::maybe::Maybe::and_then
 [`cast`]: ragu_core::maybe::Maybe::cast

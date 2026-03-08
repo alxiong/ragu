@@ -47,7 +47,7 @@
 //! allowed, a compile-time error _always_ occurs.)
 //!
 //! It is possible to _create_ a new [`Maybe<T>`] value using the
-//! [`just`](Maybe::just) or [`with`](Maybe::with) methods or another function
+//! [`just`](Maybe::just) or [`try_just`](Maybe::try_just) methods or another function
 //! that proxies to these methods. These methods are provided a closure that is
 //! only executed if the concrete type is expected to exist. The compiler
 //! dead-code eliminates the closure in all other cases.
@@ -93,7 +93,7 @@ pub trait Maybe<T: Send>: Send {
     /// Creates a new value of this `Maybe<T>` given a fallible closure. Similar
     /// to `just` the provided closure is not called if the concrete type does
     /// not represent an existing value.
-    fn with<R: Send, E>(f: impl FnOnce() -> Result<R, E>) -> Result<Perhaps<Self::Kind, R>, E>;
+    fn try_just<R: Send, E>(f: impl FnOnce() -> Result<R, E>) -> Result<Perhaps<Self::Kind, R>, E>;
 
     /// In contexts where the `Maybe<T>` is known or guaranteed to be an
     /// existing value, this returns the enclosed value. In other contexts, this
@@ -164,9 +164,9 @@ pub trait MaybeKind {
         Self::Rebind::<R>::just(f)
     }
 
-    /// Proxy for the associated [`Maybe<T>::with`] method.
-    fn maybe_with<R: Send, E>(f: impl FnOnce() -> Result<R, E>) -> Result<Self::Rebind<R>, E> {
-        Self::Rebind::<R>::with(f)
+    /// Proxy for the associated [`Maybe<T>::try_just`] method.
+    fn maybe_try_just<R: Send, E>(f: impl FnOnce() -> Result<R, E>) -> Result<Self::Rebind<R>, E> {
+        Self::Rebind::<R>::try_just(f)
     }
 
     /// Creates an empty `Maybe<T>` value for this kind. This will fail at
@@ -211,10 +211,10 @@ mod tests {
             <Self::MaybeKind as MaybeKind>::maybe_just(f)
         }
 
-        fn with<R: Send, E>(
+        fn try_just<R: Send, E>(
             f: impl FnOnce() -> Result<R, E>,
         ) -> Result<Perhaps<Self::MaybeKind, R>, E> {
-            <Self::MaybeKind as MaybeKind>::maybe_with(f)
+            <Self::MaybeKind as MaybeKind>::maybe_try_just(f)
         }
     }
 
@@ -223,7 +223,7 @@ mod tests {
     ) -> Result<Perhaps<I::MaybeKind, usize>, E> {
         let my_value = 100usize;
         let just_value = I::just(|| my_value + 10).map(|v| v * 2);
-        let err_value = I::with(|| Ok(10))?;
+        let err_value = I::try_just(|| Ok(10))?;
 
         let x = value
             .and_then(|v| just_value.map(|j| v + j))
@@ -352,8 +352,8 @@ mod tests {
         });
     }
 
-    fn check_with_ok<K: MaybeKind>() {
-        let v: Result<Perhaps<K, usize>, &str> = K::maybe_with(|| Ok(42));
+    fn check_try_just_ok<K: MaybeKind>() {
+        let v: Result<Perhaps<K, usize>, &str> = K::maybe_try_just(|| Ok(42));
         let v = v.unwrap();
         K::maybe_just(|| {
             assert_eq!(v.snag(), &42);
@@ -403,9 +403,9 @@ mod tests {
     }
 
     #[test]
-    fn test_with_ok() {
-        check_with_ok::<Always<()>>();
-        check_with_ok::<Empty>();
+    fn test_try_just_ok() {
+        check_try_just_ok::<Always<()>>();
+        check_try_just_ok::<Empty>();
     }
 
     // Concrete tests for impl-specific guarantees that cannot be expressed
@@ -419,8 +419,8 @@ mod tests {
     }
 
     #[test]
-    fn test_always_with_err() {
-        let v: Result<Always<usize>, &str> = Always::<usize>::with(|| Err("fail"));
+    fn test_always_try_just_err() {
+        let v: Result<Always<usize>, &str> = Always::<usize>::try_just(|| Err("fail"));
         match v {
             Err(e) => assert_eq!(e, "fail"),
             Ok(_) => panic!("expected Err"),
@@ -461,10 +461,10 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_with_never_calls_closure() {
+    fn test_empty_try_just_never_calls_closure() {
         use core::cell::Cell;
         let called = Cell::new(false);
-        let v: Result<Empty, &str> = <Empty as Maybe<usize>>::with(|| {
+        let v: Result<Empty, &str> = <Empty as Maybe<usize>>::try_just(|| {
             called.set(true);
             Err::<usize, _>("fail")
         });
