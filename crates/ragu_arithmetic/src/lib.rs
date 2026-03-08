@@ -176,9 +176,6 @@ pub trait FixedGenerators<C: CurveAffine>: Send + Sync + 'static {
 
     /// Compute a commitment to a single value.
     fn short_commit(&self, value: C::ScalarExt, blind: C::ScalarExt) -> C {
-        // TODO(ebfull): This returns a C, but the most efficient method would
-        // be to return a `C::Curve` and let the caller perform batch inversion
-        // if possible.
         (self.g()[0] * value + *self.h() * blind).into()
     }
 }
