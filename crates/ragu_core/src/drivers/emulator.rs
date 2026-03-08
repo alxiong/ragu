@@ -179,7 +179,7 @@ impl<F: Field> Emulator<Wired<F>> {
         f: impl FnOnce(&mut Self, Always<W>) -> Result<R>,
     ) -> Result<R> {
         let mut dr = Self::extractor();
-        dr.with(witness, f)
+        dr.try_just(witness, f)
     }
 }
 
@@ -232,13 +232,13 @@ impl<F: Field> Emulator<Wireless<Always<()>, F>> {
         f: impl FnOnce(&mut Self, Always<W>) -> Result<R>,
     ) -> Result<R> {
         let mut dr = Self::execute();
-        dr.with(witness, f)
+        dr.try_just(witness, f)
     }
 }
 
 impl<M: Mode<F = F>, F: Field> Emulator<M> {
     /// Helper utility for executing a closure with this [`Emulator`].
-    fn with<R, W: Send>(
+    fn try_just<R, W: Send>(
         &mut self,
         witness: W,
         f: impl FnOnce(&mut Self, Perhaps<M::MaybeKind, W>) -> Result<R>,
