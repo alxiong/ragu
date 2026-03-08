@@ -140,7 +140,11 @@ pub trait Gadget<'dr, D: Driver<'dr>>: Clone {
     /// Gadgets do not vary in the number of wires they contain, so this should
     /// return the same quantity regardless of the specific instance of this
     /// [`Gadget`] implementation.
-    fn num_wires(&self) -> usize {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying [`GadgetKind::map_gadget`] fails.
+    fn num_wires(&self) -> Result<usize> {
         struct WireCounter<Src: DriverTypes> {
             count: usize,
             _marker: core::marker::PhantomData<Src>,
@@ -160,9 +164,8 @@ pub trait Gadget<'dr, D: Driver<'dr>>: Clone {
             count: 0,
             _marker: core::marker::PhantomData,
         };
-        self.map(&mut counter)
-            .expect("wire counting should never fail");
-        counter.count
+        self.map(&mut counter)?;
+        Ok(counter.count)
     }
 }
 
@@ -170,9 +173,7 @@ pub trait Gadget<'dr, D: Driver<'dr>>: Clone {
 ///
 /// The [`Gadget::Kind`] associated type is used to specify the driver-agnostic
 /// _kind_ of a gadget, using this trait to specify how gadgets can have their
-/// driver-specific components mapped to a rebound gadget type. This type must
-/// be `'static` so that drivers can use dynamic typing to differentiate between
-/// (otherwise opaque) gadgets.
+/// driver-specific components mapped to a rebound gadget type.
 ///
 /// Implementations of this trait define a generic associated type
 /// [`Rebind`](GadgetKind::Rebind) which dictates the type of the gadget when
@@ -181,17 +182,30 @@ pub trait Gadget<'dr, D: Driver<'dr>>: Clone {
 /// `Rebind<'dr, D2>` for another driver `D2`. The mapping can leverage the
 /// [`WireMap`] trait to convert wires.
 ///
+/// # `'static` / `Any` bound
+///
+/// This type must be `'static` so that drivers can use dynamic typing to
+/// differentiate between (otherwise opaque) gadgets. Specifically, the
+/// [`Any`](core::any::Any) supertrait bound ensures that [`GadgetKind`] types
+/// are `'static` and can therefore be used as type-level keys, and it enables
+/// [`TypeId`](core::any::Any::type_id)-based dispatch for driver optimizations
+/// such as [routine](crate::routines) memoization and caching.
+///
 /// # Safety
 ///
 /// This trait is unsafe to implement because the following property must hold:
 ///
 /// * `D::Wire: Send` implies `Rebind<'dr, D>: Send`.
 ///
-/// It is difficult to express this bound for all gadgets in Rust's type system,
-/// though it can be done with enormous API complexity. Instead, this trait is
-/// `unsafe` to implement and the implementor must ensure that this property
-/// holds. The [`Gadget`](derive@Gadget) derive macro ensures that this is the
-/// case.
+/// This is the **only** safety invariant. Fungibility (documented on
+/// [`Gadget`]) is a separate API contract: violating it may produce incorrect
+/// circuits but does not cause undefined behavior and is not `unsafe`.
+///
+/// It is difficult to express the `Send` bound for all gadgets in Rust's type
+/// system, though it can be done with enormous API complexity. Instead, this
+/// trait is `unsafe` to implement and the implementor must ensure that this
+/// property holds. The [`Gadget`](derive@Gadget) derive macro ensures that this
+/// is the case.
 pub unsafe trait GadgetKind<F: Field>: core::any::Any {
     /// The rebinding type for this gadget. Use [`Bound`] type alias instead of
     /// accessing this directly.

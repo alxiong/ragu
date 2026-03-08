@@ -57,6 +57,13 @@ pub trait Routine<F: Field>: Clone + Send {
     /// background thread. In any event, the prediction process produces some
     /// routine-specific auxiliary data that can be leveraged during actual
     /// execution to avoid duplicated effort.
+    ///
+    /// # Errors
+    ///
+    /// An `Err` return signals an unrecoverable failure—for example, missing
+    /// witness data or malformed input—and must be propagated by drivers. Use
+    /// [`Prediction::Unknown`] instead when the routine simply cannot
+    /// efficiently predict its output.
     fn predict<'dr, D: Driver<'dr, F = F>>(
         &self,
         dr: &mut D,

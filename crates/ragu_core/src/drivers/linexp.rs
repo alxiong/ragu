@@ -59,10 +59,23 @@ impl<W: Clone, F: Field> LinearExpression<W, F> for () {
 /// A straightforward linear expression that directly computes the sum.
 pub struct DirectSum<F: Field> {
     /// The current value of the linear combination.
-    pub value: F,
+    value: F,
 
     /// The current gain of the linear combination.
-    pub current_gain: Coeff<F>,
+    current_gain: Coeff<F>,
+}
+
+impl<F: Field> DirectSum<F> {
+    /// Returns the current value of the linear combination.
+    pub fn value(&self) -> F {
+        self.value
+    }
+
+    /// Returns the current gain of the linear combination.
+    #[cfg(test)]
+    pub(crate) fn current_gain(&self) -> Coeff<F> {
+        self.current_gain
+    }
 }
 
 impl<F: Field> Default for DirectSum<F> {
@@ -108,7 +121,7 @@ fn test_linexp_direct() {
             (Fp::from(3), Coeff::Arbitrary(Fp::from(4))),
             (Fp::from(10), Coeff::Arbitrary(-Fp::from(3))),
         ]); // acc = 19 + (3 * 4) + (10 * -3) = 19 + 12 - 30 = 1
-    assert_eq!(acc.value, Fp::ONE);
+    assert_eq!(acc.value(), Fp::ONE);
 }
 
 #[test]
@@ -137,7 +150,7 @@ fn direct_sum_gain_factor() {
         .gain(Coeff::NegativeOne)
         .add(&Fp::from(4));
 
-    assert_eq!(acc.value, Fp::from(3));
+    assert_eq!(acc.value(), Fp::from(3));
 }
 
 #[test]
@@ -160,7 +173,7 @@ fn direct_sum_all_coeff_arms() {
         .add_term(&wire, Coeff::NegativeArbitrary(Fp::from(2)));
 
     // 0 + 10 + 20 - 10 + 30 - 20 = 30
-    assert_eq!(acc.value, Fp::from(30));
+    assert_eq!(acc.value(), Fp::from(30));
 }
 
 #[test]
@@ -173,14 +186,14 @@ fn direct_sum_gain_interactions() {
         .add(&Fp::from(5))
         .gain(Coeff::Zero)
         .add(&Fp::from(100));
-    assert_eq!(acc.value, Fp::from(5));
+    assert_eq!(acc.value(), Fp::from(5));
 
     // gain(NegativeOne) flips signs
     let acc = DirectSum::<Fp>::default()
         .add(&Fp::from(10))
         .gain(Coeff::NegativeOne)
         .add(&Fp::from(3));
-    assert_eq!(acc.value, Fp::from(7));
+    assert_eq!(acc.value(), Fp::from(7));
 
     // Chained gain changes
     let acc = DirectSum::<Fp>::default()
@@ -188,11 +201,11 @@ fn direct_sum_gain_interactions() {
         .add(&Fp::from(5)) // 2*5 = 10
         .gain(Coeff::Arbitrary(Fp::from(3)))
         .add(&Fp::from(1)); // (2*3)*1 = 6 => total 16
-    assert_eq!(acc.value, Fp::from(16));
+    assert_eq!(acc.value(), Fp::from(16));
 
     // extend with empty iterator
     let acc = DirectSum::<Fp>::default().add(&Fp::from(7)).extend(vec![]);
-    assert_eq!(acc.value, Fp::from(7));
+    assert_eq!(acc.value(), Fp::from(7));
 }
 
 #[test]
@@ -200,8 +213,8 @@ fn direct_sum_default_state() {
     use ragu_pasta::Fp;
 
     let ds = DirectSum::<Fp>::default();
-    assert_eq!(ds.value, Fp::ZERO);
-    assert_eq!(ds.current_gain.value(), Fp::ONE);
+    assert_eq!(ds.value(), Fp::ZERO);
+    assert_eq!(ds.current_gain().value(), Fp::ONE);
 }
 
 #[test]
@@ -221,7 +234,7 @@ fn direct_sum_all_coeff_arms_with_nontrivial_gain() {
         .add_term(&wire, Coeff::NegativeArbitrary(Fp::from(2))); // 7 * (-2) * 3 = -42
 
     // 0 + 21 + 42 - 21 + 105 - 42 = 105
-    assert_eq!(acc.value, Fp::from(105));
+    assert_eq!(acc.value(), Fp::from(105));
 }
 
 #[test]
@@ -233,14 +246,14 @@ fn direct_sum_gain_two_and_negative_arbitrary() {
         .gain(Coeff::Two)
         .add(&Fp::from(5)) // 5 * 2 = 10
         .add(&Fp::from(3)); // 3 * 2 = 6 => total 16
-    assert_eq!(acc.value, Fp::from(16));
+    assert_eq!(acc.value(), Fp::from(16));
 
     // gain(NegativeArbitrary(4)): each add scaled by -4
     let acc = DirectSum::<Fp>::default()
         .gain(Coeff::NegativeArbitrary(Fp::from(4)))
         .add(&Fp::from(3)) // 3 * (-4) = -12
         .add(&Fp::from(2)); // 2 * (-4) = -8 => total -20
-    assert_eq!(acc.value, -Fp::from(20));
+    assert_eq!(acc.value(), -Fp::from(20));
 }
 
 #[test]
@@ -253,7 +266,7 @@ fn direct_sum_sub_with_nontrivial_gain() {
         .add(&Fp::from(10)) // 10
         .gain(Coeff::NegativeOne)
         .sub(&Fp::from(3)); // coeff = -1, gain = -1 => net +3 => 13
-    assert_eq!(acc.value, Fp::from(13));
+    assert_eq!(acc.value(), Fp::from(13));
 }
 
 #[test]
@@ -270,7 +283,7 @@ fn direct_sum_extend_with_nontrivial_gain() {
         ]);
 
     // 10 + 60 - 5 = 65
-    assert_eq!(acc.value, Fp::from(65));
+    assert_eq!(acc.value(), Fp::from(65));
 }
 
 #[test]
@@ -284,7 +297,7 @@ fn direct_sum_zero_wire() {
         .add_term(&zero, Coeff::NegativeOne)
         .add_term(&zero, Coeff::Arbitrary(Fp::from(999)))
         .add_term(&zero, Coeff::NegativeArbitrary(Fp::from(999)));
-    assert_eq!(acc.value, Fp::ZERO);
+    assert_eq!(acc.value(), Fp::ZERO);
 }
 
 #[test]
@@ -296,6 +309,213 @@ fn trivial_impl_all_methods() {
     <() as LinearExpression<Fp, Fp>>::gain((), Coeff::Arbitrary(Fp::from(3)));
     <() as LinearExpression<Fp, Fp>>::add((), &wire);
     <() as LinearExpression<Fp, Fp>>::sub((), &wire);
+}
+
+#[test]
+fn direct_sum_coeff_zero_with_every_gain_variant() {
+    use ragu_pasta::Fp;
+
+    let wire = Fp::from(42);
+
+    for gain in [
+        Coeff::Zero,
+        Coeff::One,
+        Coeff::Two,
+        Coeff::NegativeOne,
+        Coeff::Arbitrary(Fp::from(7)),
+        Coeff::NegativeArbitrary(Fp::from(7)),
+    ] {
+        let acc = DirectSum::<Fp>::default()
+            .gain(gain)
+            .add_term(&wire, Coeff::Zero);
+        assert_eq!(
+            acc.value(),
+            Fp::ZERO,
+            "Coeff::Zero should be no-op with gain {gain:?}"
+        );
+    }
+}
+
+#[test]
+fn direct_sum_arbitrary_zero_vs_coeff_zero() {
+    use ragu_pasta::Fp;
+
+    let wire = Fp::from(10);
+
+    // Coeff::Zero hits the no-op arm directly.
+    let a = DirectSum::<Fp>::default().add_term(&wire, Coeff::Zero);
+
+    // Arbitrary(ZERO) survives multiplication and hits `wire * F::ZERO`.
+    let b = DirectSum::<Fp>::default().add_term(&wire, Coeff::Arbitrary(Fp::ZERO));
+
+    // NegativeArbitrary(ZERO) hits `wire * F::ZERO` via the negative arm.
+    let c = DirectSum::<Fp>::default().add_term(&wire, Coeff::NegativeArbitrary(Fp::ZERO));
+
+    assert_eq!(a.value(), Fp::ZERO);
+    assert_eq!(b.value(), Fp::ZERO);
+    assert_eq!(c.value(), Fp::ZERO);
+}
+
+#[test]
+fn direct_sum_gain_zero_is_irrecoverable() {
+    use ragu_pasta::Fp;
+
+    let wire = Fp::from(100);
+
+    // Once gain is Zero, no subsequent gain call can restore it.
+    let acc = DirectSum::<Fp>::default()
+        .gain(Coeff::Zero)
+        .gain(Coeff::One)
+        .add(&wire);
+    assert_eq!(acc.value(), Fp::ZERO);
+
+    let acc = DirectSum::<Fp>::default()
+        .gain(Coeff::Zero)
+        .gain(Coeff::Arbitrary(Fp::from(999)))
+        .add(&wire);
+    assert_eq!(acc.value(), Fp::ZERO);
+
+    let acc = DirectSum::<Fp>::default()
+        .gain(Coeff::Zero)
+        .gain(Coeff::NegativeOne)
+        .add(&wire);
+    assert_eq!(acc.value(), Fp::ZERO);
+
+    let acc = DirectSum::<Fp>::default()
+        .gain(Coeff::Zero)
+        .gain(Coeff::Two)
+        .add(&wire);
+    assert_eq!(acc.value(), Fp::ZERO);
+}
+
+#[test]
+fn direct_sum_gain_zero_affects_sub_and_extend() {
+    use alloc::vec;
+    use ragu_pasta::Fp;
+
+    let wire = Fp::from(50);
+
+    // sub after gain(Zero)
+    let acc = DirectSum::<Fp>::default()
+        .add(&Fp::from(10))
+        .gain(Coeff::Zero)
+        .sub(&wire);
+    assert_eq!(acc.value(), Fp::from(10));
+
+    // extend after gain(Zero)
+    let acc = DirectSum::<Fp>::default()
+        .add(&Fp::from(10))
+        .gain(Coeff::Zero)
+        .extend(vec![
+            (Fp::from(100), Coeff::One),
+            (Fp::from(200), Coeff::Arbitrary(Fp::from(5))),
+        ]);
+    assert_eq!(acc.value(), Fp::from(10));
+}
+
+#[test]
+fn direct_sum_extend_mixed_zero_coefficients() {
+    use alloc::vec;
+    use ragu_pasta::Fp;
+
+    // With default gain (One): zeros interleaved with live terms.
+    let acc = DirectSum::<Fp>::default().extend(vec![
+        (Fp::from(10), Coeff::Zero),
+        (Fp::from(5), Coeff::One), // +5
+        (Fp::from(99), Coeff::Zero),
+        (Fp::from(3), Coeff::Two), // +6
+        (Fp::from(77), Coeff::Zero),
+    ]);
+    assert_eq!(acc.value(), Fp::from(11));
+
+    // With non-trivial gain: zeros still produce nothing.
+    let acc = DirectSum::<Fp>::default()
+        .gain(Coeff::Arbitrary(Fp::from(10)))
+        .extend(vec![
+            (Fp::from(7), Coeff::Zero),
+            (Fp::from(2), Coeff::One), // 2 * 1 * 10 = 20
+            (Fp::from(99), Coeff::Zero),
+        ]);
+    assert_eq!(acc.value(), Fp::from(20));
+}
+
+#[test]
+fn direct_sum_gain_arbitrary_zero_vs_gain_zero() {
+    use ragu_pasta::Fp;
+
+    let wire = Fp::from(100);
+
+    // gain(Arbitrary(ZERO)) stores gain as Arbitrary(0), not Zero.
+    // Subsequent multiplications go through Arbitrary arms but still produce zero.
+    let acc = DirectSum::<Fp>::default()
+        .gain(Coeff::Arbitrary(Fp::ZERO))
+        .add(&wire)
+        .add_term(&wire, Coeff::Two)
+        .sub(&wire);
+    assert_eq!(acc.value(), Fp::ZERO);
+
+    // gain(NegativeArbitrary(ZERO)) similarly absorbs.
+    let acc = DirectSum::<Fp>::default()
+        .gain(Coeff::NegativeArbitrary(Fp::ZERO))
+        .add(&wire)
+        .add_term(&wire, Coeff::Arbitrary(Fp::from(5)))
+        .sub(&wire);
+    assert_eq!(acc.value(), Fp::ZERO);
+
+    // Irrecoverable: further gain changes can't restore non-zero.
+    let acc = DirectSum::<Fp>::default()
+        .gain(Coeff::Arbitrary(Fp::ZERO))
+        .gain(Coeff::Arbitrary(Fp::from(999)))
+        .add(&wire);
+    assert_eq!(acc.value(), Fp::ZERO);
+}
+
+#[test]
+fn direct_sum_all_coeff_arms_with_gain_two() {
+    use ragu_pasta::Fp;
+
+    let wire = Fp::from(10);
+    let acc = DirectSum::<Fp>::default()
+        .gain(Coeff::Two)
+        // Zero * Two = Zero → no-op
+        .add_term(&wire, Coeff::Zero)
+        // One * Two = Arbitrary(2) → 10 * 2 = 20
+        .add_term(&wire, Coeff::One)
+        // Two * Two = Arbitrary(4) → 10 * 4 = 40
+        .add_term(&wire, Coeff::Two)
+        // NegativeOne * Two = Arbitrary(-2) → 10 * (-2) = -20
+        .add_term(&wire, Coeff::NegativeOne)
+        // Arbitrary(3) * Two = Arbitrary(6) → 10 * 6 = 60
+        .add_term(&wire, Coeff::Arbitrary(Fp::from(3)))
+        // NegativeArbitrary(2) * Two = Arbitrary(-4) → 10 * (-4) = -40
+        .add_term(&wire, Coeff::NegativeArbitrary(Fp::from(2)));
+
+    // 0 + 20 + 40 - 20 + 60 - 40 = 60
+    assert_eq!(acc.value(), Fp::from(60));
+}
+
+#[test]
+fn direct_sum_all_coeff_arms_with_gain_negative_one() {
+    use ragu_pasta::Fp;
+
+    let wire = Fp::from(10);
+    let acc = DirectSum::<Fp>::default()
+        .gain(Coeff::NegativeOne)
+        // Zero * NegativeOne = Zero → no-op
+        .add_term(&wire, Coeff::Zero)
+        // One * NegativeOne = NegativeOne → -10
+        .add_term(&wire, Coeff::One)
+        // Two * NegativeOne = Arbitrary(-2) → 10 * (-2) = -20
+        .add_term(&wire, Coeff::Two)
+        // NegativeOne * NegativeOne = One → +10
+        .add_term(&wire, Coeff::NegativeOne)
+        // Arbitrary(3) * NegativeOne = NegativeArbitrary(3) → -(10 * 3) = -30
+        .add_term(&wire, Coeff::Arbitrary(Fp::from(3)))
+        // NegativeArbitrary(2) * NegativeOne = Arbitrary(2) → 10 * 2 = 20
+        .add_term(&wire, Coeff::NegativeArbitrary(Fp::from(2)));
+
+    // 0 - 10 - 20 + 10 - 30 + 20 = -30
+    assert_eq!(acc.value(), -Fp::from(30));
 }
 
 #[cfg(test)]
@@ -352,7 +572,7 @@ mod proptests {
                 }
             }
 
-            assert_eq!(ds.value, manual_value);
+            assert_eq!(ds.value(),manual_value);
         }
     }
 }

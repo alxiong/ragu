@@ -99,6 +99,9 @@ efficiently predicted from their inputs. The [`Routine`] trait includes a
 
 * **[`Known`]**: predicted output plus auxiliary data.
 * **[`Unknown`]**: auxiliary data only.
+* **`Err`**: an unrecoverable failure (e.g. missing witness data); drivers must
+  propagate the error, not fall back to [`execute`]. "Cannot efficiently
+  predict" is represented by [`Unknown`], not `Err`.
 
 Prediction often performs intermediate computation that [`execute`] would
 otherwise redo, so both variants carry an [`Aux`] value—an associated type

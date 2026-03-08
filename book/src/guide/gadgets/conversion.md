@@ -11,11 +11,12 @@ different concrete driver, and [fungibility](index.md#fungibility) guarantees
 that the result is a valid gadget of the same kind, with structure and semantics
 preserved.
 
-## [`WireMap`][wiremap-trait]
+## [`WireMap`][wiremap-trait] {#wiremap}
 
 The [`WireMap`][wiremap-trait] trait provides a pluggable strategy for these
 conversions. Implementors fix a source and destination driver via associated
-types and define a method for transforming wires between them one at a time:
+types and define a method for transforming wires between them one at a
+time.[^drivertypes]
 
 ```rust,ignore
 pub trait WireMap<F: Field> {
@@ -83,7 +84,7 @@ positions in the constraint trace, populating a gadget with those wires. The
 [`WireMap`][wiremap-trait] for this operation is stateful so that it will yield
 the next wire on each `convert_wire` call.
 
-## [`CloneWires`][clonewires-type]
+## [`CloneWires`][clonewires-type] {#clonewires}
 
 [`CloneWires`][clonewires-type] is a pass-through conversion for drivers that
 share the same wire type. Each wire is cloned unchanged, moving the gadget into
@@ -93,12 +94,16 @@ the destination driver's context:
 let output: Bound<'dst, DstDriver, _> = CloneWires::remap(&gadget)?;
 ```
 
+```admonish tip
 This strategy is useful for [demotion][gadgetext-demote]. Internally, a demoted
 gadget uses [`CloneWires`][clonewires-type] to preserve wires and strip witness
 data. The corresponding [`promote`][demoted-promote] method allows the original
 gadget to be restored.
 
-## [`StripWires`][stripwires-type]
+<!-- TODO: When a demotion page is added to the book, let's rework this block. -->
+```
+
+## [`StripWires`][stripwires-type] {#stripwires}
 
 [`StripWires`][stripwires-type] maps any driver's wires to `()`, producing a
 gadget bound to a wireless [`Emulator`] with the same
@@ -110,6 +115,13 @@ their input on a wireless emulator so they can compute predicted outputs
 without a real synthesis context. [`StripWires`][stripwires-type] handles the
 conversion from the caller's driver to that emulator automatically.
 
+[^drivertypes]: `Src` and `Dst` are bounded by [`DriverTypes`][drivertypes-trait],
+    not `Driver<'dr>`, so `WireMap` itself carries no lifetime parameter. The
+    full `Driver<'dr>` bound is introduced on individual methods where the
+    lifetime is actually needed. See
+    [`DriverTypes`](../drivers/index.md#drivertypes) for more on this split.
+
+[drivertypes-trait]: ragu_core::drivers::DriverTypes
 [wiremap-trait]: ragu_core::convert::WireMap
 [convert-wire]: ragu_core::convert::WireMap::convert_wire
 [clonewires-type]: ragu_core::convert::CloneWires
