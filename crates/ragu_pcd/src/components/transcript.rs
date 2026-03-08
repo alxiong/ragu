@@ -106,7 +106,11 @@ impl<'dr, D: Driver<'dr>, P: PoseidonPermutation<D::F>> Transcript<'dr, D, P> {
         params: &'dr P,
     ) -> ResumedTranscript<'dr, D, P> {
         let sponge = Sponge::resume(dr, state, params);
-        ResumedTranscript { sponge, params, squeezed: false }
+        ResumedTranscript {
+            sponge,
+            params,
+            squeezed: false,
+        }
     }
 }
 
@@ -138,7 +142,10 @@ impl<'dr, D: Driver<'dr>, P: PoseidonPermutation<D::F>> ResumedTranscript<'dr, D
     /// `into_transcript` without squeezing would silently discard the buffered
     /// rate values from the saved state.
     pub(crate) fn into_transcript(self) -> Transcript<'dr, D, P> {
-        assert!(self.squeezed, "must squeeze at least once before transitioning back to absorb mode");
+        assert!(
+            self.squeezed,
+            "must squeeze at least once before transitioning back to absorb mode"
+        );
         Transcript {
             sponge: self.sponge,
             params: self.params,
@@ -259,15 +266,18 @@ mod tests {
         let value = Element::constant(&mut dr, Fp::from(123));
         value.write(&mut dr, &mut transcript)?;
 
-        let challenge = transcript.challenge(&mut dr)?;
-        assert_ne!(*challenge.value().take(), Fp::ZERO);
+        let c0 = *transcript.challenge(&mut dr)?.value().take();
+        let c1 = *transcript.challenge(&mut dr)?.value().take();
+        let c2 = *transcript.challenge(&mut dr)?.value().take();
+        let c3 = *transcript.challenge(&mut dr)?.value().take();
 
-        let c1 = transcript.challenge(&mut dr)?;
-        let c2 = transcript.challenge(&mut dr)?;
-        let c3 = transcript.challenge(&mut dr)?;
-        assert_ne!(*c1.value().take(), Fp::ZERO);
-        assert_ne!(*c2.value().take(), Fp::ZERO);
-        assert_ne!(*c3.value().take(), Fp::ZERO);
+        // Each squeeze must produce a non-zero, distinct value.
+        for c in [c0, c1, c2, c3] {
+            assert_ne!(c, Fp::ZERO);
+        }
+        assert_ne!(c0, c1);
+        assert_ne!(c1, c2);
+        assert_ne!(c2, c3);
 
         Ok(())
     }

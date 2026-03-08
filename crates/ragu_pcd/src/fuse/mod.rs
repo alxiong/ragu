@@ -81,6 +81,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let error_m_commitment = Point::constant(&mut dr, error_m.nested_commitment)?;
         error_m_commitment.write(&mut dr, &mut transcript)?;
 
+        // Clone-then-save: `save_state` consumes the transcript, but we need
+        // the original to keep squeezing. Both paths apply the same permutation.
         let saved_transcript_state = transcript
             .clone()
             .save_state(&mut dr)

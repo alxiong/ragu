@@ -6,13 +6,13 @@
 //!
 //! This circuit performs the first portion of the Fiat-Shamir transcript,
 //! invoking $3$ Poseidon permutations:
-//! - Initialize the sponge.
+//! - Initialize the transcript with domain separation tag.
 //! - Absorb [`nested_preamble_commitment`].
 //! - Squeeze [$w$] challenge.
 //! - Absorb [`nested_s_prime_commitment`].
 //! - Squeeze [$y$] and [$z$] challenges.
 //! - Absorb [`nested_error_m_commitment`].
-//! - Call [`Sponge::save_state`] to capture the transcript state for resumption
+//! - Call [`Transcript::save_state`] to capture the transcript state for resumption
 //!   in [`hashes_2`][super::hashes_2]. This applies a permutation (the third) since we're at the
 //!   absorb-to-squeeze boundary.
 //! - Verify the saved state matches the witnessed value from [`error_n`][super::stages::error_n].
@@ -70,7 +70,7 @@
 //! [$y$]: unified::Output::y
 //! [$z$]: unified::Output::z
 //! [`WithSuffix`]: crate::components::suffix::WithSuffix
-//! [`Sponge::save_state`]: ragu_primitives::poseidon::Sponge::save_state
+//! [`Transcript::save_state`]: crate::components::transcript::Transcript::save_state
 
 use ragu_arithmetic::Cycle;
 use ragu_circuits::{
