@@ -252,7 +252,8 @@ struct Counter<F> {
     /// [`enforce_zero`]: ragu_core::drivers::Driver::enforce_zero
     y: F,
 
-    /// Evaluation of the `ONE` wire ($c$ wire from gate 0).
+    /// Evaluation of the `ONE` wire, derived from an independent BLAKE2b
+    /// point so it cannot collide with any geometric-sequence wire value.
     ///
     /// Passed to [`WireEvalSum::new`] so that [`WireEval::One`] variants can be
     /// resolved during linear combination accumulation.
@@ -282,6 +283,7 @@ impl<F: PrimeField + FromUniformBytes<64>> Counter<F> {
         let x2 = point(2);
         let y = point(3);
         let h = point(4);
+        let one = point(5);
 
         Self {
             scope: CounterScope {
@@ -304,7 +306,7 @@ impl<F: PrimeField + FromUniformBytes<64>> Counter<F> {
             x1,
             x2,
             y,
-            one: x2, // c wire of gate 0
+            one,
             h,
         }
     }
