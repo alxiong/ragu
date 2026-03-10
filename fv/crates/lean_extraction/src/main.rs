@@ -17,7 +17,7 @@ fn display_coeff<F: Field + std::fmt::Debug>(c: &Coeff<F>) -> String {
         Coeff::Zero => "0".to_owned(),
         Coeff::One => "1".to_owned(),
         Coeff::Two => "2".to_owned(),
-        Coeff::NegativeOne => "-1".to_owned(),
+        Coeff::NegativeOne => format!("{:?}", F::ONE.neg()),
         Coeff::Arbitrary(f) => format!("{f:?}"),
         Coeff::NegativeArbitrary(f) => format!("-({f:?})"),
     }
@@ -25,7 +25,17 @@ fn display_coeff<F: Field + std::fmt::Debug>(c: &Coeff<F>) -> String {
 
 fn display_expr<F: Field + std::fmt::Debug>(expr: &Expr<F>) -> String {
     match expr {
-        Expr::Var(i) => format!("x{i}"),
+        Expr::Var(i) => {
+            if *i == 0 {
+                // var at 0 is the ONE wire
+                "1".to_owned()
+            } else {
+                // everything else is a proper variable in the circuit,
+                // we re-index to start at 0
+                let var_index = i - 1;
+                format!("(var {var_index})")
+            }
+        }
         Expr::Const(c) => display_coeff(c),
         Expr::Add(l, r) => format!("({} + {})", display_expr(l), display_expr(r)),
         Expr::Mul(l, r) => format!("({} * {})", display_expr(l), display_expr(r)),
@@ -40,17 +50,19 @@ fn main() {
     Point::<_, EpAffine>::alloc(&mut dr, assignment).expect("Point::alloc failed");
 
     println!("Point::alloc: {} operations", dr.ops.len());
+    println!("def operations : Operations CircuitField := [");
     for op in &dr.ops {
         match op {
-            Op::Witness { first_idx, count } => {
-                println!(
-                    "  witness {count} @ x{first_idx}..x{}",
-                    first_idx + count - 1
-                );
+            Op::Witness {
+                first_idx: _,
+                count,
+            } => {
+                println!("  Operation.witness {count} (fun _env => default),");
             }
             Op::Assert(expr) => {
-                println!("  assert {} = 0", display_expr(expr));
+                println!("  Operation.assert ({}),", display_expr(expr));
             }
         }
     }
+    println!("]");
 }
