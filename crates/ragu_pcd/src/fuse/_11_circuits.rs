@@ -1,3 +1,4 @@
+use alloc::sync::Arc;
 use ff::Field;
 use ragu_arithmetic::Cycle;
 use ragu_circuits::{CircuitExt, polynomials::Rank};
@@ -24,7 +25,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         f: &proof::F<C, R>,
         eval: &proof::Eval<C, R>,
         p: &proof::P<C, R>,
-        preamble_witness: &native::stages::preamble::Witness<'_, C, R, HEADER_SIZE>,
+        preamble_witness: &native::stages::preamble::Witness<C, R, HEADER_SIZE>,
         error_n_witness: &native::stages::error_n::Witness<C, NativeParameters>,
         error_m_witness: &native::stages::error_m::Witness<C, NativeParameters>,
         query_witness: &circuits::native::stages::query::Witness<C>,
@@ -55,6 +56,11 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             v: p.v,
             coverage: Default::default(),
         };
+        let preamble_witness = Arc::new((*preamble_witness).clone());
+        let error_n_witness = Arc::new((*error_n_witness).clone());
+        let error_m_witness = Arc::new((*error_m_witness).clone());
+        let query_witness = Arc::new((*query_witness).clone());
+        let eval_witness = Arc::new((*eval_witness).clone());
 
         let (hashes_1_trace, unified) =
             native::hashes_1::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new(
@@ -63,8 +69,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             )
             .rx(native::hashes_1::Witness {
                 unified,
-                preamble_witness,
-                error_n_witness,
+                preamble_witness: preamble_witness.clone(),
+                error_n_witness: error_n_witness.clone(),
             })?;
         let hashes_1_rx = self.native_registry.assemble(
             &hashes_1_trace,
@@ -76,7 +82,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             native::hashes_2::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new(self.params).rx(
                 native::hashes_2::Witness {
                     unified,
-                    error_n_witness,
+                    error_n_witness: error_n_witness.clone(),
                 },
             )?;
         let hashes_2_rx = self.native_registry.assemble(
@@ -88,9 +94,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let (partial_collapse_trace, unified) =
             native::partial_collapse::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new().rx(
                 native::partial_collapse::Witness {
-                    preamble_witness,
+                    preamble_witness: preamble_witness.clone(),
                     unified,
-                    error_n_witness,
+                    error_n_witness: error_n_witness.clone(),
                     error_m_witness,
                 },
             )?;
@@ -104,7 +110,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             native::full_collapse::Circuit::<C, R, HEADER_SIZE, NativeParameters>::new().rx(
                 native::full_collapse::Witness {
                     unified,
-                    preamble_witness,
+                    preamble_witness: preamble_witness.clone(),
                     error_n_witness,
                 },
             )?;

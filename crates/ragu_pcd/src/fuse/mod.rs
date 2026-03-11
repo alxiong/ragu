@@ -49,14 +49,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     ///   [`Step::Left`] header.
     /// * `right`: the right [`Pcd`] to fuse in this step; must correspond to
     ///   the [`Step::Right`] header.
-    pub fn fuse<'source, RNG: CryptoRng, S: Step<C>>(
+    pub fn fuse<RNG: CryptoRng, S: Step<C>>(
         &self,
         rng: &mut RNG,
         step: S,
-        witness: S::Witness<'source>,
-        left: Pcd<'source, C, R, S::Left>,
-        right: Pcd<'source, C, R, S::Right>,
-    ) -> Result<(Pcd<'source, C, R, S::Output>, S::Aux<'source>)> {
+        witness: S::Witness,
+        left: Pcd<C, R, S::Left>,
+        right: Pcd<C, R, S::Right>,
+    ) -> Result<(Pcd<C, R, S::Output>, S::Aux)> {
         let (left, right, application, application_data, application_aux) =
             self.compute_application_proof(rng, step, witness, left, right)?;
 

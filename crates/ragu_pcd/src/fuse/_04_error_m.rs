@@ -7,6 +7,7 @@
 //! This phase of the fuse operation is also used to commit to the $m(w, X, y)$
 //! restriction.
 
+use alloc::sync::Arc;
 use ff::Field;
 use ragu_arithmetic::Cycle;
 use ragu_circuits::{polynomials::Rank, registry::RegistryAt, staging::StageExt};
@@ -63,7 +64,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let error_m_witness =
             native::stages::error_m::Witness::<C, NativeParameters> { error_terms };
         let native_rx = native::stages::error_m::Stage::<C, R, HEADER_SIZE, NativeParameters>::rx(
-            &error_m_witness,
+            Arc::new(error_m_witness.clone()),
         )?;
         let native_blind = C::CircuitField::random(&mut *rng);
         let host_gen = C::host_generators(self.params);
@@ -77,7 +78,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             registry_wy: registry_wy_commitment,
         };
         let nested_rx =
-            nested::stages::error_m::Stage::<C::HostCurve, R>::rx(&nested_error_m_witness)?;
+            nested::stages::error_m::Stage::<C::HostCurve, R>::rx(nested_error_m_witness)?;
         let nested_blind = C::ScalarField::random(&mut *rng);
         let nested_commitment =
             nested_rx.commit_to_affine(C::nested_generators(self.params), nested_blind);

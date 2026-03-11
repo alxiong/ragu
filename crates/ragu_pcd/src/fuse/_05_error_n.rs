@@ -6,6 +6,7 @@
 //! the $k(Y)$ evaluations for the child proofs, as well as the temporary sponge
 //! state used to split the hashing operations across two circuits.
 
+use alloc::sync::Arc;
 use ff::Field;
 use ragu_arithmetic::Cycle;
 use ragu_circuits::{
@@ -40,7 +41,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     pub(super) fn compute_errors_n<'dr, D, RNG: CryptoRng>(
         &self,
         rng: &mut RNG,
-        preamble_witness: &native::stages::preamble::Witness<'_, C, R, HEADER_SIZE>,
+        preamble_witness: &native::stages::preamble::Witness<C, R, HEADER_SIZE>,
         error_m_witness: &native::stages::error_m::Witness<C, NativeParameters>,
         claims: claims::Builder<'_, '_, C::CircuitField, R>,
         y: &Element<'dr, D>,
@@ -74,7 +75,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 let (preamble_witness, error_terms_m, y, mu, nu) = witness.cast();
 
                 let preamble = native::stages::preamble::Stage::<C, R, HEADER_SIZE>::default()
-                    .witness(dr, preamble_witness.as_ref().map(|w| *w))?;
+                    .witness(
+                        dr,
+                        preamble_witness.as_ref().map(|w| Arc::new((*w).clone())),
+                    )?;
 
                 let y = Element::alloc(dr, y)?;
                 let left_application_ky = preamble.left.application_ky(dr, &y)?;
@@ -139,7 +143,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             sponge_state_elements,
         };
         let native_rx = native::stages::error_n::Stage::<C, R, HEADER_SIZE, NativeParameters>::rx(
-            &error_n_witness,
+            Arc::new(error_n_witness.clone()),
         )?;
         let native_blind = C::CircuitField::random(&mut *rng);
         let native_commitment =
@@ -149,7 +153,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             native_error_n: native_commitment,
         };
         let nested_rx =
-            nested::stages::error_n::Stage::<C::HostCurve, R>::rx(&nested_error_n_witness)?;
+            nested::stages::error_n::Stage::<C::HostCurve, R>::rx(nested_error_n_witness)?;
         let nested_blind = C::ScalarField::random(&mut *rng);
         let nested_commitment =
             nested_rx.commit_to_affine(C::nested_generators(self.params), nested_blind);
