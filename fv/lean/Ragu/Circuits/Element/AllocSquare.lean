@@ -10,7 +10,7 @@ structure Square (F : Type) where
 deriving ProvableStruct
 
 def main (_input : Unit) : Circuit (F p) (Var Square (F p)) := do
-  let ⟨x, y, z⟩ ← subcircuit Ragu.Circuits.Core.AllocMul.circuit default
+  let ⟨x, y, z⟩ ← subcircuit Core.AllocMul.circuit default
   assertZero (x - y)
   return ⟨x, z⟩
 

@@ -10,7 +10,7 @@ structure Input (F : Type) where
 deriving ProvableStruct
 
 def main (input : Var Input (F p)) : Circuit (F p) (Var field (F p)) := do
-  let ⟨x, y, z⟩ ← subcircuit Ragu.Circuits.Core.AllocMul.circuit default
+  let ⟨x, y, z⟩ ← subcircuit Core.AllocMul.circuit default
   assertZero (x - input.x)
   assertZero (y - input.y)
   return z
