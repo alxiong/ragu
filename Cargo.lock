@@ -526,6 +526,7 @@ name = "lean_extraction"
 version = "0.0.0"
 dependencies = [
  "ff",
+ "group",
  "ragu_arithmetic",
  "ragu_core",
  "ragu_pasta",
