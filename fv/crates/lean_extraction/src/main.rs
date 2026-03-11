@@ -1,20 +1,16 @@
 mod driver;
 mod expr;
+mod instance;
+mod instances;
 mod linexp;
-
-use core::marker::PhantomData;
 
 use ff::Field;
 use ragu_arithmetic::Coeff;
-use ragu_pasta::{EpAffine, Fp};
-use ragu_primitives::Point;
-
-use ragu_core::convert::WireMap;
-use ragu_core::drivers::Driver;
-use ragu_core::gadgets::Gadget;
 
 use driver::ExtractionDriver;
 use expr::{Expr, Op};
+use instance::CircuitInstance;
+use instances::point_alloc::PointAllocInstance;
 
 fn display_coeff<F: Field + std::fmt::Debug>(c: &Coeff<F>) -> String {
     match c {
@@ -46,38 +42,28 @@ fn display_expr<F: Field + std::fmt::Debug>(expr: &Expr<F>) -> String {
     }
 }
 
-/// A [`WireMap`] that collects the wire indices from all [`Expr::Var`] wires
-/// in a gadget. Analogous to the `WireCounter` inside [`Gadget::num_wires`],
-/// but records the actual index of each physical wire instead of just counting.
-struct WireIndexCollector<F: Field> {
-    indices: Vec<usize>,
-    _marker: PhantomData<F>,
-}
-
-impl<F: Field> WireMap<F> for WireIndexCollector<F> {
-    type Src = ExtractionDriver<F>;
-    type Dst = PhantomData<F>;
-
-    fn convert_wire(&mut self, wire: &Expr<F>) -> ragu_core::Result<()> {
+fn print_output_indices<F: Field + std::fmt::Debug>(wires: &[Expr<F>]) {
+    // Re-index: wire 0 is the ONE wire, allocations start at 1, so var N = wire N+1.
+    print!("def exported_output : List (Expression CircuitField) := [");
+    for (i, wire) in wires.iter().enumerate() {
+        if i > 0 {
+            print!(", ");
+        }
         match wire {
-            Expr::Var(idx) => {
-                self.indices.push(*idx);
-                Ok(())
-            }
+            Expr::Var(idx) => print!("(var {})", idx - 1),
             _ => panic!("output wire is not a physical wire (Expr::Var)"),
         }
     }
+    println!("]");
 }
 
 fn main() {
-    let mut dr = ExtractionDriver::<Fp>::new();
+    let mut dr = ExtractionDriver::<<PointAllocInstance as CircuitInstance>::Field>::new();
 
-    // MaybeKind = Empty: the closure is never called.
-    let assignment: ragu_core::maybe::Empty = ExtractionDriver::<Fp>::just(|| Fp::ZERO);
-    let output = Point::<_, EpAffine>::alloc(&mut dr, assignment).expect("Point::alloc failed");
+    let wires = PointAllocInstance::circuit(&mut dr).expect("circuit failed");
 
     println!("Point::alloc: {} operations", dr.ops.len());
-    println!("def operations : Operations CircuitField := [");
+    println!("def exported_operations : Operations CircuitField := [");
     for op in &dr.ops {
         match op {
             Op::Witness { count } => {
@@ -88,23 +74,7 @@ fn main() {
             }
         }
     }
-    println!("]");
+    println!("]\n");
 
-    let mut collector = WireIndexCollector::<Fp> {
-        indices: Vec::new(),
-        _marker: PhantomData,
-    };
-    output
-        .map(&mut collector)
-        .expect("wire index collection failed");
-    // Re-index: wire 0 is the ONE wire, allocations start at 1, so var N = wire N+1.
-    let lean_indices: Vec<usize> = collector.indices.iter().map(|i| i - 1).collect();
-    print!("def output : List Nat := [");
-    for (i, idx) in lean_indices.iter().enumerate() {
-        if i > 0 {
-            print!(", ");
-        }
-        print!("{idx}");
-    }
-    println!("]");
+    print_output_indices(&wires);
 }

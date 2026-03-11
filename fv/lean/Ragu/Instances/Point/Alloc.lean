@@ -21,7 +21,7 @@ def exported_operations : Operations CircuitField := [
   Operation.assert ((((var 5) + (0x0000000000000000000000000000000000000000000000000000000000000005 * 1)) + (0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 * (var 8)))),
 ]
 
-def output : List (Expression CircuitField) := [(var 0), (var 6)]
+def exported_output : List (Expression CircuitField) := [(var 0), (var 6)]
 
 def circuit := Circuits.Point.Alloc.circuit.main (F:=CircuitField) default
 
@@ -36,10 +36,10 @@ theorem same_circuit :
   rfl
 
 theorem same_output :
-    (circuit.output 0).x = output[0] ∧
-    (circuit.output 0).y = output[1] := by
+    (circuit.output 0).x = exported_output[0] ∧
+    (circuit.output 0).y = exported_output[1] := by
   simp [circuit_norm,
-    circuit, output,
+    circuit, exported_output,
     Circuits.Point.Alloc.circuit, Circuits.Point.Alloc.elaborated, Circuits.Point.Alloc.main,
     Circuits.Core.AllocMul.circuit, Circuits.Core.AllocMul.elaborated, Circuits.Core.AllocMul.main,
     Circuits.Element.AllocSquare.circuit, Circuits.Element.AllocSquare.elaborated, Circuits.Element.AllocSquare.main,
