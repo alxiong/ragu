@@ -23,7 +23,9 @@ def exported_operations : Operations CircuitField := [
 
 def exported_output : List (Expression CircuitField) := [(var 0), (var 6)]
 
-def circuit := Circuits.Point.Alloc.circuit.main (F:=CircuitField) default
+def EpAffineParams: Circuits.Point.Spec.CurveParams CircuitField := {b := 5}
+
+def circuit := (Circuits.Point.Alloc.circuit EpAffineParams).main (F:=CircuitField) default
 
 theorem same_circuit :
     (circuit.operations 0).toFlat = exported_operations.toFlat := by
