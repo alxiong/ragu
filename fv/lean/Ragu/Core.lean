@@ -11,10 +11,21 @@ axiom q_prime : Fact q.Prime
 instance : Fact p.Prime := p_prime
 instance : Fact q.Prime := q_prime
 
+@[reducible]
 def Fp := F p
+
+@[reducible]
 def Fq := F q
 
-instance FieldFp : Field (F p) := inferInstance
-instance FieldFq : Field (F q) := inferInstance
+instance : Field (F p) := inferInstance
+instance : Field (F q) := inferInstance
+
+
+-- 2 is not zero in both fields
+instance : NeZero (2 : F p) where
+  out := by native_decide
+
+instance : NeZero (2 : F p) where
+  out := by native_decide
 
 end Ragu.Core.Primes
