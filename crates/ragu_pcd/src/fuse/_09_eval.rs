@@ -33,7 +33,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         error_m: &proof::ErrorM<C, R>,
         ab: &proof::AB<C, R>,
         query: &proof::Query<C, R>,
-    ) -> Result<(proof::Eval<C, R>, eval::Witness<C::CircuitField>)>
+    ) -> Result<(proof::Eval<C, R>, Arc<eval::Witness<C::CircuitField>>)>
     where
         D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
     {
@@ -55,7 +55,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 registry_xy: query.registry_xy_poly.eval(u),
             },
         };
-        let native_rx = eval::Stage::<C, R, HEADER_SIZE>::rx(Arc::new(eval_witness.clone()))?;
+        let eval_witness = Arc::new(eval_witness);
+        let native_rx = eval::Stage::<C, R, HEADER_SIZE>::rx(Arc::clone(&eval_witness))?;
         let native_blind = C::CircuitField::random(&mut *rng);
         let native_commitment =
             native_rx.commit_to_affine(C::host_generators(self.params), native_blind);

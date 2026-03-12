@@ -42,7 +42,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         right: &'rx Proof<C, R>,
     ) -> Result<(
         proof::ErrorM<C, R>,
-        native::stages::error_m::Witness<C, NativeParameters>,
+        Arc<native::stages::error_m::Witness<C, NativeParameters>>,
         claims::Builder<'_, 'rx, C::CircuitField, R>,
     )>
     where
@@ -62,9 +62,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             fold_revdot::compute_errors_m::<_, R, NativeParameters>(&builder.a, &builder.b);
 
         let error_m_witness =
-            native::stages::error_m::Witness::<C, NativeParameters> { error_terms };
+            Arc::new(native::stages::error_m::Witness::<C, NativeParameters> { error_terms });
         let native_rx = native::stages::error_m::Stage::<C, R, HEADER_SIZE, NativeParameters>::rx(
-            Arc::new(error_m_witness.clone()),
+            Arc::clone(&error_m_witness),
         )?;
         let native_blind = C::CircuitField::random(&mut *rng);
         let host_gen = C::host_generators(self.params);

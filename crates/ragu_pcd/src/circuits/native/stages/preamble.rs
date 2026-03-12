@@ -50,19 +50,19 @@ pub struct Witness<C: Cycle, R: Rank, const HEADER_SIZE: usize> {
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Witness<C, R, HEADER_SIZE> {
     /// Create a witness from child proof references and pre-computed output headers.
     pub fn new(
-        left: &Proof<C, R>,
-        right: &Proof<C, R>,
+        left: Arc<Proof<C, R>>,
+        right: Arc<Proof<C, R>>,
         left_output_header: &[C::CircuitField],
         right_output_header: &[C::CircuitField],
     ) -> Result<Self> {
         Ok(Witness {
             left: ChildWitness {
                 output_header: FixedVec::try_from(left_output_header.to_vec())?,
-                proof: Arc::new(left.clone()),
+                proof: left,
             },
             right: ChildWitness {
                 output_header: FixedVec::try_from(right_output_header.to_vec())?,
-                proof: Arc::new(right.clone()),
+                proof: right,
             },
         })
     }

@@ -9,7 +9,7 @@
 //!
 //! The commitment is computed via [`PointsWitness`] Horner evaluation.
 
-use alloc::vec::Vec;
+use alloc::{sync::Arc, vec::Vec};
 use core::ops::AddAssign;
 use ragu_arithmetic::Cycle;
 use ragu_circuits::{
@@ -192,7 +192,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             let witness =
                 PointsWitness::<C::HostCurve, NUM_ENDOSCALING_POINTS>::new(beta_endo, &points);
 
-            let witness = alloc::sync::Arc::new(witness);
+            let witness = Arc::new(witness);
             let endoscalar_rx = <EndoscalarStage as StageExt<C::ScalarField, R>>::rx(beta_endo)?;
             let points_rx = <PointsStage<C::HostCurve, NUM_ENDOSCALING_POINTS> as StageExt<
                 C::ScalarField,

@@ -15,6 +15,7 @@ mod _09_eval;
 mod _10_p;
 mod _11_circuits;
 
+use alloc::sync::Arc;
 use ragu_arithmetic::Cycle;
 use ragu_circuits::{
     polynomials::{Rank, structured},
@@ -59,12 +60,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     ) -> Result<(Pcd<C, R, S::Output>, S::Aux)> {
         let (left, right, application, application_data, application_aux) =
             self.compute_application_proof(rng, step, witness, left, right)?;
+        let left = Arc::new(left);
+        let right = Arc::new(right);
 
         let mut dr = Emulator::execute();
         let mut transcript = Transcript::new(&mut dr, C::circuit_poseidon(self.params), RAGU_TAG)?;
 
         let (preamble, preamble_witness) =
-            self.compute_preamble(rng, &left, &right, &application)?;
+            self.compute_preamble(rng, Arc::clone(&left), Arc::clone(&right), &application)?;
         let preamble_commitment = Point::constant(&mut dr, preamble.nested_commitment)?;
         preamble_commitment.write(&mut dr, &mut transcript)?;
         let w = transcript.challenge(&mut dr)?;
@@ -97,8 +100,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
 
         let (error_n, error_n_witness, a, b) = self.compute_errors_n(
             rng,
-            &preamble_witness,
-            &error_m_witness,
+            Arc::clone(&preamble_witness),
+            Arc::clone(&error_m_witness),
             claims,
             &y,
             &mu,
@@ -153,11 +156,11 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             &f,
             &eval,
             &p,
-            &preamble_witness,
-            &error_n_witness,
-            &error_m_witness,
-            &query_witness,
-            &eval_witness,
+            preamble_witness,
+            error_n_witness,
+            error_m_witness,
+            query_witness,
+            eval_witness,
             &challenges,
         )?;
 

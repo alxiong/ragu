@@ -40,7 +40,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         right: &Proof<C, R>,
     ) -> Result<(
         proof::Query<C, R>,
-        circuits::native::stages::query::Witness<C>,
+        Arc<circuits::native::stages::query::Witness<C>>,
     )>
     where
         D: Driver<'dr, F = C::CircuitField, MaybeKind = Always<()>>,
@@ -97,7 +97,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             ),
         };
 
-        let native_rx = query::Stage::<C, R, HEADER_SIZE>::rx(Arc::new(query_witness.clone()))?;
+        let query_witness = Arc::new(query_witness);
+        let native_rx = query::Stage::<C, R, HEADER_SIZE>::rx(Arc::clone(&query_witness))?;
         let native_blind = C::CircuitField::random(&mut *rng);
         let host_gen = C::host_generators(self.params);
         let [registry_xy_commitment, native_commitment] = ragu_arithmetic::batch_to_affine([
