@@ -7,7 +7,7 @@ import Ragu.Circuits.Element.DivNonzero
 import Ragu.Circuits.Point.Spec
 
 namespace Ragu.Circuits.Point.AddIncomplete
-variable {p : ℕ} [Fact p.Prime] [NeZero (2 : F p)]
+variable {p : ℕ} [Fact p.Prime]
 
 structure Inputs (F : Type) where
   P1 : Spec.Point F
