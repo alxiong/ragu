@@ -26,6 +26,7 @@ def exported_operations (input_var : Var Inputs CircuitField) : Operations Circu
 ]
 
 set_option linter.unusedVariables false in
+@[reducible]
 def exported_output (input_var : Var Inputs CircuitField) : List (Expression CircuitField) := [(var 0), (var 6)]
 
 def circuit := (Circuits.Point.Alloc.circuit Circuits.Point.Spec.EpAffineParams).main (F:=CircuitField)
@@ -40,15 +41,11 @@ theorem same_circuit (input : Var Inputs CircuitField):
     Circuits.Element.Mul.circuit, Circuits.Element.Mul.elaborated, Circuits.Element.Mul.main]
   rfl
 
-
-lemma exported_output_len (input : Var Inputs CircuitField) : (exported_output input).length = 2 := by
-  simp only [exported_output, List.length_cons, List.length_nil, zero_add, Nat.reduceAdd]
-
 theorem same_output (input : Var Inputs CircuitField) :
-    ((circuit input).output 0).x = (exported_output input)[0]'(by simp [exported_output_len]) ∧
-    ((circuit input).output 0).y = (exported_output input)[1]'(by simp [exported_output_len]) := by
+    ((circuit input).output 0).x = (exported_output input)[0] ∧
+    ((circuit input).output 0).y = (exported_output input)[1] := by
   simp [circuit_norm,
-    circuit, exported_output,
+    circuit,
     Circuits.Point.Alloc.circuit, Circuits.Point.Alloc.elaborated, Circuits.Point.Alloc.main,
     Circuits.Core.AllocMul.circuit, Circuits.Core.AllocMul.elaborated, Circuits.Core.AllocMul.main,
     Circuits.Element.AllocSquare.circuit, Circuits.Element.AllocSquare.elaborated, Circuits.Element.AllocSquare.main,

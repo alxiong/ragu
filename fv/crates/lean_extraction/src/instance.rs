@@ -170,6 +170,7 @@ pub trait CircuitInstance {
         println!();
 
         println!("set_option linter.unusedVariables false in");
+        println!("@[reducible]");
         print!(
             "def exported_output (input_var : Var Inputs CircuitField) : List (Expression CircuitField) := ["
         );

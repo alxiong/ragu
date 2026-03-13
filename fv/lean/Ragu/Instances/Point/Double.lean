@@ -31,6 +31,7 @@ def exported_operations (input_var : Var Inputs CircuitField) : Operations Circu
 ]
 
 set_option linter.unusedVariables false in
+@[reducible]
 def exported_output (input_var : Var Inputs CircuitField) : List (Expression CircuitField) := [((var 8) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression CircuitField) * ((input_var.get 0) + (input_var.get 0)))), ((var 11) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression CircuitField) * (input_var.get 1)))]
 
 def circuit := (Circuits.Point.Double.circuit Circuits.Point.Spec.EpAffineParams).main (F:=CircuitField)
@@ -53,12 +54,9 @@ theorem same_circuit (input : Var Inputs CircuitField):
   repeat (constructor; rfl)
   constructor
 
-lemma exported_output_len (input : Var Inputs CircuitField) : (exported_output input).length = 2 := by
-  simp only [exported_output, List.length_cons, List.length_nil, zero_add, Nat.reduceAdd]
-
 theorem same_output (input : Var Inputs CircuitField) :
-    ((circuit (deserializeInput input)).output 0).x = (exported_output input)[0]'(by simp [exported_output_len]) ∧
-    ((circuit (deserializeInput input)).output 0).y = (exported_output input)[1]'(by simp [exported_output_len]) := by
+    ((circuit (deserializeInput input)).output 0).x = (exported_output input)[0] ∧
+    ((circuit (deserializeInput input)).output 0).y = (exported_output input)[1] := by
   simp [circuit_norm, FormalCircuit.toSubcircuit,
     circuit, deserializeInput,
     Circuits.Point.Double.circuit, Circuits.Point.Double.elaborated, Circuits.Point.Double.main,
