@@ -76,10 +76,10 @@ def EpAffineParams: Circuits.Point.Spec.CurveParams Core.Primes.p :=
 end Ragu.Circuits.Point.Spec
 
 namespace Ragu.Circuits.Point.Lemmas
-variable {p : ℕ} [Fact p.Prime] [NeZero (2 : F p)]
+variable {p : ℕ} [Fact p.Prime]
 open Spec
 
-lemma double_preserves_membership (point : Point (F p)) (curveParams: CurveParams p)
+lemma double_preserves_membership [NeZero (2 : F p)] (point : Point (F p)) (curveParams: CurveParams p)
     (h_membership: point.isOnCurve curveParams) (h_order : curveParams.noOrderTwoPoints) :
     match point.double with
     | none =>
@@ -98,5 +98,43 @@ lemma double_preserves_membership (point : Point (F p)) (curveParams: CurveParam
   rw [hb]
   ring
 
+
+lemma add_incomplete_preserves_membership (p1 p2 : Point (F p)) (cp : CurveParams p) (h : p1.x ≠ p2.x)
+    (hm1 : p1.isOnCurve cp) (hm2 : p2.isOnCurve cp) :
+    match p1.add_incomplete p2 with
+    | none => False
+    | some r => r.isOnCurve cp := by
+  simp only [Point.add_incomplete, if_neg h, Point.isOnCurve]
+  simp only [Point.isOnCurve] at hm1 hm2
+  have hdiff : p2.x - p1.x ≠ 0 := sub_ne_zero.mpr (Ne.symm h)
+  set lambda := (p2.y - p1.y) / (p2.x - p1.x) with hlambda
+  have h_lam_mul : lambda * (p2.x - p1.x) = p2.y - p1.y := by
+    simp only [hlambda]; field_simp [hdiff]
+  have h_sum : lambda * (p2.y + p1.y) = p2.x ^ 2 + p1.x * p2.x + p1.x ^ 2 := by
+    have key : (p2.y - p1.y) * (p2.y + p1.y) = (p2.x - p1.x) * (p2.x ^ 2 + p1.x * p2.x + p1.x ^ 2) := by
+      have : p2.y ^ 2 - p1.y ^ 2 = p2.x ^ 3 - p1.x ^ 3 := by rw [hm1, hm2]; ring
+      calc (p2.y - p1.y) * (p2.y + p1.y) = p2.y ^ 2 - p1.y ^ 2 := by ring
+        _ = p2.x ^ 3 - p1.x ^ 3 := this
+        _ = (p2.x - p1.x) * (p2.x ^ 2 + p1.x * p2.x + p1.x ^ 2) := by ring
+    have hmul : (p2.x - p1.x) * (lambda * (p2.y + p1.y)) = (p2.x - p1.x) * (p2.x ^ 2 + p1.x * p2.x + p1.x ^ 2) := by
+      calc (p2.x - p1.x) * (lambda * (p2.y + p1.y))
+          = lambda * (p2.x - p1.x) * (p2.y + p1.y) := by ring
+        _ = (p2.y - p1.y) * (p2.y + p1.y) := by rw [h_lam_mul]
+        _ = (p2.x - p1.x) * (p2.x ^ 2 + p1.x * p2.x + p1.x ^ 2) := key
+    exact mul_left_cancel₀ hdiff hmul
+  have h_bracket : lambda ^ 2 * (p1.x - p2.x) + p1.x ^ 2 + p1.x * p2.x + p2.x ^ 2 - 2 * lambda * p1.y = 0 := by
+    have eq3 : lambda * (p2.y - p1.y) = lambda ^ 2 * (p2.x - p1.x) := by
+      calc lambda * (p2.y - p1.y)
+          = lambda * (lambda * (p2.x - p1.x)) := by rw [h_lam_mul]
+        _ = lambda ^ 2 * (p2.x - p1.x) := by ring
+    have eq4 : 2 * lambda * p1.y = lambda * (p2.y + p1.y) - lambda * (p2.y - p1.y) := by ring
+    rw [eq4, h_sum, eq3]; ring
+  rw [← sub_eq_zero]
+  have factored : (lambda * (p1.x - (lambda ^ 2 - p1.x - p2.x)) - p1.y) ^ 2 - ((lambda ^ 2 - p1.x - p2.x) ^ 3 + cp.b)
+      = (2 * p1.x + p2.x - lambda ^ 2) * (lambda ^ 2 * (p1.x - p2.x) + p1.x ^ 2 + p1.x * p2.x + p2.x ^ 2 - 2 * lambda * p1.y)
+        + (p1.y ^ 2 - p1.x ^ 3 - cp.b) := by ring
+  rw [factored, h_bracket, mul_zero, zero_add]
+  have : p1.y ^ 2 - p1.x ^ 3 - cp.b = p1.y ^ 2 - (p1.x ^ 3 + cp.b) := by ring
+  rw [this, hm1, sub_self]
 
 end Ragu.Circuits.Point.Lemmas
