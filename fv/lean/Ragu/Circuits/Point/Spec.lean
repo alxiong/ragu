@@ -24,6 +24,13 @@ def Point.isOnCurve (point : Point (F p)) (curveParams : CurveParams (F p)) : Pr
 def CurveParams.noOrderTwoPoints (curveParams : CurveParams (F p)) : Prop :=
   (∀ point : Spec.Point (F p), (point.isOnCurve curveParams) → point.y ≠ 0)
 
+
+def Point.negate (point : Point (F p)) : Point (F p) :=
+  {
+    x := point.x,
+    y := -point.y
+  }
+
 def Point.double (point : Point (F p)) : Option (Point (F p)) :=
   -- a / 0 is defined to be 0 for fields, therefore to make the spec precise
   -- we return None if point.y is zero
