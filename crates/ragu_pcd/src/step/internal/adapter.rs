@@ -16,6 +16,8 @@ use core::marker::PhantomData;
 
 use super::super::Step;
 use crate::Header;
+use crate::header::Suffix;
+use crate::step::Encoded;
 
 /// Represents triple a length determined at compile time.
 pub struct TripleConstLen<const N: usize>;
@@ -26,15 +28,25 @@ impl<const N: usize> Len for TripleConstLen<N> {
     }
 }
 
+/// Internal wrapper that bundles left/right/output header suffixes to a Step.
+/// Our runtime suffix assignment necessitates an exdogenous passing of suffixes
+/// to the circuit Adapter for a step.
+pub(crate) struct StepWithSuffixes<S> {
+    pub(crate) step: S,
+    pub(crate) left_suffix: Suffix,
+    pub(crate) right_suffix: Suffix,
+    pub(crate) output_suffix: Suffix,
+}
+
 pub(crate) struct Adapter<C, S, R, const HEADER_SIZE: usize> {
-    step: S,
+    inner: StepWithSuffixes<S>,
     _marker: PhantomData<(C, R)>,
 }
 
 impl<C: Cycle, S: Step<C>, R: Rank, const HEADER_SIZE: usize> Adapter<C, S, R, HEADER_SIZE> {
-    pub fn new(step: S) -> Self {
+    pub fn new(inner: StepWithSuffixes<S>) -> Self {
         Adapter {
-            step,
+            inner,
             _marker: PhantomData,
         }
     }
@@ -79,28 +91,35 @@ impl<C: Cycle, S: Step<C>, R: Rank, const HEADER_SIZE: usize> Circuit<C::Circuit
     where
         Self: 'dr,
     {
-        let (left, right, witness) = witness.cast();
+        let (left_data, right_data, step_witness) = witness.cast();
+        let s = &self.inner;
 
-        let ((left, right, output), output_data, step_aux) = self
-            .step
-            .witness::<_, HEADER_SIZE>(dr, witness, left, right)?;
+        let left_enc = Encoded::<_, S::Left, HEADER_SIZE>::new(dr, left_data, s.left_suffix)?;
+        let right_enc = Encoded::<_, S::Right, HEADER_SIZE>::new(dr, right_data, s.right_suffix)?;
+
+        let (output_gadget, output_data, step_aux) = s.step.synthesize::<D, HEADER_SIZE>(
+            dr,
+            step_witness,
+            left_enc.as_gadget(),
+            right_enc.as_gadget(),
+        )?;
+        let output_enc =
+            Encoded::<_, S::Output, HEADER_SIZE>::from_gadget(output_gadget, s.output_suffix);
 
         let mut elements = Vec::with_capacity(HEADER_SIZE * 3);
-        left.write(dr, &mut elements)?;
-        right.write(dr, &mut elements)?;
-        output.write(dr, &mut elements)?;
+        left_enc.write(dr, &mut elements)?;
+        right_enc.write(dr, &mut elements)?;
+        output_enc.write(dr, &mut elements)?;
 
         let adapter_aux = D::try_just(|| {
             let left_header = elements[0..HEADER_SIZE]
                 .iter()
                 .map(|e| *e.value().take())
                 .collect_fixed()?;
-
             let right_header = elements[HEADER_SIZE..HEADER_SIZE * 2]
                 .iter()
                 .map(|e| *e.value().take())
                 .collect_fixed()?;
-
             Ok((
                 (left_header, right_header),
                 output_data.take(),
@@ -115,8 +134,8 @@ impl<C: Cycle, S: Step<C>, R: Rank, const HEADER_SIZE: usize> Circuit<C::Circuit
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::header::{Header, Suffix};
-    use crate::step::{Encoded, Index, Step};
+    use crate::header::Header;
+    use crate::step::Step;
     use ragu_circuits::polynomials::TestRank;
     use ragu_core::{
         drivers::emulator::Emulator,
@@ -131,7 +150,6 @@ mod tests {
     struct TestHeader;
 
     impl Header<Fp> for TestHeader {
-        const SUFFIX: Suffix = Suffix::new(50);
         type Data = Fp;
         type Output = Kind![Fp; Element<'_, _>];
 
@@ -146,41 +164,30 @@ mod tests {
     struct TestStep;
 
     impl Step<Pasta> for TestStep {
-        const INDEX: Index = Index::new(0);
         type Witness = ();
         type Aux = ();
         type Left = TestHeader;
         type Right = TestHeader;
         type Output = TestHeader;
 
-        fn witness<'dr, D: Driver<'dr, F = Fp>, const HS: usize>(
+        fn synthesize<'dr, D: Driver<'dr, F = Fp>, const HS: usize>(
             &self,
             dr: &mut D,
             _: DriverValue<D, ()>,
-            left: DriverValue<D, Fp>,
-            right: DriverValue<D, Fp>,
+            left: &Bound<'dr, D, <TestHeader as Header<Fp>>::Output>,
+            right: &Bound<'dr, D, <TestHeader as Header<Fp>>::Output>,
         ) -> Result<(
-            (
-                Encoded<'dr, D, Self::Left, HS>,
-                Encoded<'dr, D, Self::Right, HS>,
-                Encoded<'dr, D, Self::Output, HS>,
-            ),
+            Bound<'dr, D, <TestHeader as Header<Fp>>::Output>,
             DriverValue<D, Fp>,
             DriverValue<D, ()>,
-        )> {
-            // Allocate elements for left and right
-            let left_elem = Element::alloc(dr, left)?;
-            let right_elem = Element::alloc(dr, right)?;
-
+        )>
+        where
+            Self: 'dr,
+        {
             // Output is sum of left and right
-            let output_elem = left_elem.add(dr, &right_elem);
+            let output_elem = left.add(dr, right);
             let output_val = output_elem.value().map(|v| *v);
-
-            let left_enc = Encoded::from_gadget(left_elem);
-            let right_enc = Encoded::from_gadget(right_elem);
-            let output_enc = Encoded::from_gadget(output_elem);
-
-            Ok(((left_enc, right_enc, output_enc), output_val, D::unit()))
+            Ok((output_elem, output_val, D::unit()))
         }
     }
 
@@ -196,7 +203,12 @@ mod tests {
         let mut dr = Emulator::execute();
         let dr = &mut dr;
 
-        let adapter = Adapter::<Pasta, TestStep, TestR, HEADER_SIZE>::new(TestStep);
+        let adapter = Adapter::<Pasta, TestStep, TestR, HEADER_SIZE>::new(StepWithSuffixes {
+            step: TestStep,
+            left_suffix: Suffix::new(50),
+            right_suffix: Suffix::new(50),
+            output_suffix: Suffix::new(50),
+        });
         let witness = Always::maybe_just(|| (Fp::from(10u64), Fp::from(20u64), ()));
 
         let (output, _aux) = adapter
@@ -212,7 +224,12 @@ mod tests {
         let mut dr = Emulator::execute();
         let dr = &mut dr;
 
-        let adapter = Adapter::<Pasta, TestStep, TestR, HEADER_SIZE>::new(TestStep);
+        let adapter = Adapter::<Pasta, TestStep, TestR, HEADER_SIZE>::new(StepWithSuffixes {
+            step: TestStep,
+            left_suffix: Suffix::new(50),
+            right_suffix: Suffix::new(50),
+            output_suffix: Suffix::new(50),
+        });
         let witness = Always::maybe_just(|| (Fp::from(10u64), Fp::from(20u64), ()));
 
         let (_output, aux) = adapter

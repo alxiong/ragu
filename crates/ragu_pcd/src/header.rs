@@ -53,6 +53,11 @@ impl Suffix {
         }
     }
 
+    /// Returns `true` if this suffix is internal (not user-assigned).
+    pub(crate) fn is_internal(&self) -> bool {
+        matches!(self.suffix, HeaderSuffix::Internal(_))
+    }
+
     /// Creates a new internal-defined [`Header`] suffix. Only called internally
     /// by Ragu.
     pub(crate) const fn internal(value: usize) -> Self {
@@ -79,10 +84,6 @@ fn test_suffix_map() {
 /// inputs to recursive proofs in order to represent the current state of the
 /// computation.
 pub trait Header<F: Field>: Send + Sync + Any {
-    /// Each header should use a unique suffix to distinguish itself from other
-    /// headers.
-    const SUFFIX: Suffix;
-
     /// The data needed to encode a header.
     type Data: Send + Clone;
 
@@ -98,8 +99,6 @@ pub trait Header<F: Field>: Send + Sync + Any {
 
 /// Trivial header that encodes no data.
 impl<F: Field> Header<F> for () {
-    const SUFFIX: Suffix = Suffix::internal(1);
-
     type Data = ();
     type Output = ();
 

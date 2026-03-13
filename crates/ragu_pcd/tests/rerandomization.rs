@@ -8,20 +8,15 @@ use ragu_core::{
     maybe::Maybe,
 };
 use ragu_pasta::{Fp, Pasta};
-use ragu_pcd::{
-    ApplicationBuilder,
-    header::{Header, Suffix},
-    step::{Encoded, Index, Step},
-};
+use ragu_pcd::{ApplicationBuilder, header::Header, step::Step};
 use ragu_primitives::Element;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
-// Header A (suffix 0) - unit data
+// Header A - unit data
 struct HeaderA;
 
 impl<F: Field> Header<F> for HeaderA {
-    const SUFFIX: Suffix = Suffix::new(0);
     type Data = ();
     type Output = ();
     fn encode<'dr, D: Driver<'dr, F = F>>(
@@ -32,11 +27,10 @@ impl<F: Field> Header<F> for HeaderA {
     }
 }
 
-// Header with real data (suffix 2) - carries a field element
+// Header with real data - carries a field element
 struct HeaderWithData;
 
 impl Header<Fp> for HeaderWithData {
-    const SUFFIX: Suffix = Suffix::new(2);
     type Data = Fp;
     type Output = Kind![Fp; Element<'_, _>];
     fn encode<'dr, D: Driver<'dr, F = Fp>>(
@@ -50,92 +44,78 @@ impl Header<Fp> for HeaderWithData {
 // Step that produces HeaderWithData from trivial inputs
 struct StepWithData;
 impl Step<Pasta> for StepWithData {
-    const INDEX: Index = Index::new(0);
     type Witness = Fp;
     type Aux = ();
     type Left = ();
     type Right = ();
     type Output = HeaderWithData;
-    fn witness<'dr, D: Driver<'dr, F = Fp>, const HEADER_SIZE: usize>(
+    fn synthesize<'dr, D: Driver<'dr, F = Fp>, const HEADER_SIZE: usize>(
         &self,
         dr: &mut D,
         witness: DriverValue<D, Self::Witness>,
-        left: DriverValue<D, ()>,
-        right: DriverValue<D, ()>,
+        _left: &Bound<'dr, D, <Self::Left as Header<Fp>>::Output>,
+        _right: &Bound<'dr, D, <Self::Right as Header<Fp>>::Output>,
     ) -> Result<(
-        (
-            Encoded<'dr, D, Self::Left, HEADER_SIZE>,
-            Encoded<'dr, D, Self::Right, HEADER_SIZE>,
-            Encoded<'dr, D, Self::Output, HEADER_SIZE>,
-        ),
+        Bound<'dr, D, <Self::Output as Header<Fp>>::Output>,
         DriverValue<D, <Self::Output as Header<Fp>>::Data>,
         DriverValue<D, Self::Aux>,
-    )> {
-        let left = Encoded::new(dr, left)?;
-        let right = Encoded::new(dr, right)?;
-        let output = Encoded::new(dr, witness.clone())?;
-        Ok(((left, right, output), witness, D::unit()))
+    )>
+    where
+        Self: 'dr,
+    {
+        let output = Element::alloc(dr, witness.clone())?;
+        Ok((output, witness, D::unit()))
     }
 }
 
 // Step0: () , ()  -> HeaderA
 struct Step0;
 impl<C: Cycle> Step<C> for Step0 {
-    const INDEX: Index = Index::new(0);
     type Witness = ();
     type Aux = ();
     type Left = ();
     type Right = ();
     type Output = HeaderA;
-    fn witness<'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
+    fn synthesize<'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
         &self,
-        dr: &mut D,
+        _dr: &mut D,
         _: DriverValue<D, Self::Witness>,
-        left: DriverValue<D, ()>,
-        right: DriverValue<D, ()>,
+        _left: &Bound<'dr, D, <Self::Left as Header<C::CircuitField>>::Output>,
+        _right: &Bound<'dr, D, <Self::Right as Header<C::CircuitField>>::Output>,
     ) -> Result<(
-        (
-            Encoded<'dr, D, Self::Left, HEADER_SIZE>,
-            Encoded<'dr, D, Self::Right, HEADER_SIZE>,
-            Encoded<'dr, D, Self::Output, HEADER_SIZE>,
-        ),
+        Bound<'dr, D, <Self::Output as Header<C::CircuitField>>::Output>,
         DriverValue<D, <Self::Output as Header<C::CircuitField>>::Data>,
         DriverValue<D, Self::Aux>,
-    )> {
-        let left = Encoded::new(dr, left)?;
-        let right = Encoded::new(dr, right)?;
-        let output = Encoded::from_gadget(());
-        Ok(((left, right, output), D::unit(), D::unit()))
+    )>
+    where
+        Self: 'dr,
+    {
+        Ok(((), D::unit(), D::unit()))
     }
 }
 
 struct Step1;
 impl<C: Cycle> Step<C> for Step1 {
-    const INDEX: Index = Index::new(1);
     type Witness = ();
     type Aux = ();
     type Left = HeaderA;
     type Right = HeaderA;
     type Output = HeaderA;
-    fn witness<'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
+    fn synthesize<'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
         &self,
-        dr: &mut D,
+        _dr: &mut D,
         _: DriverValue<D, Self::Witness>,
-        left: DriverValue<D, ()>,
-        right: DriverValue<D, ()>,
+        _left: &Bound<'dr, D, <Self::Left as Header<C::CircuitField>>::Output>,
+        _right: &Bound<'dr, D, <Self::Right as Header<C::CircuitField>>::Output>,
     ) -> Result<(
-        (
-            Encoded<'dr, D, Self::Left, HEADER_SIZE>,
-            Encoded<'dr, D, Self::Right, HEADER_SIZE>,
-            Encoded<'dr, D, Self::Output, HEADER_SIZE>,
-        ),
+        Bound<'dr, D, <Self::Output as Header<C::CircuitField>>::Output>,
         DriverValue<D, <Self::Output as Header<C::CircuitField>>::Data>,
         DriverValue<D, Self::Aux>,
-    )> {
-        let left = Encoded::new(dr, left)?;
-        let right = Encoded::new(dr, right)?;
-        let output = Encoded::from_gadget(());
-        Ok(((left, right, output), D::unit(), D::unit()))
+    )>
+    where
+        Self: 'dr,
+    {
+        Ok(((), D::unit(), D::unit()))
     }
 }
 
@@ -152,7 +132,7 @@ fn rerandomization_flow() {
 
     let mut rng = StdRng::seed_from_u64(1234);
 
-    let (seeded, _) = app.seed(&mut rng, Step0, ()).unwrap();
+    let (seeded, _) = app.seed(&mut rng, &Step0, ()).unwrap();
     assert!(app.verify(&seeded, &mut rng).unwrap());
 
     // Rerandomize
@@ -160,7 +140,7 @@ fn rerandomization_flow() {
     assert!(app.verify(&seeded, &mut rng).unwrap());
 
     let (fused, _) = app
-        .fuse(&mut rng, Step1, (), seeded.clone(), seeded)
+        .fuse(&mut rng, &Step1, (), seeded.clone(), seeded)
         .unwrap();
     assert!(app.verify(&fused, &mut rng).unwrap());
 
@@ -179,7 +159,7 @@ fn multiple_rerandomizations_all_verify() {
 
     let mut rng = StdRng::seed_from_u64(9999);
 
-    let (original, _) = app.seed(&mut rng, Step0, ()).unwrap();
+    let (original, _) = app.seed(&mut rng, &Step0, ()).unwrap();
     assert!(app.verify(&original, &mut rng).unwrap());
 
     // Rerandomize multiple times - each should verify
@@ -208,7 +188,7 @@ fn rerandomization_preserves_header_data() {
     // Use a non-trivial data value
     let test_data = Fp::from(123456789u64);
 
-    let (original, _) = app.seed(&mut rng, StepWithData, test_data).unwrap();
+    let (original, _) = app.seed(&mut rng, &StepWithData, test_data).unwrap();
     assert!(app.verify(&original, &mut rng).unwrap());
 
     let rerandomized = app.rerandomize(original.clone(), &mut rng).unwrap();
@@ -240,11 +220,11 @@ fn rerandomized_fused_proof_verifies() {
     let mut rng = StdRng::seed_from_u64(7777);
 
     // Create two seeded proofs
-    let (left, _) = app.seed(&mut rng, Step0, ()).unwrap();
-    let (right, _) = app.seed(&mut rng, Step0, ()).unwrap();
+    let (left, _) = app.seed(&mut rng, &Step0, ()).unwrap();
+    let (right, _) = app.seed(&mut rng, &Step0, ()).unwrap();
 
     // Fuse them
-    let (fused, _) = app.fuse(&mut rng, Step1, (), left, right).unwrap();
+    let (fused, _) = app.fuse(&mut rng, &Step1, (), left, right).unwrap();
     assert!(app.verify(&fused, &mut rng).unwrap());
 
     // Rerandomize the fused proof

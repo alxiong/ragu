@@ -50,10 +50,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     ///   [`Step::Left`] header.
     /// * `right`: the right [`Pcd`] to fuse in this step; must correspond to
     ///   the [`Step::Right`] header.
-    pub fn fuse<RNG: CryptoRng, S: Step<C>>(
+    pub fn fuse<RNG: CryptoRng, S: Step<C> + 'static>(
         &self,
         rng: &mut RNG,
-        step: S,
+        step: &S,
         witness: S::Witness,
         left: Pcd<C, R, S::Left>,
         right: Pcd<C, R, S::Right>,
@@ -63,24 +63,41 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let left = Arc::new(left);
         let right = Arc::new(right);
 
+        let proof = self.fuse_with(rng, &left, &right, application)?;
+        Ok((proof.carry(application_data), application_aux))
+    }
+
+    /// Fuse child proofs with a prepared application proof component.
+    ///
+    /// Runs the full proof pipeline (steps 02-11): transcript, preamble,
+    /// s_prime, error polynomials, AB, query, f, eval, p, and internal
+    /// circuits. This is the common path shared by [`fuse`](Self::fuse) and
+    /// [`rerandomize`](Self::rerandomize).
+    pub(crate) fn fuse_with<RNG: CryptoRng>(
+        &self,
+        rng: &mut RNG,
+        left: &Arc<Proof<C, R>>,
+        right: &Arc<Proof<C, R>>,
+        application: proof::Application<C, R>,
+    ) -> Result<Proof<C, R>> {
         let mut dr = Emulator::execute();
         let mut transcript = Transcript::new(&mut dr, C::circuit_poseidon(self.params), RAGU_TAG)?;
 
         let (preamble, preamble_witness) =
-            self.compute_preamble(rng, Arc::clone(&left), Arc::clone(&right), &application)?;
+            self.compute_preamble(rng, Arc::clone(left), Arc::clone(right), &application)?;
         let preamble_commitment = Point::constant(&mut dr, preamble.nested_commitment)?;
         preamble_commitment.write(&mut dr, &mut transcript)?;
         let w = transcript.challenge(&mut dr)?;
         let registry_at_w = self.native_registry.at(*w.value().take());
 
-        let s_prime = self.compute_s_prime(rng, &registry_at_w, &left, &right)?;
+        let s_prime = self.compute_s_prime(rng, &registry_at_w, left, right)?;
         let s_prime_commitment = Point::constant(&mut dr, s_prime.nested_s_prime_commitment)?;
         s_prime_commitment.write(&mut dr, &mut transcript)?;
         let y = transcript.challenge(&mut dr)?;
         let z = transcript.challenge(&mut dr)?;
 
         let (error_m, error_m_witness, claims) =
-            self.compute_errors_m(rng, &registry_at_w, &y, &z, &left, &right)?;
+            self.compute_errors_m(rng, &registry_at_w, &y, &z, left, right)?;
         let error_m_commitment = Point::constant(&mut dr, error_m.nested_commitment)?;
         error_m_commitment.write(&mut dr, &mut transcript)?;
 
@@ -119,26 +136,26 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let x = transcript.challenge(&mut dr)?;
 
         let (query, query_witness) =
-            self.compute_query(rng, &w, &x, &y, &z, &error_m, &left, &right)?;
+            self.compute_query(rng, &w, &x, &y, &z, &error_m, left, right)?;
         let query_commitment = Point::constant(&mut dr, query.nested_commitment)?;
         query_commitment.write(&mut dr, &mut transcript)?;
         let alpha = transcript.challenge(&mut dr)?;
 
         let f = self.compute_f(
-            rng, &w, &y, &z, &x, &alpha, &s_prime, &error_m, &ab, &query, &left, &right,
+            rng, &w, &y, &z, &x, &alpha, &s_prime, &error_m, &ab, &query, left, right,
         )?;
         let f_commitment = Point::constant(&mut dr, f.nested_commitment)?;
         f_commitment.write(&mut dr, &mut transcript)?;
         let u = transcript.challenge(&mut dr)?;
 
         let (eval, eval_witness) =
-            self.compute_eval(rng, &u, &left, &right, &s_prime, &error_m, &ab, &query)?;
+            self.compute_eval(rng, &u, left, right, &s_prime, &error_m, &ab, &query)?;
         let eval_commitment = Point::constant(&mut dr, eval.nested_commitment)?;
         eval_commitment.write(&mut dr, &mut transcript)?;
         let pre_beta = transcript.challenge(&mut dr)?;
 
         let p = self.compute_p(
-            &pre_beta, &u, &left, &right, &s_prime, &error_m, &ab, &query, &f,
+            &pre_beta, &u, left, right, &s_prime, &error_m, &ab, &query, &f,
         )?;
 
         let challenges = proof::Challenges::new(
@@ -164,7 +181,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             &challenges,
         )?;
 
-        let proof = Proof {
+        Ok(Proof {
             application,
             preamble,
             s_prime,
@@ -177,9 +194,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             p,
             challenges,
             circuits,
-        };
-
-        Ok((proof.carry(application_data), application_aux))
+        })
     }
 }
 

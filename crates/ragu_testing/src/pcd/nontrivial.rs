@@ -8,16 +8,12 @@ use ragu_core::{
     gadgets::{Bound, Kind},
     maybe::Maybe,
 };
-use ragu_pcd::{
-    header::{Header, Suffix},
-    step::{Encoded, Index, Step},
-};
+use ragu_pcd::{header::Header, step::Step};
 use ragu_primitives::{Element, poseidon::Sponge};
 
 pub struct LeafNode;
 
 impl<F: Field> Header<F> for LeafNode {
-    const SUFFIX: Suffix = Suffix::new(0);
     type Data = F;
     type Output = Kind![F; Element<'_, _>];
 
@@ -32,7 +28,6 @@ impl<F: Field> Header<F> for LeafNode {
 pub struct InternalNode;
 
 impl<F: Field> Header<F> for InternalNode {
-    const SUFFIX: Suffix = Suffix::new(1);
     type Data = F;
     type Output = Kind![F; Element<'_, _>];
 
@@ -49,42 +44,33 @@ pub struct Hash2<'params, C: Cycle> {
 }
 
 impl<C: Cycle> Step<C> for Hash2<'_, C> {
-    const INDEX: Index = Index::new(1);
     type Witness = ();
     type Aux = ();
     type Left = LeafNode;
     type Right = LeafNode;
     type Output = InternalNode;
 
-    fn witness<'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
+    fn synthesize<'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
         &self,
         dr: &mut D,
         _: DriverValue<D, Self::Witness>,
-        left: DriverValue<D, C::CircuitField>,
-        right: DriverValue<D, C::CircuitField>,
+        left: &Bound<'dr, D, <Self::Left as Header<C::CircuitField>>::Output>,
+        right: &Bound<'dr, D, <Self::Right as Header<C::CircuitField>>::Output>,
     ) -> Result<(
-        (
-            Encoded<'dr, D, Self::Left, HEADER_SIZE>,
-            Encoded<'dr, D, Self::Right, HEADER_SIZE>,
-            Encoded<'dr, D, Self::Output, HEADER_SIZE>,
-        ),
+        Bound<'dr, D, <Self::Output as Header<C::CircuitField>>::Output>,
         DriverValue<D, <Self::Output as Header<C::CircuitField>>::Data>,
         DriverValue<D, Self::Aux>,
     )>
     where
         Self: 'dr,
     {
-        let left = Encoded::new(dr, left)?;
-        let right = Encoded::new(dr, right)?;
-
         let mut sponge = Sponge::new(dr, self.poseidon_params);
-        sponge.absorb(dr, left.as_gadget())?;
-        sponge.absorb(dr, right.as_gadget())?;
+        sponge.absorb(dr, left)?;
+        sponge.absorb(dr, right)?;
         let output = sponge.squeeze(dr)?;
         let output_data = output.value().map(|v| *v);
-        let output = Encoded::from_gadget(output);
 
-        Ok(((left, right, output), output_data, D::unit()))
+        Ok((output, output_data, D::unit()))
     }
 }
 
@@ -93,25 +79,20 @@ pub struct WitnessLeaf<'params, C: Cycle> {
 }
 
 impl<C: Cycle> Step<C> for WitnessLeaf<'_, C> {
-    const INDEX: Index = Index::new(0);
     type Witness = C::CircuitField;
     type Aux = ();
     type Left = ();
     type Right = ();
     type Output = LeafNode;
 
-    fn witness<'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
+    fn synthesize<'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
         &self,
         dr: &mut D,
         witness: DriverValue<D, Self::Witness>,
-        _left: DriverValue<D, ()>,
-        _right: DriverValue<D, ()>,
+        _left: &Bound<'dr, D, <Self::Left as Header<C::CircuitField>>::Output>,
+        _right: &Bound<'dr, D, <Self::Right as Header<C::CircuitField>>::Output>,
     ) -> Result<(
-        (
-            Encoded<'dr, D, Self::Left, HEADER_SIZE>,
-            Encoded<'dr, D, Self::Right, HEADER_SIZE>,
-            Encoded<'dr, D, Self::Output, HEADER_SIZE>,
-        ),
+        Bound<'dr, D, <Self::Output as Header<C::CircuitField>>::Output>,
         DriverValue<D, <Self::Output as Header<C::CircuitField>>::Data>,
         DriverValue<D, Self::Aux>,
     )>
@@ -123,16 +104,7 @@ impl<C: Cycle> Step<C> for WitnessLeaf<'_, C> {
         sponge.absorb(dr, &leaf)?;
         let leaf = sponge.squeeze(dr)?;
         let leaf_data = leaf.value().map(|v| *v);
-        let leaf_encoded = Encoded::from_gadget(leaf);
 
-        Ok((
-            (
-                Encoded::from_gadget(()),
-                Encoded::from_gadget(()),
-                leaf_encoded,
-            ),
-            leaf_data,
-            D::unit(),
-        ))
+        Ok((leaf, leaf_data, D::unit()))
     }
 }

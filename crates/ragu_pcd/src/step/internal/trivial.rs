@@ -7,12 +7,11 @@ use ragu_arithmetic::Cycle;
 use ragu_core::{
     Result,
     drivers::{Driver, DriverValue},
+    gadgets::Bound,
 };
 
-use super::super::{Encoded, Index, Step};
+use super::super::Step;
 use crate::Header;
-
-pub(crate) use crate::step::InternalStepIndex::Trivial as INTERNAL_ID;
 
 pub(crate) struct Trivial;
 
@@ -23,8 +22,6 @@ impl Trivial {
 }
 
 impl<C: Cycle> Step<C> for Trivial {
-    const INDEX: Index = Index::internal(INTERNAL_ID);
-
     type Witness = ();
     type Aux = ();
 
@@ -32,25 +29,20 @@ impl<C: Cycle> Step<C> for Trivial {
     type Right = ();
     type Output = ();
 
-    fn witness<'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
+    fn synthesize<'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
         &self,
-        dr: &mut D,
+        _dr: &mut D,
         _: DriverValue<D, Self::Witness>,
-        left: DriverValue<D, ()>,
-        right: DriverValue<D, ()>,
+        _left: &Bound<'dr, D, <Self::Left as Header<C::CircuitField>>::Output>,
+        _right: &Bound<'dr, D, <Self::Right as Header<C::CircuitField>>::Output>,
     ) -> Result<(
-        (
-            Encoded<'dr, D, Self::Left, HEADER_SIZE>,
-            Encoded<'dr, D, Self::Right, HEADER_SIZE>,
-            Encoded<'dr, D, Self::Output, HEADER_SIZE>,
-        ),
+        Bound<'dr, D, <Self::Output as Header<C::CircuitField>>::Output>,
         DriverValue<D, <Self::Output as Header<C::CircuitField>>::Data>,
         DriverValue<D, Self::Aux>,
-    )> {
-        let left = Encoded::new(dr, left)?;
-        let right = Encoded::new(dr, right)?;
-        let output = Encoded::from_gadget(());
-
-        Ok(((left, right, output), D::unit(), D::unit()))
+    )>
+    where
+        Self: 'dr,
+    {
+        Ok(((), D::unit(), D::unit()))
     }
 }

@@ -24,6 +24,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         pcd: &Pcd<C, R, H>,
         mut rng: RNG,
     ) -> Result<bool> {
+        let suffix = self.suffix_for::<H>()?;
         // Sample verification challenges w, y, and z.
         let w = C::CircuitField::random(&mut rng);
         let y = C::CircuitField::random(&mut rng);
@@ -52,8 +53,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             Emulator::emulate_wireless((&pcd.proof, pcd.data.clone(), y), |dr, witness| {
                 let (proof, data, y) = witness.cast();
                 let y = Element::alloc(dr, y)?;
-                let proof_inputs =
-                    ProofInputs::<_, C, HEADER_SIZE>::alloc_for_verify::<R, H>(dr, proof, data)?;
+                let proof_inputs = ProofInputs::<_, C, HEADER_SIZE>::alloc_for_verify::<R, H>(
+                    dr, proof, data, suffix,
+                )?;
 
                 let (unified_ky, unified_bridge_ky) = proof_inputs.unified_ky_values(dr, &y)?;
                 let unified_ky = *unified_ky.value().take();

@@ -19,31 +19,17 @@ fn fuse_bench(c: &mut Criterion) {
         .finalize(pasta)
         .unwrap();
 
+    let witness_leaf = nontrivial::WitnessLeaf { poseidon_params };
+    let hash2 = nontrivial::Hash2 { poseidon_params };
     let mut rng = StdRng::seed_from_u64(1234);
 
-    let (leaf1, _) = app
-        .seed(
-            &mut rng,
-            nontrivial::WitnessLeaf { poseidon_params },
-            Fp::from(1u64),
-        )
-        .unwrap();
-
-    let (leaf2, _) = app
-        .seed(
-            &mut rng,
-            nontrivial::WitnessLeaf { poseidon_params },
-            Fp::from(2u64),
-        )
-        .unwrap();
+    let (leaf1, _) = app.seed(&mut rng, &witness_leaf, Fp::from(1u64)).unwrap();
+    let (leaf2, _) = app.seed(&mut rng, &witness_leaf, Fp::from(2u64)).unwrap();
 
     c.bench_function("fuse", |b| {
         b.iter_batched(
             || (leaf1.clone(), leaf2.clone(), StdRng::seed_from_u64(5678)),
-            |(l1, l2, mut rng)| {
-                app.fuse(&mut rng, nontrivial::Hash2 { poseidon_params }, (), l1, l2)
-                    .unwrap()
-            },
+            |(l1, l2, mut rng)| app.fuse(&mut rng, &hash2, (), l1, l2).unwrap(),
             criterion::BatchSize::PerIteration,
         );
     });

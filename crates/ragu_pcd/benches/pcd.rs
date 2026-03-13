@@ -22,13 +22,12 @@ fn register(
         nontrivial::Hash2<'static, Pasta>,
     ),
 ) {
-    black_box(
-        ApplicationBuilder::<Pasta, ProductionRank, 4>::new()
-            .register(leaf)
-            .unwrap()
-            .register(hash)
-            .unwrap(),
-    );
+    let builder = ApplicationBuilder::<Pasta, ProductionRank, 4>::new()
+        .register(leaf)
+        .unwrap()
+        .register(hash)
+        .unwrap();
+    black_box(builder);
 }
 
 #[library_benchmark(setup = setup_finalize)]
@@ -50,39 +49,28 @@ library_benchmark_group!(
 #[library_benchmark(setup = setup_seed)]
 #[bench::seed()]
 fn seed(
-    (app, poseidon_params, mut rng): (
+    (app, witness_leaf, _hash2, mut rng): (
         Application<'static, Pasta, ProductionRank, 4>,
-        &'static <Pasta as Cycle>::CircuitPoseidon,
+        nontrivial::WitnessLeaf<'static, Pasta>,
+        nontrivial::Hash2<'static, Pasta>,
         StdRng,
     ),
 ) {
-    black_box(app.seed(
-        &mut rng,
-        nontrivial::WitnessLeaf { poseidon_params },
-        Fp::from(42u64),
-    ))
-    .unwrap();
+    black_box(app.seed(&mut rng, &witness_leaf, Fp::from(42u64))).unwrap();
 }
 
 #[library_benchmark(setup = setup_fuse)]
 #[bench::fuse()]
 fn fuse(
-    (app, leaf1, leaf2, poseidon_params, mut rng): (
+    (app, leaf1, leaf2, hash2, mut rng): (
         Application<'static, Pasta, ProductionRank, 4>,
         Pcd<Pasta, ProductionRank, nontrivial::LeafNode>,
         Pcd<Pasta, ProductionRank, nontrivial::LeafNode>,
-        &'static <Pasta as Cycle>::CircuitPoseidon,
+        nontrivial::Hash2<'static, Pasta>,
         StdRng,
     ),
 ) {
-    black_box(app.fuse(
-        &mut rng,
-        nontrivial::Hash2 { poseidon_params },
-        (),
-        leaf1,
-        leaf2,
-    ))
-    .unwrap();
+    black_box(app.fuse(&mut rng, &hash2, (), leaf1, leaf2)).unwrap();
 }
 
 library_benchmark_group!(

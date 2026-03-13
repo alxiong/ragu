@@ -27,12 +27,16 @@ use ragu_circuits::{
 use ragu_core::{Error, Result};
 use rand::CryptoRng;
 
-use alloc::collections::BTreeMap;
+use alloc::{collections::BTreeMap, sync::Arc};
 use core::{any::TypeId, cell::OnceCell, marker::PhantomData};
 
-use header::Header;
+use header::{Header, Suffix};
 pub use proof::{Pcd, Proof};
-use step::{Step, internal::adapter::Adapter};
+use step::{
+    Step,
+    internal::adapter::{Adapter, StepWithSuffixes},
+    internal::rerandomize::Rerandomize,
+};
 
 /// Domain separation tag for Ragu PCD protocol.
 // FIXME: choose a permanent domain separation tag before release.
@@ -43,7 +47,10 @@ pub struct ApplicationBuilder<'params, C: Cycle, R: Rank, const HEADER_SIZE: usi
     native_registry: RegistryBuilder<'params, C::CircuitField, R>,
     nested_registry: RegistryBuilder<'params, C::ScalarField, R>,
     num_application_steps: usize,
-    header_map: BTreeMap<header::Suffix, TypeId>,
+    // map Header types to their assigned suffixes
+    suffix_registry: BTreeMap<TypeId, Suffix>,
+    // map Step types to their assigned step indices
+    step_registry: BTreeMap<TypeId, step::Index>,
     _marker: PhantomData<[(); HEADER_SIZE]>,
 }
 
@@ -60,28 +67,47 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
 {
     /// Create an empty [`ApplicationBuilder`] for proof-carrying data.
     pub fn new() -> Self {
+        let mut suffix_registry = BTreeMap::new();
+        // Pre-register the trivial header `()` with its internal suffix.
+        suffix_registry.insert(TypeId::of::<()>(), Suffix::internal(1));
+
         ApplicationBuilder {
             native_registry: RegistryBuilder::new(),
             nested_registry: RegistryBuilder::new(),
             num_application_steps: 0,
-            header_map: BTreeMap::new(),
+            suffix_registry,
+            step_registry: BTreeMap::new(),
             _marker: PhantomData,
         }
     }
 
-    /// Register a new application-defined [`Step`] in this context. The
-    /// provided [`Step`]'s [`INDEX`](Step::INDEX) should be the next sequential
-    /// index that has not been inserted yet.
-    pub fn register<S: Step<C> + 'params>(mut self, step: S) -> Result<Self> {
-        S::INDEX.assert_index(self.num_application_steps)?;
+    /// Register a step type.
+    ///
+    /// Each concrete step type may only be registered once. Use newtypes to
+    /// register multiple configurations of the same logic.
+    ///
+    /// Returns `self` for chaining.
+    pub fn register<S>(mut self, step: S) -> Result<Self>
+    where
+        S: Step<C> + 'static,
+    {
+        let type_id = TypeId::of::<S>();
+        if self.step_registry.contains_key(&type_id) {
+            return Err(Error::Initialization("step type already registered".into()));
+        }
 
-        self.prevent_duplicate_suffixes::<S::Output>()?;
-        self.prevent_duplicate_suffixes::<S::Left>()?;
-        self.prevent_duplicate_suffixes::<S::Right>()?;
+        let wrapped = StepWithSuffixes {
+            step,
+            left_suffix: self.assign_suffix::<S::Left>(),
+            right_suffix: self.assign_suffix::<S::Right>(),
+            output_suffix: self.assign_suffix::<S::Output>(),
+        };
 
         self.native_registry =
             self.native_registry
-                .register_circuit(Adapter::<C, S, R, HEADER_SIZE>::new(step))?;
+                .register_circuit(Adapter::<C, S, R, HEADER_SIZE>::new(wrapped))?;
+        self.step_registry
+            .insert(type_id, step::Index::new(self.num_application_steps));
         self.num_application_steps += 1;
 
         Ok(self)
@@ -100,6 +126,20 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
             self.num_application_steps += 1;
         }
         Ok(self)
+    }
+
+    /// Returns the assigned suffix for the header type, assigning a new one
+    /// if unassigned yet.
+    fn assign_suffix<H: Header<C::CircuitField>>(&mut self) -> Suffix {
+        let next_suffix = self
+            .suffix_registry
+            .values()
+            .filter(|s| !s.is_internal())
+            .count();
+        *self
+            .suffix_registry
+            .entry(TypeId::of::<H>())
+            .or_insert_with(|| Suffix::new(next_suffix))
     }
 
     /// Perform finalization and optimization steps to produce the
@@ -123,17 +163,31 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
             log2_circuits,
         )?;
 
-        // Then, register internal steps
+        // Then, register internal slots (rerandomize circuit + trivial step).
+        // Rerandomize uses `()` as header type for registration — uniform
+        // encoding ensures circuit uniformity regardless of the actual header
+        // type used at runtime.
         self.native_registry =
             self.native_registry.register_internal_circuit(
-                Adapter::<C, _, R, HEADER_SIZE>::new(
-                    step::internal::rerandomize::Rerandomize::<()>::new(),
-                ),
+                Rerandomize::<C, (), R, HEADER_SIZE>::new(Suffix::internal(1), Suffix::internal(1)),
             )?;
         self.native_registry =
             self.native_registry.register_internal_circuit(
-                Adapter::<C, _, R, HEADER_SIZE>::new(step::internal::trivial::Trivial::new()),
+                Adapter::<C, _, R, HEADER_SIZE>::new(StepWithSuffixes {
+                    step: step::internal::trivial::Trivial::new(),
+                    left_suffix: Suffix::internal(1),
+                    right_suffix: Suffix::internal(1),
+                    output_suffix: Suffix::internal(1),
+                }),
             )?;
+
+        // Register Trivial in step_registry so it can be used via
+        // seed()/fuse(). Rerandomize is not a Step — it bypasses fuse
+        // entirely via Application::rerandomize().
+        self.step_registry.insert(
+            TypeId::of::<step::internal::trivial::Trivial>(),
+            step::Index::internal(step::InternalIndex::Trivial),
+        );
 
         assert_eq!(
             self.native_registry.log2_circuits(),
@@ -154,26 +208,11 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
             nested_registry: self.nested_registry.finalize()?,
             params,
             num_application_steps: self.num_application_steps,
+            suffix_registry: self.suffix_registry,
+            step_registry: self.step_registry,
             seeded_trivial: OnceCell::new(),
             _marker: PhantomData,
         })
-    }
-
-    fn prevent_duplicate_suffixes<H: Header<C::CircuitField>>(&mut self) -> Result<()> {
-        match self.header_map.get(&H::SUFFIX) {
-            Some(ty) => {
-                if *ty != TypeId::of::<H>() {
-                    return Err(Error::Initialization(
-                        "two different Header implementations using the same suffix".into(),
-                    ));
-                }
-            }
-            None => {
-                self.header_map.insert(H::SUFFIX, TypeId::of::<H>());
-            }
-        }
-
-        Ok(())
     }
 }
 
@@ -183,6 +222,8 @@ pub struct Application<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize> {
     nested_registry: Registry<'params, C::ScalarField, R>,
     params: &'params C::Params,
     num_application_steps: usize,
+    suffix_registry: BTreeMap<TypeId, Suffix>,
+    step_registry: BTreeMap<TypeId, step::Index>,
     /// Cached seeded trivial proof for rerandomization.
     seeded_trivial: OnceCell<Proof<C, R>>,
     _marker: PhantomData<[(); HEADER_SIZE]>,
@@ -194,10 +235,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     /// This is the entry point for creating leaf nodes in a PCD tree.
     /// Internally creates minimal trivial proofs with `()` headers and fuses
     /// them with the provided step to produce a valid proof.
-    pub fn seed<RNG: CryptoRng, S: Step<C, Left = (), Right = ()>>(
+    pub fn seed<RNG: CryptoRng, S: Step<C, Left = (), Right = ()> + 'static>(
         &self,
         rng: &mut RNG,
-        step: S,
+        step: &S,
         witness: S::Witness,
     ) -> Result<(Pcd<C, R, S::Output>, S::Aux)> {
         self.fuse(rng, step, witness, self.trivial_pcd(), self.trivial_pcd())
@@ -215,7 +256,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     fn seeded_trivial_pcd<RNG: CryptoRng>(&self, rng: &mut RNG) -> Pcd<C, R, ()> {
         self.seeded_trivial
             .get_or_init(|| {
-                self.seed(rng, step::internal::trivial::Trivial::new(), ())
+                self.seed(rng, &step::internal::trivial::Trivial::new(), ())
                     .expect("seeded trivial seed should not fail")
                     .0
                     .proof
@@ -227,28 +268,31 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     /// Rerandomize proof-carrying data.
     ///
     /// This will internally fold the [`Pcd`] with a seeded trivial proof
-    /// using an internal rerandomization step, such that the resulting proof
-    /// is valid for the same [`Header`] but reveals nothing else about the
-    /// original proof. As a result, [`Application::verify`] should produce the
-    /// same result on the provided `pcd` as it would the output of this method.
-    pub fn rerandomize<RNG: CryptoRng, H: Header<C::CircuitField>>(
+    /// using the rerandomize circuit, such that the resulting proof is valid
+    /// for the same [`Header`] but reveals nothing else about the original
+    /// proof. As a result, [`Application::verify`] should produce the same
+    /// result on the provided `pcd` as it would the output of this method.
+    pub fn rerandomize<RNG: CryptoRng, H: Header<C::CircuitField> + 'static>(
         &self,
         pcd: Pcd<C, R, H>,
         rng: &mut RNG,
     ) -> Result<Pcd<C, R, H>> {
-        // Seed a trivial proof for rerandomization.
-        // TODO: this is a temporary hack that allows the base case logic to be simple
         let seeded_trivial = self.seeded_trivial_pcd(rng);
+        let left_suffix = self.suffix_for::<H>()?;
+        let application =
+            self.compute_rerandomize_application::<_, H>(rng, &pcd.data, left_suffix)?;
 
-        // The Rerandomize step's witness() returns the left input's data as
-        // output data, preserving it through rerandomization.
-        self.fuse(
-            rng,
-            step::internal::rerandomize::Rerandomize::new(),
-            (),
-            pcd,
-            seeded_trivial,
-        )
-        .map(|(pcd, ())| pcd)
+        let left = Arc::new(pcd.proof);
+        let right = Arc::new(seeded_trivial.proof);
+        let proof = self.fuse_with(rng, &left, &right, application)?;
+        Ok(proof.carry(pcd.data))
+    }
+
+    /// Look up the suffix for a registered header type.
+    pub(crate) fn suffix_for<H: Header<C::CircuitField>>(&self) -> Result<Suffix> {
+        self.suffix_registry
+            .get(&TypeId::of::<H>())
+            .copied()
+            .ok_or_else(|| Error::Initialization("header type not registered".into()))
     }
 }

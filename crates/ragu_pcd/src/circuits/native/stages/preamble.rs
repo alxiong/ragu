@@ -201,13 +201,14 @@ impl<'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle, const HEADER_SIZE: usiz
         dr: &mut D,
         proof: DriverValue<D, &Proof<C, R>>,
         header_data: DriverValue<D, H::Data>,
+        suffix: crate::header::Suffix,
     ) -> Result<Self> {
         let header_data = D::try_just(|| {
             use ragu_core::drivers::emulator::{Emulator, Wireless};
             let emulator = &mut Emulator::<Wireless<D::MaybeKind, D::F>>::wireless();
 
             let output = H::encode(emulator, header_data)?;
-            let output = padded::for_header::<H, HEADER_SIZE, _>(emulator, output)?;
+            let output = padded::for_header::<H, HEADER_SIZE, _>(emulator, output, suffix)?;
 
             let mut header_data = Vec::with_capacity(HEADER_SIZE);
             output.write(emulator, &mut header_data)?;

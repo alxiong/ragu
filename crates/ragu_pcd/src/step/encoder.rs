@@ -16,6 +16,7 @@ use ragu_primitives::{
 use alloc::vec::Vec;
 
 use super::{Header, internal::padded};
+use crate::header::Suffix;
 
 /// Headers can be encoded in two ways depending on the circuit requirements:
 ///
@@ -51,9 +52,10 @@ enum EncodedInner<'dr, D: Driver<'dr>, H: Header<D::F>, const HEADER_SIZE: usize
 }
 
 /// The result of encoding a header within a step.
-pub struct Encoded<'dr, D: Driver<'dr>, H: Header<D::F>, const HEADER_SIZE: usize>(
-    EncodedInner<'dr, D, H, HEADER_SIZE>,
-);
+pub(crate) struct Encoded<'dr, D: Driver<'dr>, H: Header<D::F>, const HEADER_SIZE: usize> {
+    inner: EncodedInner<'dr, D, H, HEADER_SIZE>,
+    suffix: Suffix,
+}
 
 impl<'dr, D: Driver<'dr>, H: Header<D::F>, const HEADER_SIZE: usize> Clone
     for EncodedInner<'dr, D, H, HEADER_SIZE>
@@ -70,21 +72,27 @@ impl<'dr, D: Driver<'dr>, H: Header<D::F>, const HEADER_SIZE: usize> Clone
     for Encoded<'dr, D, H, HEADER_SIZE>
 {
     fn clone(&self) -> Self {
-        Encoded(self.0.clone())
+        Encoded {
+            inner: self.inner.clone(),
+            suffix: self.suffix,
+        }
     }
 }
 
 impl<'dr, D: Driver<'dr, F: PrimeField>, H: Header<D::F>, const HEADER_SIZE: usize>
     Encoded<'dr, D, H, HEADER_SIZE>
 {
-    /// Create an encoded header from a gadget value.
-    pub fn from_gadget(gadget: Bound<'dr, D, H::Output>) -> Self {
-        Encoded(EncodedInner::Gadget(gadget))
+    /// Create an encoded header from a gadget value with a suffix.
+    pub fn from_gadget(gadget: Bound<'dr, D, H::Output>, suffix: Suffix) -> Self {
+        Encoded {
+            inner: EncodedInner::Gadget(gadget),
+            suffix,
+        }
     }
 
     /// Returns a reference to the underlying gadget.
     pub fn as_gadget(&self) -> &Bound<'dr, D, H::Output> {
-        match &self.0 {
+        match &self.inner {
             EncodedInner::Gadget(g) => g,
             EncodedInner::Uniform(_) => {
                 unreachable!("as_gadget should not be called on Uniform encoded headers")
@@ -93,9 +101,9 @@ impl<'dr, D: Driver<'dr, F: PrimeField>, H: Header<D::F>, const HEADER_SIZE: usi
     }
 
     pub(crate) fn write(self, dr: &mut D, buf: &mut Vec<Element<'dr, D>>) -> Result<()> {
-        match self.0 {
+        match self.inner {
             EncodedInner::Gadget(gadget) => {
-                padded::for_header::<H, HEADER_SIZE, _>(dr, gadget)?.write(dr, buf)?
+                padded::for_header::<H, HEADER_SIZE, _>(dr, gadget, self.suffix)?.write(dr, buf)?
             }
             EncodedInner::Uniform(elements) => {
                 buf.extend(elements.into_inner());
@@ -108,8 +116,8 @@ impl<'dr, D: Driver<'dr, F: PrimeField>, H: Header<D::F>, const HEADER_SIZE: usi
     ///
     /// This is the standard encoding method used by most Steps. The gadget structure
     /// is preserved and will be serialized with padding during the write phase.
-    pub fn new(dr: &mut D, witness: DriverValue<D, H::Data>) -> Result<Self> {
-        Ok(Encoded::from_gadget(H::encode(dr, witness)?))
+    pub fn new(dr: &mut D, witness: DriverValue<D, H::Data>, suffix: Suffix) -> Result<Self> {
+        Ok(Encoded::from_gadget(H::encode(dr, witness)?, suffix))
     }
 
     /// Creates a uniform encoded header for circuit-independent encoding.
@@ -121,22 +129,29 @@ impl<'dr, D: Driver<'dr, F: PrimeField>, H: Header<D::F>, const HEADER_SIZE: usi
     ///
     /// The tradeoff: less efficient (requires emulation + serialization) but achieves
     /// circuit uniformity across different header types.
-    pub(crate) fn new_uniform(dr: &mut D, witness: DriverValue<D, H::Data>) -> Result<Self> {
+    pub(crate) fn new_uniform(
+        dr: &mut D,
+        witness: DriverValue<D, H::Data>,
+        suffix: Suffix,
+    ) -> Result<Self> {
         let mut emulator: Emulator<Wireless<D::MaybeKind, _>> = Emulator::wireless();
         let gadget = H::encode(&mut emulator, witness)?;
-        let gadget = padded::for_header::<H, HEADER_SIZE, _>(&mut emulator, gadget)?;
+        let gadget = padded::for_header::<H, HEADER_SIZE, _>(&mut emulator, gadget, suffix)?;
 
         let mut raw = Vec::with_capacity(HEADER_SIZE);
         gadget.write(&mut emulator, &mut Pipe::new(dr, &mut raw))?;
 
-        Ok(Encoded(EncodedInner::Uniform(FixedVec::try_from(raw)?)))
+        Ok(Encoded {
+            inner: EncodedInner::Uniform(FixedVec::try_from(raw)?),
+            suffix,
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::header::{Header, Suffix};
+    use crate::header::Header;
     use alloc::vec;
     use ragu_core::{
         drivers::emulator::Emulator,
@@ -150,7 +165,6 @@ mod tests {
     struct SingleHeader;
 
     impl Header<Fp> for SingleHeader {
-        const SUFFIX: Suffix = Suffix::new(100);
         type Data = Fp;
         type Output = Kind![Fp; Element<'_, _>];
 
@@ -165,7 +179,6 @@ mod tests {
     struct PairHeader;
 
     impl Header<Fp> for PairHeader {
-        const SUFFIX: Suffix = Suffix::new(101);
         type Data = (Fp, Fp);
         type Output = Kind![Fp; (Element<'_, _>, Element<'_, _>)];
 
@@ -184,7 +197,7 @@ mod tests {
         let dr = &mut dr;
 
         let witness = Always::maybe_just(|| Fp::from(42u64));
-        let encoded = Encoded::<_, SingleHeader, HEADER_SIZE>::new(dr, witness)
+        let encoded = Encoded::<_, SingleHeader, HEADER_SIZE>::new(dr, witness, Suffix::new(100))
             .expect("encoding should succeed");
 
         let mut buf = vec![];
@@ -199,8 +212,9 @@ mod tests {
         let dr = &mut dr;
 
         let witness = Always::maybe_just(|| Fp::from(42u64));
-        let encoded = Encoded::<_, SingleHeader, HEADER_SIZE>::new_uniform(dr, witness)
-            .expect("encoding should succeed");
+        let encoded =
+            Encoded::<_, SingleHeader, HEADER_SIZE>::new_uniform(dr, witness, Suffix::new(100))
+                .expect("encoding should succeed");
 
         let mut buf = vec![];
         encoded.write(dr, &mut buf).expect("write should succeed");
@@ -214,7 +228,7 @@ mod tests {
         let dr = &mut dr;
 
         let witness = Always::maybe_just(|| Fp::from(99u64));
-        let encoded = Encoded::<_, SingleHeader, HEADER_SIZE>::new(dr, witness)
+        let encoded = Encoded::<_, SingleHeader, HEADER_SIZE>::new(dr, witness, Suffix::new(100))
             .expect("encoding should succeed");
 
         let gadget = encoded.as_gadget();
@@ -227,7 +241,7 @@ mod tests {
         let dr = &mut dr;
 
         let witness = Always::maybe_just(|| Fp::from(1u64));
-        let encoded = Encoded::<_, SingleHeader, HEADER_SIZE>::new(dr, witness)
+        let encoded = Encoded::<_, SingleHeader, HEADER_SIZE>::new(dr, witness, Suffix::new(100))
             .expect("encoding should succeed");
 
         let mut buf = vec![];
@@ -245,17 +259,23 @@ mod tests {
         let single = Encoded::<_, SingleHeader, HEADER_SIZE>::new_uniform(
             dr,
             Always::maybe_just(|| Fp::from(1u64)),
+            Suffix::new(100),
         )
         .expect("single encoding should succeed");
 
         let pair = Encoded::<_, PairHeader, HEADER_SIZE>::new_uniform(
             dr,
             Always::maybe_just(|| (Fp::from(2u64), Fp::from(3u64))),
+            Suffix::new(101),
         )
         .expect("pair encoding should succeed");
 
-        let trivial = Encoded::<_, (), HEADER_SIZE>::new_uniform(dr, Always::maybe_just(|| ()))
-            .expect("trivial encoding should succeed");
+        let trivial = Encoded::<_, (), HEADER_SIZE>::new_uniform(
+            dr,
+            Always::maybe_just(|| ()),
+            Suffix::internal(1),
+        )
+        .expect("trivial encoding should succeed");
 
         let mut buf_single = vec![];
         let mut buf_pair = vec![];
@@ -277,7 +297,7 @@ mod tests {
         let dr = &mut dr;
 
         let witness = Always::maybe_just(|| Fp::from(77u64));
-        let original = Encoded::<_, SingleHeader, HEADER_SIZE>::new(dr, witness)
+        let original = Encoded::<_, SingleHeader, HEADER_SIZE>::new(dr, witness, Suffix::new(100))
             .expect("encoding should succeed");
         let cloned = original.clone();
 

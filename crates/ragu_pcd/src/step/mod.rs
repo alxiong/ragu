@@ -1,6 +1,6 @@
 //! Merging operations defined for the proof-carrying data computational graph.
 
-mod encoder;
+pub(crate) mod encoder;
 pub(crate) mod internal;
 
 use ragu_arithmetic::Cycle;
@@ -8,17 +8,20 @@ use ragu_circuits::registry::CircuitIndex;
 use ragu_core::{
     Result,
     drivers::{Driver, DriverValue},
+    gadgets::Bound,
 };
 
 use super::header::Header;
 use crate::circuits::native::NUM_INTERNAL_CIRCUITS;
 
-pub use encoder::Encoded;
+pub(crate) use encoder::Encoded;
 
+/// Indices for internal circuits registered after internal masks/circuits
+/// but before application steps.
 #[derive(Copy, Clone)]
 #[repr(usize)]
-pub(crate) enum InternalStepIndex {
-    /// Internal step for [`internal::rerandomize`].
+pub(crate) enum InternalIndex {
+    /// Internal circuit for rerandomization (via [`internal::rerandomize::Rerandomize`]).
     Rerandomize = 0,
     /// Internal step that produces a valid trivial proof for rerandomization.
     Trivial = 1,
@@ -27,26 +30,24 @@ pub(crate) enum InternalStepIndex {
 /// Internal representation of a [`Step`] index distinguishing internal vs.
 /// application steps.
 enum StepIndex {
-    Internal(InternalStepIndex),
+    Internal(InternalIndex),
     Application(usize),
 }
 
-/// The number of internal steps used by Ragu for things like rerandomization or
-/// proof decompression.
+/// The number of internal circuit slots (rerandomize + trivial) registered
+/// after internal masks/circuits but before application steps.
 pub(crate) const NUM_INTERNAL_STEPS: usize = 2;
 
-/// The index of a [`Step`] in an application.
+/// The index of a step in an application.
 ///
-/// All steps added to an application have a unique index and must be inserted
-/// sequentially so that their location (and other metadata) can be identified
-/// during proof generation and at other times.
-pub struct Index {
+/// Used internally by the framework; users do not need to assign indices manually.
+pub(crate) struct Index {
     index: StepIndex,
 }
 
 impl Index {
-    /// Creates a new application-defined [`Step`] index.
-    pub const fn new(value: usize) -> Self {
+    /// Creates a new application-defined step index.
+    pub(crate) const fn new(value: usize) -> Self {
         Index {
             index: StepIndex::Application(value),
         }
@@ -82,32 +83,11 @@ impl Index {
         }
     }
 
-    /// Creates a new internal-defined [`Step`] index. Only called internally by
+    /// Creates a new internal-defined step index. Only called internally by
     /// Ragu.
-    pub(crate) const fn internal(value: InternalStepIndex) -> Self {
+    pub(crate) const fn internal(value: InternalIndex) -> Self {
         Index {
             index: StepIndex::Internal(value),
-        }
-    }
-
-    /// Called during application step registration to assert the appropriate
-    /// next sequential index.
-    ///
-    /// ## Panics
-    ///
-    /// Panics if called on an internal step.
-    pub(crate) fn assert_index(&self, expect_id: usize) -> Result<()> {
-        match self.index {
-            StepIndex::Application(i) => {
-                if i != expect_id {
-                    return Err(ragu_core::Error::Initialization(
-                        "steps must be registered in sequential order".into(),
-                    ));
-                }
-
-                Ok(())
-            }
-            StepIndex::Internal(_) => panic!("step should be application-defined"),
         }
     }
 }
@@ -121,11 +101,11 @@ fn test_index_map() -> Result<()> {
 
     // Internal steps come after internal circuits
     assert_eq!(
-        Index::internal(InternalStepIndex::Rerandomize).circuit_index(num_application_steps)?,
+        Index::internal(InternalIndex::Rerandomize).circuit_index(num_application_steps)?,
         CircuitIndex::new(NUM_INTERNAL_CIRCUITS)
     );
     assert_eq!(
-        Index::internal(InternalStepIndex::Trivial).circuit_index(num_application_steps)?,
+        Index::internal(InternalIndex::Trivial).circuit_index(num_application_steps)?,
         CircuitIndex::new(NUM_INTERNAL_CIRCUITS + 1)
     );
 
@@ -138,7 +118,6 @@ fn test_index_map() -> Result<()> {
         Index::new(1).circuit_index(num_application_steps)?,
         CircuitIndex::new(app_offset + 1)
     );
-    Index::new(999).assert_index(999)?;
     assert!(Index::new(10).circuit_index(num_application_steps).is_err());
 
     Ok(())
@@ -147,10 +126,6 @@ fn test_index_map() -> Result<()> {
 /// Represents a node in the computational graph (or the proof-carrying data
 /// tree) that represents the merging of two pieces of proof-carrying data.
 pub trait Step<C: Cycle>: Sized + Send + Sync {
-    /// Each unique [`Step`] implementation within a provided context must have
-    /// a unique index.
-    const INDEX: Index;
-
     /// The witness data needed to construct a proof for this step.
     type Witness: Send;
 
@@ -169,23 +144,44 @@ pub trait Step<C: Cycle>: Sized + Send + Sync {
 
     /// The main synthesis method that checks the validity of this merging step.
     ///
-    /// Returns the encoded headers (left, right, output), the data to be
-    /// carried in the resulting PCD, and any auxiliary witness data.
-    fn witness<'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
+    /// Receives pre-encoded left/right gadgets and returns the output gadget,
+    /// the data to be carried in the resulting PCD, and any auxiliary data.
+    fn synthesize<'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
         &self,
         dr: &mut D,
         witness: DriverValue<D, Self::Witness>,
-        left: DriverValue<D, <Self::Left as Header<C::CircuitField>>::Data>,
-        right: DriverValue<D, <Self::Right as Header<C::CircuitField>>::Data>,
+        left: &Bound<'dr, D, <Self::Left as Header<C::CircuitField>>::Output>,
+        right: &Bound<'dr, D, <Self::Right as Header<C::CircuitField>>::Output>,
     ) -> Result<(
-        (
-            Encoded<'dr, D, Self::Left, HEADER_SIZE>,
-            Encoded<'dr, D, Self::Right, HEADER_SIZE>,
-            Encoded<'dr, D, Self::Output, HEADER_SIZE>,
-        ),
+        Bound<'dr, D, <Self::Output as Header<C::CircuitField>>::Output>,
         DriverValue<D, <Self::Output as Header<C::CircuitField>>::Data>,
         DriverValue<D, Self::Aux>,
     )>
     where
         Self: 'dr;
+}
+
+impl<C: Cycle, S: Step<C>> Step<C> for &S {
+    type Witness = S::Witness;
+    type Left = S::Left;
+    type Right = S::Right;
+    type Output = S::Output;
+    type Aux = S::Aux;
+
+    fn synthesize<'dr, D: Driver<'dr, F = C::CircuitField>, const HEADER_SIZE: usize>(
+        &self,
+        dr: &mut D,
+        witness: DriverValue<D, Self::Witness>,
+        left: &Bound<'dr, D, <Self::Left as Header<C::CircuitField>>::Output>,
+        right: &Bound<'dr, D, <Self::Right as Header<C::CircuitField>>::Output>,
+    ) -> Result<(
+        Bound<'dr, D, <Self::Output as Header<C::CircuitField>>::Output>,
+        DriverValue<D, <Self::Output as Header<C::CircuitField>>::Data>,
+        DriverValue<D, Self::Aux>,
+    )>
+    where
+        Self: 'dr,
+    {
+        (**self).synthesize::<D, HEADER_SIZE>(dr, witness, left, right)
+    }
 }

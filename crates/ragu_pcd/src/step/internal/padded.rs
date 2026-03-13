@@ -41,9 +41,10 @@ pub(crate) fn for_header<
 >(
     dr: &mut D,
     gadget: Bound<'dr, D, H::Output>,
+    suffix: crate::header::Suffix,
 ) -> Result<Padded<'dr, D, H::Output, HEADER_SIZE>> {
     let padded_content = PaddedContent { gadget };
-    let suffix = Element::constant(dr, D::F::from(H::SUFFIX.get()));
+    let suffix = Element::constant(dr, D::F::from(suffix.get()));
     Ok(Padded {
         inner: WithSuffix::new(padded_content, suffix),
     })
