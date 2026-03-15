@@ -87,10 +87,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let mu_prime_inv = mu_prime.invert().expect("mu_prime must be non-zero");
         let mu_prime_nu_prime = mu_prime * nu_prime;
 
-        let a_poly = fold_revdot::fold_polys_n::<_, R, native::RevdotParameters>(a, mu_prime_inv);
+        let a_poly = fold_revdot::fold_polys_n::<_, _, native::RevdotParameters>(a, mu_prime_inv);
         let a_blind = C::CircuitField::random(&mut *rng);
         let b_poly =
-            fold_revdot::fold_polys_n::<_, R, native::RevdotParameters>(b, mu_prime_nu_prime);
+            fold_revdot::fold_polys_n::<_, _, native::RevdotParameters>(b, mu_prime_nu_prime);
         let b_blind = C::CircuitField::random(&mut *rng);
         let host_gen = C::host_generators(self.params);
         let [a_commitment, b_commitment] = ragu_arithmetic::batch_to_affine([

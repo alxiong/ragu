@@ -60,8 +60,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let nu = *nu.value().take();
         let mu_inv = mu.invert().expect("mu must be non-zero");
         let munu = mu * nu;
-        let a = fold_revdot::fold_polys_m::<_, R, native::RevdotParameters>(&claims.a, mu_inv);
-        let b = fold_revdot::fold_polys_m::<_, R, native::RevdotParameters>(&claims.b, munu);
+        let a = fold_revdot::fold_polys_m::<_, _, native::RevdotParameters>(&claims.a, mu_inv);
+        let b = fold_revdot::fold_polys_m::<_, _, native::RevdotParameters>(&claims.b, munu);
         drop(claims);
 
         let (ky, collapsed) = Emulator::emulate_wireless(

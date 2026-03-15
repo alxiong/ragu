@@ -13,6 +13,34 @@ use ragu_circuits::horner::Horner;
 
 use core::{borrow::Borrow, iter, marker::PhantomData};
 
+/// The two operations a Horner-style fold needs: scale all components, then
+/// add another element in.
+pub trait Foldable<F: Field>: Default + Clone {
+    fn fold_scale(&mut self, by: F);
+    fn fold_add_assign(&mut self, other: &Self);
+}
+
+impl<F: Field, R: Rank> Foldable<F> for structured::Polynomial<F, R> {
+    fn fold_scale(&mut self, by: F) {
+        self.scale(by);
+    }
+    fn fold_add_assign(&mut self, other: &Self) {
+        self.add_assign(other);
+    }
+}
+
+/// Generic Horner fold over any [`Foldable`] type.
+pub fn fold<T: Foldable<F>, F: Field>(
+    items: impl IntoIterator<Item = impl Borrow<T>>,
+    scale_factor: F,
+) -> T {
+    items.into_iter().fold(T::default(), |mut acc, item| {
+        acc.fold_scale(scale_factor);
+        acc.fold_add_assign(item.borrow());
+        acc
+    })
+}
+
 /// The parameters $(m, n)$ that dictate the multi-layer revdot reduction.
 ///
 /// The first layer involves $n$ instances of size-$m$ revdot reductions, and
@@ -61,10 +89,10 @@ fn off_diagonal_pairs(n: usize) -> impl Iterator<Item = (usize, usize)> {
 /// # Panics
 ///
 /// Panics if `source.len()` exceeds `M * N`, which would cause silent truncation.
-pub fn fold_polys_m<F: Field, R: Rank, P: Parameters>(
-    source: &[impl Borrow<structured::Polynomial<F, R>>],
+pub fn fold_polys_m<T: Foldable<F>, F: Field, P: Parameters>(
+    source: &[impl Borrow<T>],
     scale_factor: F,
-) -> FixedVec<structured::Polynomial<F, R>, P::N> {
+) -> FixedVec<T, P::N> {
     assert!(
         source.len() <= P::M::len() * P::N::len(),
         "source length {} exceeds M*N = {}",
@@ -76,15 +104,15 @@ pub fn fold_polys_m<F: Field, R: Rank, P: Parameters>(
     source
         .chunks(m)
         .map(|chunk| {
-            structured::Polynomial::fold(
+            fold(
                 chunk
                     .iter()
                     .map(|p| p.borrow().clone())
-                    .chain(iter::repeat_with(structured::Polynomial::new).take(m - chunk.len())),
+                    .chain(iter::repeat_with(T::default).take(m - chunk.len())),
                 scale_factor,
             )
         })
-        .chain(iter::repeat_with(structured::Polynomial::new))
+        .chain(iter::repeat_with(T::default))
         .take(P::N::len())
         .collect_fixed()
         .expect("iterator produces exactly N elements")
@@ -95,11 +123,11 @@ pub fn fold_polys_m<F: Field, R: Rank, P: Parameters>(
 /// This takes a length-N vector of polynomials and performs a simple folding
 /// procedure with the scaling factor. This function exists mainly to complement
 /// fold_polys_m as its behavior is trivial.
-pub fn fold_polys_n<F: Field, R: Rank, P: Parameters>(
-    source: FixedVec<structured::Polynomial<F, R>, P::N>,
+pub fn fold_polys_n<T: Foldable<F>, F: Field, P: Parameters>(
+    source: FixedVec<T, P::N>,
     scale_factor: F,
-) -> structured::Polynomial<F, R> {
-    structured::Polynomial::fold(source.iter(), scale_factor)
+) -> T {
+    fold(source.iter(), scale_factor)
 }
 
 /// Error computation for revdot folding.
@@ -370,8 +398,8 @@ mod tests {
 
             // Compute error_m and fold polynomials for layer 1
             let error_m = compute_errors_m::<Fp, TestRank, P>(&lhs, &rhs);
-            let folded_lhs_m = fold_polys_m::<Fp, TestRank, P>(&lhs, mu_inv);
-            let folded_rhs_m = fold_polys_m::<Fp, TestRank, P>(&rhs, munu);
+            let folded_lhs_m = fold_polys_m::<_, Fp, P>(&lhs, mu_inv);
+            let folded_rhs_m = fold_polys_m::<_, Fp, P>(&rhs, munu);
 
             // Verify layer 1 invariant for each group
             let dr = &mut Emulator::execute();
@@ -476,8 +504,8 @@ mod tests {
             let error_m = compute_errors_m::<Fp, TestRank, P>(&lhs, &rhs);
 
             // Fold polynomials for layer 1
-            let folded_lhs = fold_polys_m::<Fp, TestRank, P>(&lhs, mu_inv);
-            let folded_rhs = fold_polys_m::<Fp, TestRank, P>(&rhs, munu);
+            let folded_lhs = fold_polys_m::<_, Fp, P>(&lhs, mu_inv);
+            let folded_rhs = fold_polys_m::<_, Fp, P>(&rhs, munu);
 
             // Compute collapsed values via FoldProducts
             let collapsed: FixedVec<Fp, P::N> =
@@ -523,8 +551,8 @@ mod tests {
             let error_n = compute_errors_n::<Fp, TestRank, P>(&folded_lhs, &folded_rhs);
 
             // Fold to final polynomials
-            let final_lhs = fold_polys_n::<Fp, TestRank, P>(folded_lhs, mu_prime_inv);
-            let final_rhs = fold_polys_n::<Fp, TestRank, P>(folded_rhs, mu_prime_nu_prime);
+            let final_lhs = fold_polys_n::<_, Fp, P>(folded_lhs, mu_prime_inv);
+            let final_rhs = fold_polys_n::<_, Fp, P>(folded_rhs, mu_prime_nu_prime);
 
             // Compute final c via FoldProducts
             let final_c: Fp = Emulator::emulate_wireless(
@@ -601,13 +629,13 @@ mod tests {
             let mu_prime_nu_prime = mu_prime * nu_prime;
 
             // === LHS: fold with mu_inv (layer1), mu_prime_inv (layer2) ===
-            let folded_lhs_m = fold_polys_m::<Fp, TestRank, P>(&lhs, mu_inv);
-            let folded_lhs_n = fold_polys_n::<Fp, TestRank, P>(folded_lhs_m, mu_prime_inv);
+            let folded_lhs_m = fold_polys_m::<_, Fp, P>(&lhs, mu_inv);
+            let folded_lhs_n = fold_polys_n::<_, Fp, P>(folded_lhs_m, mu_prime_inv);
             let expected_lhs = folded_lhs_n.eval(x);
 
             // === RHS: fold with munu (layer1), mu_prime_nu_prime (layer2) ===
-            let folded_rhs_m = fold_polys_m::<Fp, TestRank, P>(&rhs, munu);
-            let folded_rhs_n = fold_polys_n::<Fp, TestRank, P>(folded_rhs_m, mu_prime_nu_prime);
+            let folded_rhs_m = fold_polys_m::<_, Fp, P>(&rhs, munu);
+            let folded_rhs_n = fold_polys_n::<_, Fp, P>(folded_rhs_m, mu_prime_nu_prime);
             let expected_rhs = folded_rhs_n.eval(x);
 
             // Compute evaluations at x
@@ -763,7 +791,7 @@ mod tests {
 
         // Empty input should produce all-zero folded polynomials
         let empty: Vec<structured::Polynomial<Fp, TestRank>> = vec![];
-        let folded = fold_polys_m::<Fp, TestRank, P>(&empty, Fp::ONE);
+        let folded = fold_polys_m::<_, Fp, P>(&empty, Fp::ONE);
 
         // All N groups should be zero polynomials
         for g in 0..n {
@@ -792,7 +820,7 @@ mod tests {
         let polys: Vec<_> = (0..5)
             .map(|_| structured::Polynomial::<Fp, TestRank>::new())
             .collect();
-        let _ = fold_polys_m::<Fp, TestRank, P>(&polys, Fp::ONE);
+        let _ = fold_polys_m::<_, Fp, P>(&polys, Fp::ONE);
     }
 
     #[test]
@@ -874,8 +902,8 @@ mod tests {
         let munu = mu * nu;
 
         // Fold with RevdotParameters
-        let folded_lhs = fold_polys_m::<Fp, TestRank, RevdotParameters>(&lhs, mu_inv);
-        let folded_rhs = fold_polys_m::<Fp, TestRank, RevdotParameters>(&rhs, munu);
+        let folded_lhs = fold_polys_m::<_, Fp, RevdotParameters>(&lhs, mu_inv);
+        let folded_rhs = fold_polys_m::<_, Fp, RevdotParameters>(&rhs, munu);
 
         // Verify at least the first few groups
         let dr = &mut Emulator::execute();
