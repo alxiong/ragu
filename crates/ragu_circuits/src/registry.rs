@@ -70,9 +70,10 @@ impl From<CircuitIndex> for usize {
 
 /// A builder that constructs a [`Registry`].
 ///
-/// Circuits are organized into three categories:
+/// Circuits are organized into four categories:
 /// - Internal masks: stage masks and final masks for internal stages
-/// - Internal circuits: system circuits and internal steps
+/// - Internal circuits: system circuits for the PCD construction
+/// - Internal steps: internal step circuits (e.g. rerandomize, trivial)
 /// - Application steps: user-defined application step circuits
 ///
 /// During finalization, circuits are concatenated in registration order,
@@ -81,6 +82,7 @@ impl From<CircuitIndex> for usize {
 pub struct RegistryBuilder<'params, F: PrimeField, R: Rank> {
     internal_masks: Vec<Box<dyn CircuitObject<F, R> + 'params>>,
     internal_circuits: Vec<Box<dyn CircuitObject<F, R> + 'params>>,
+    internal_steps: Vec<Box<dyn CircuitObject<F, R> + 'params>>,
     application_steps: Vec<Box<dyn CircuitObject<F, R> + 'params>>,
 }
 
@@ -96,6 +98,7 @@ impl<'params, F: FromUniformBytes<64>, R: Rank> RegistryBuilder<'params, F, R> {
         Self {
             internal_masks: Vec::new(),
             internal_circuits: Vec::new(),
+            internal_steps: Vec::new(),
             application_steps: Vec::new(),
         }
     }
@@ -107,7 +110,7 @@ impl<'params, F: FromUniformBytes<64>, R: Rank> RegistryBuilder<'params, F, R> {
 
     /// Returns the total number of circuits across all categories.
     pub fn num_circuits(&self) -> usize {
-        self.num_internal_circuits() + self.application_steps.len()
+        self.num_internal_circuits() + self.internal_steps.len() + self.application_steps.len()
     }
 
     /// Returns the log2 of the smallest power-of-2 domain size that fits all circuits.
@@ -133,6 +136,15 @@ impl<'params, F: FromUniformBytes<64>, R: Rank> RegistryBuilder<'params, F, R> {
         Ok(self)
     }
 
+    /// Registers an internal step circuit.
+    pub fn register_internal_step<C>(mut self, circuit: C) -> Result<Self>
+    where
+        C: Circuit<F> + 'params,
+    {
+        self.internal_steps.push(circuit.into_object()?);
+        Ok(self)
+    }
+
     /// Registers an internal stage mask.
     pub fn register_internal_mask<S>(mut self) -> Result<Self>
     where
@@ -155,8 +167,9 @@ impl<'params, F: FromUniformBytes<64>, R: Rank> RegistryBuilder<'params, F, R> {
     ///
     /// Circuits are concatenated in the following order for proper indexing:
     /// 1. Internal masks: Stage enforcement masks and final masks
-    /// 2. Internal circuits: System circuits and internal steps
-    /// 3. Application steps: User-defined step circuits
+    /// 2. Internal circuits: System circuits for the PCD construction
+    /// 3. Internal steps: Internal step circuits (e.g. rerandomize, trivial)
+    /// 4. Application steps: User-defined step circuits
     ///
     /// This ordering ensures internal masks can be optimized separately while
     /// maintaining proper PCD indexing where internal items occupy indices
@@ -179,6 +192,7 @@ impl<'params, F: FromUniformBytes<64>, R: Rank> RegistryBuilder<'params, F, R> {
             .internal_masks
             .into_iter()
             .chain(self.internal_circuits)
+            .chain(self.internal_steps)
             .chain(self.application_steps)
             .collect();
 
@@ -965,6 +979,35 @@ mod tests {
             .finalize()?;
 
         assert_eq!(registry2.circuits().len(), 4);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_registry_with_internal_steps() -> Result<()> {
+        let builder = TestRegistryBuilder::new()
+            .register_internal_circuit(SquareCircuit { times: 1 })?
+            .register_internal_circuit(SquareCircuit { times: 2 })?
+            .register_internal_step(SquareCircuit { times: 3 })?
+            .register_internal_step(SquareCircuit { times: 4 })?
+            .register_circuit(SquareCircuit { times: 5 })?;
+
+        // num_internal_circuits counts masks + circuits only (not steps)
+        assert_eq!(builder.num_internal_circuits(), 2);
+        // num_circuits counts all categories
+        assert_eq!(builder.num_circuits(), 5);
+
+        let registry = builder.finalize()?;
+        assert_eq!(registry.circuits().len(), 5);
+
+        // Verify evaluation consistency
+        let w = Fp::random(&mut rand::rng());
+        let x = Fp::random(&mut rand::rng());
+        let y = Fp::random(&mut rand::rng());
+
+        let wxy = registry.wxy(w, x, y);
+        let xy = registry.xy(x, y);
+        assert_eq!(wxy, xy.eval(w));
 
         Ok(())
     }
