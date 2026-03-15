@@ -115,6 +115,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
         let nested_commitment = zero_structured_nested
             .commit_to_affine(C::nested_generators(self.params), nested_blind);
 
+        let trivial_bridge = Bridge {
+            rx: zero_structured_nested.clone(),
+            blind: nested_blind,
+            commitment: nested_commitment,
+        };
+
         Proof {
             application: Application {
                 circuit_id: CircuitIndex::new(0),
@@ -130,11 +136,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
                     blind: host_blind,
                     commitment: host_commitment,
                 },
-                bridge: BridgePreamble {
-                    rx: zero_structured_nested.clone(),
-                    blind: nested_blind,
-                    commitment: nested_commitment,
-                },
+                bridge: trivial_bridge.clone(),
             },
             s_prime: SPrime {
                 native: NativeSPrime {
@@ -145,11 +147,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
                     registry_wx1_blind: host_blind,
                     registry_wx1_commitment: host_commitment,
                 },
-                bridge: BridgeSPrime {
-                    rx: zero_structured_nested.clone(),
-                    blind: nested_blind,
-                    commitment: nested_commitment,
-                },
+                bridge: trivial_bridge.clone(),
             },
             error_m: ErrorM {
                 native: NativeErrorM {
@@ -160,11 +158,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
                     blind: host_blind,
                     commitment: host_commitment,
                 },
-                bridge: BridgeErrorM {
-                    rx: zero_structured_nested.clone(),
-                    blind: nested_blind,
-                    commitment: nested_commitment,
-                },
+                bridge: trivial_bridge.clone(),
             },
             error_n: ErrorN {
                 native: NativeErrorN {
@@ -172,11 +166,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
                     blind: host_blind,
                     commitment: host_commitment,
                 },
-                bridge: BridgeErrorN {
-                    rx: zero_structured_nested.clone(),
-                    blind: nested_blind,
-                    commitment: nested_commitment,
-                },
+                bridge: trivial_bridge.clone(),
             },
             ab: AB {
                 native: NativeAB {
@@ -188,11 +178,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
                     b_commitment: host_commitment,
                     c: C::CircuitField::ZERO,
                 },
-                bridge: BridgeAB {
-                    rx: zero_structured_nested.clone(),
-                    blind: nested_blind,
-                    commitment: nested_commitment,
-                },
+                bridge: trivial_bridge.clone(),
             },
             query: Query {
                 native: NativeQuery {
@@ -203,11 +189,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
                     blind: host_blind,
                     commitment: host_commitment,
                 },
-                bridge: BridgeQuery {
-                    rx: zero_structured_nested.clone(),
-                    blind: nested_blind,
-                    commitment: nested_commitment,
-                },
+                bridge: trivial_bridge.clone(),
             },
             f: F {
                 native: NativeF {
@@ -215,11 +197,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
                     blind: host_blind,
                     commitment: host_commitment,
                 },
-                bridge: BridgeF {
-                    rx: zero_structured_nested.clone(),
-                    blind: nested_blind,
-                    commitment: nested_commitment,
-                },
+                bridge: trivial_bridge.clone(),
             },
             eval: Eval {
                 native: NativeEval {
@@ -227,11 +205,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
                     blind: host_blind,
                     commitment: host_commitment,
                 },
-                bridge: BridgeEval {
-                    rx: zero_structured_nested.clone(),
-                    blind: nested_blind,
-                    commitment: nested_commitment,
-                },
+                bridge: trivial_bridge,
             },
             p: P {
                 native: NativeP {

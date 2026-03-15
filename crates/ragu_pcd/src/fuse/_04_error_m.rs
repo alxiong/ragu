@@ -42,12 +42,21 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let (native_error_m, error_m_witness, builder) =
             self.compute_native_error_m(rng, native_registry, y, z, left, right)?;
 
-        let bridge_error_m = self.compute_bridge_error_m(rng, &native_error_m)?;
+        let bridge = proof::Bridge::commit(
+            self.params,
+            rng,
+            nested::stages::error_m::Stage::<C::HostCurve, R>::rx(
+                &nested::stages::error_m::Witness {
+                    native_error_m: native_error_m.commitment,
+                    registry_wy: native_error_m.registry_wy_commitment,
+                },
+            )?,
+        );
 
         Ok((
             proof::ErrorM {
                 native: native_error_m,
-                bridge: bridge_error_m,
+                bridge,
             },
             error_m_witness,
             builder,
@@ -110,25 +119,5 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             error_m_witness,
             builder,
         ))
-    }
-
-    fn compute_bridge_error_m<RNG: CryptoRng>(
-        &self,
-        rng: &mut RNG,
-        native: &proof::NativeErrorM<C, R>,
-    ) -> Result<proof::BridgeErrorM<C, R>> {
-        let nested_error_m_witness = nested::stages::error_m::Witness {
-            native_error_m: native.commitment,
-            registry_wy: native.registry_wy_commitment,
-        };
-        let rx = nested::stages::error_m::Stage::<C::HostCurve, R>::rx(&nested_error_m_witness)?;
-        let blind = C::ScalarField::random(&mut *rng);
-        let commitment = rx.commit_to_affine(C::nested_generators(self.params), blind);
-
-        Ok(proof::BridgeErrorM {
-            rx,
-            blind,
-            commitment,
-        })
     }
 }

@@ -108,14 +108,13 @@ impl<'params, C: Cycle, R: Rank, const HEADER_SIZE: usize>
         params: &'params C::Params,
     ) -> Result<Application<'params, C, R, HEADER_SIZE>> {
         // Build the native registry:
-        // 1. Internal circuits
-        // 2. Internal masks
+        // 1. Application circuits (already registered)
+        // 2. Internal circuits and masks
         // 3. Internal steps
-        // 4. Application circuits (already registered)
         let (total_circuits, log2_circuits) =
             internal::native::total_circuit_counts(self.num_application_steps);
 
-        // First, register internal masks and circuits
+        // First, register internal circuits and masks
         self.native_registry = internal::native::register_all::<C, R, HEADER_SIZE>(
             self.native_registry,
             params,

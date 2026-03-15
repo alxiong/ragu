@@ -50,7 +50,13 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             rng, w, y, z, x, alpha, s_prime, error_m, ab, query, left, right,
         )?;
 
-        let bridge = self.compute_bridge_f(rng, &native)?;
+        let bridge = proof::Bridge::commit(
+            self.params,
+            rng,
+            nested::stages::f::Stage::<C::HostCurve, R>::rx(&nested::stages::f::Witness {
+                native_f: native.commitment,
+            })?,
+        );
 
         Ok(proof::F { native, bridge })
     }
@@ -164,25 +170,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
 
         Ok(proof::NativeF {
             poly,
-            blind,
-            commitment,
-        })
-    }
-
-    fn compute_bridge_f<RNG: CryptoRng>(
-        &self,
-        rng: &mut RNG,
-        native: &proof::NativeF<C, R>,
-    ) -> Result<proof::BridgeF<C, R>> {
-        let nested_f_witness = nested::stages::f::Witness {
-            native_f: native.commitment,
-        };
-        let rx = nested::stages::f::Stage::<C::HostCurve, R>::rx(&nested_f_witness)?;
-        let blind = C::ScalarField::random(&mut *rng);
-        let commitment = rx.commit_to_affine(C::nested_generators(self.params), blind);
-
-        Ok(proof::BridgeF {
-            rx,
             blind,
             commitment,
         })

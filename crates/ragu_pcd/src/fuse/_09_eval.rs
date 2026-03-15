@@ -38,7 +38,13 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let (native_eval, eval_witness) =
             self.compute_native_eval(rng, u, left, right, s_prime, error_m, ab, query)?;
 
-        let bridge = self.compute_bridge_eval(rng, &native_eval)?;
+        let bridge = proof::Bridge::commit(
+            self.params,
+            rng,
+            nested::stages::eval::Stage::<C::HostCurve, R>::rx(&nested::stages::eval::Witness {
+                native_eval: native_eval.commitment,
+            })?,
+        );
 
         Ok((
             proof::Eval {
@@ -96,24 +102,5 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             },
             eval_witness,
         ))
-    }
-
-    fn compute_bridge_eval<RNG: CryptoRng>(
-        &self,
-        rng: &mut RNG,
-        native: &proof::NativeEval<C, R>,
-    ) -> Result<proof::BridgeEval<C, R>> {
-        let nested_eval_witness = nested::stages::eval::Witness {
-            native_eval: native.commitment,
-        };
-        let rx = nested::stages::eval::Stage::<C::HostCurve, R>::rx(&nested_eval_witness)?;
-        let blind = C::ScalarField::random(&mut *rng);
-        let commitment = rx.commit_to_affine(C::nested_generators(self.params), blind);
-
-        Ok(proof::BridgeEval {
-            rx,
-            blind,
-            commitment,
-        })
     }
 }

@@ -136,7 +136,16 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             sponge_state_elements,
         };
         let native = self.compute_native_error_n(rng, &error_n_witness)?;
-        let bridge = self.compute_bridge_error_n(rng, &native)?;
+
+        let bridge = proof::Bridge::commit(
+            self.params,
+            rng,
+            nested::stages::error_n::Stage::<C::HostCurve, R>::rx(
+                &nested::stages::error_n::Witness {
+                    native_error_n: native.commitment,
+                },
+            )?,
+        );
 
         Ok((proof::ErrorN { native, bridge }, error_n_witness, a, b))
     }
@@ -153,25 +162,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let commitment = rx.commit_to_affine(C::host_generators(self.params), blind);
 
         Ok(proof::NativeErrorN {
-            rx,
-            blind,
-            commitment,
-        })
-    }
-
-    fn compute_bridge_error_n<RNG: CryptoRng>(
-        &self,
-        rng: &mut RNG,
-        native: &proof::NativeErrorN<C, R>,
-    ) -> Result<proof::BridgeErrorN<C, R>> {
-        let nested_error_n_witness = nested::stages::error_n::Witness {
-            native_error_n: native.commitment,
-        };
-        let rx = nested::stages::error_n::Stage::<C::HostCurve, R>::rx(&nested_error_n_witness)?;
-        let blind = C::ScalarField::random(&mut *rng);
-        let commitment = rx.commit_to_affine(C::nested_generators(self.params), blind);
-
-        Ok(proof::BridgeErrorN {
             rx,
             blind,
             commitment,

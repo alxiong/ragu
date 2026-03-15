@@ -59,7 +59,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     {
         let native = self.compute_native_ab(rng, a, b, mu_prime, nu_prime)?;
 
-        let bridge = self.compute_bridge_ab(rng, &native)?;
+        let bridge = proof::Bridge::commit(
+            self.params,
+            rng,
+            nested::stages::ab::Stage::<C::HostCurve, R>::rx(&nested::stages::ab::Witness {
+                a: native.a_commitment,
+                b: native.b_commitment,
+            })?,
+        );
 
         Ok(proof::AB { native, bridge })
     }
@@ -101,26 +108,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             b_blind,
             b_commitment,
             c,
-        })
-    }
-
-    fn compute_bridge_ab<RNG: CryptoRng>(
-        &self,
-        rng: &mut RNG,
-        native: &proof::NativeAB<C, R>,
-    ) -> Result<proof::BridgeAB<C, R>> {
-        let nested_ab_witness = nested::stages::ab::Witness {
-            a: native.a_commitment,
-            b: native.b_commitment,
-        };
-        let rx = nested::stages::ab::Stage::<C::HostCurve, R>::rx(&nested_ab_witness)?;
-        let blind = C::ScalarField::random(&mut *rng);
-        let commitment = rx.commit_to_affine(C::nested_generators(self.params), blind);
-
-        Ok(proof::BridgeAB {
-            rx,
-            blind,
-            commitment,
         })
     }
 }
