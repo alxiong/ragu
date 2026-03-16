@@ -20,6 +20,8 @@ use ragu_core::{
 use ragu_primitives::{Element, vec::FixedVec};
 use rand::CryptoRng;
 
+use alloc::borrow::Cow;
+
 use crate::{
     Application,
     internal::{
@@ -38,7 +40,13 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         rng: &mut RNG,
         preamble_witness: &native::stages::preamble::Witness<'_, C, R, HEADER_SIZE>,
         error_m_witness: &native::stages::error_m::Witness<C, native::RevdotParameters>,
-        claims: claims::Builder<'_, '_, C::CircuitField, R>,
+        claims: claims::Builder<
+            '_,
+            '_,
+            Cow<'_, structured::Polynomial<C::CircuitField, R>>,
+            C::CircuitField,
+            R,
+        >,
         y: &Element<'dr, D>,
         mu: &Element<'dr, D>,
         nu: &Element<'dr, D>,

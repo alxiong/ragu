@@ -1,11 +1,13 @@
 //! Common abstraction for orchestrating revdot claims.
 
-use alloc::{borrow::Cow, vec::Vec};
 use ff::PrimeField;
 use ragu_circuits::{
     polynomials::{Rank, structured},
     registry::{CircuitIndex, Registry},
 };
+
+use alloc::{borrow::Cow, vec::Vec};
+use core::borrow::Borrow;
 
 /// Sum an iterator of polynomials, borrowing if only one element.
 ///
@@ -57,18 +59,25 @@ pub trait Source {
 ///
 /// Accumulates (a, b) polynomial pairs for each claim type, using
 /// the registry polynomial to transform rx polynomials appropriately.
-pub struct Builder<'m, 'rx, F: PrimeField, R: Rank> {
+///
+/// The type parameter `A` determines what is stored in the `a` vector:
+/// - Verify path: `A = Cow<'rx, Polynomial>` (plain polynomial references)
+/// - Fuse path: `A = Decomposed<'rx, FuseAtom, F, R>` (polynomial + commitment decomposition)
+pub struct Builder<'m, 'rx, A, F: PrimeField, R: Rank> {
     pub registry: &'m Registry<'m, F, R>,
     pub y: F,
     pub z: F,
     pub tz: structured::Polynomial<F, R>,
-    /// The accumulated `a` polynomials for revdot claims.
-    pub a: Vec<Cow<'rx, structured::Polynomial<F, R>>>,
+    /// The accumulated `a` polynomials.
+    pub a: Vec<A>,
     /// The accumulated `b` polynomials for revdot claims.
     pub b: Vec<Cow<'rx, structured::Polynomial<F, R>>>,
 }
 
-impl<'m, 'rx, F: PrimeField, R: Rank> Builder<'m, 'rx, F, R> {
+impl<'m, 'rx, A, F: PrimeField, R: Rank> Builder<'m, 'rx, A, F, R>
+where
+    A: Borrow<structured::Polynomial<F, R>>,
+{
     /// Create a new claim builder.
     pub fn new(registry: &'m Registry<'m, F, R>, y: F, z: F) -> Self {
         Self {
@@ -81,31 +90,37 @@ impl<'m, 'rx, F: PrimeField, R: Rank> Builder<'m, 'rx, F, R> {
         }
     }
 
-    pub fn circuit_impl(
-        &mut self,
-        circuit_id: CircuitIndex,
-        rx: Cow<'rx, structured::Polynomial<F, R>>,
-    ) {
+    /// Push a circuit claim. Computes `b` from `a.borrow()` (the polynomial).
+    pub fn circuit_impl(&mut self, circuit_id: CircuitIndex, a: A) {
+        let rx = a.borrow();
         let sy = self.registry.circuit_y(circuit_id, self.y);
-        let mut b = rx.as_ref().clone();
+        let mut b = rx.clone();
         b.dilate(self.z);
         b.add_assign(&sy);
         b.add_assign(&self.tz);
-
-        self.a.push(rx);
+        self.a.push(a);
         self.b.push(Cow::Owned(b));
     }
 
-    /// Shared stage accumulation logic for both native and nested Processor impls.
-    pub fn stage_impl(
-        &mut self,
-        circuit_id: CircuitIndex,
-        mut rxs: impl Iterator<Item = &'rx structured::Polynomial<F, R>>,
-    ) -> ragu_core::Result<()> {
-        let first = rxs.next().expect("must provide at least one rx polynomial");
+    /// Push a stage claim. `b` is just `sy` (no rx transformation).
+    pub fn stage_impl(&mut self, circuit_id: CircuitIndex, a: A) {
         let sy = self.registry.circuit_y(circuit_id, self.y);
+        self.a.push(a);
+        self.b.push(Cow::Owned(sy));
+    }
 
-        let a = match rxs.next() {
+    /// Horner-fold polynomial references. Returns `Cow::Borrowed` for a single
+    /// element, `Cow::Owned` for multiple.
+    ///
+    /// The fold gives item `i` coefficient `z^(n-1-i)`. Any decomposition
+    /// tracking must use the same coefficients (see the fuse `Processor` impl
+    /// in `fuse::claims`).
+    pub fn fold_stage_polys(
+        &self,
+        mut rxs: impl Iterator<Item = &'rx structured::Polynomial<F, R>>,
+    ) -> Cow<'rx, structured::Polynomial<F, R>> {
+        let first = rxs.next().expect("must provide at least one rx polynomial");
+        match rxs.next() {
             None => Cow::Borrowed(first),
             Some(second) => Cow::Owned(structured::Polynomial::fold(
                 core::iter::once(first)
@@ -113,10 +128,6 @@ impl<'m, 'rx, F: PrimeField, R: Rank> Builder<'m, 'rx, F, R> {
                     .chain(rxs),
                 self.z,
             )),
-        };
-
-        self.a.push(a);
-        self.b.push(Cow::Owned(sy));
-        Ok(())
+        }
     }
 }

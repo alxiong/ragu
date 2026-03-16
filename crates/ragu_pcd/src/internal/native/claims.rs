@@ -73,7 +73,7 @@ pub trait Processor<Rx, AppCircuitId> {
 }
 
 impl<'m, 'rx, F: PrimeField, R: Rank> Processor<&'rx structured::Polynomial<F, R>, CircuitIndex>
-    for Builder<'m, 'rx, F, R>
+    for Builder<'m, 'rx, Cow<'rx, structured::Polynomial<F, R>>, F, R>
 {
     fn raw_claim(
         &mut self,
@@ -104,7 +104,9 @@ impl<'m, 'rx, F: PrimeField, R: Rank> Processor<&'rx structured::Polynomial<F, R
         rxs: impl Iterator<Item = &'rx structured::Polynomial<F, R>>,
     ) -> Result<()> {
         let circuit_id = id.circuit_index();
-        self.stage_impl(circuit_id, rxs)
+        let folded = self.fold_stage_polys(rxs);
+        self.stage_impl(circuit_id, folded);
+        Ok(())
     }
 }
 

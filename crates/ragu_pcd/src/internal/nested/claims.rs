@@ -9,6 +9,8 @@
 //!   [`PointsStage`](InternalCircuitIndex::PointsStage),
 //!   `PointsFinalStaged`): $k(y) = 0$
 
+use alloc::borrow::Cow;
+
 use ff::PrimeField;
 use ragu_circuits::polynomials::{Rank, structured};
 use ragu_core::Result;
@@ -39,7 +41,7 @@ pub trait Processor<Rx> {
 }
 
 impl<'m, 'rx, F: PrimeField, R: Rank> Processor<&'rx structured::Polynomial<F, R>>
-    for Builder<'m, 'rx, F, R>
+    for Builder<'m, 'rx, Cow<'rx, structured::Polynomial<F, R>>, F, R>
 {
     fn internal_circuit(
         &mut self,
@@ -57,7 +59,9 @@ impl<'m, 'rx, F: PrimeField, R: Rank> Processor<&'rx structured::Polynomial<F, R
         rxs: impl Iterator<Item = &'rx structured::Polynomial<F, R>>,
     ) -> Result<()> {
         let circuit_id = id.circuit_index();
-        self.stage_impl(circuit_id, rxs)
+        let folded = self.fold_stage_polys(rxs);
+        self.stage_impl(circuit_id, folded);
+        Ok(())
     }
 }
 
