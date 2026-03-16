@@ -71,7 +71,6 @@ pub(crate) struct FuseProofSource<'rx, C: Cycle, R: Rank> {
 impl<'rx, C: Cycle, R: Rank> FuseProofSource<'rx, C, R> {
     /// Look up the `(commitment, blind)` pair for a [`FuseAtom`] key in the
     /// corresponding child proof.
-    #[allow(dead_code)] // used in next commit (_06_ab MSM optimization)
     pub(super) fn resolve_atom(
         &self,
         (side, component): FuseAtom,

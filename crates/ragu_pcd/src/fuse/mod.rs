@@ -111,7 +111,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let mu_prime = transcript.challenge(&mut dr)?;
         let nu_prime = transcript.challenge(&mut dr)?;
 
-        let ab = self.compute_ab(rng, a, b, &mu_prime, &nu_prime)?;
+        let ab = self.compute_ab(rng, a, b, &source, &mu_prime, &nu_prime)?;
         let ab_commitment = Point::constant(&mut dr, ab.bridge.commitment)?;
         ab_commitment.write(&mut dr, &mut transcript)?;
         let x = transcript.challenge(&mut dr)?;
