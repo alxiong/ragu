@@ -1,7 +1,7 @@
 import Ragu.Circuits.Point.Alloc
 import Ragu.Core
 
-namespace Ragu.Instances.Point.Alloc
+namespace Ragu.Instances.Point.AllocFp
 open Core.Primes
 
 @[reducible]
@@ -14,7 +14,7 @@ def inputLen := 0
 def outputLen := 2
 
 set_option linter.unusedVariables false in
-def exportedOperations (input_var : Var (ProvableVector field inputLen) (F Core.Primes.p)) : Operations (F p) := [
+def exportedOperations (input_var : Var (ProvableVector field inputLen) (F p)) : Operations (F p) := [
   Operation.witness 3 (fun _env => default),
   Operation.assert ((((var 0) * (var 1)) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression (F p)) * (var 2)))),
   Operation.assert (((var 0) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression (F p)) * (var 1)))),
@@ -30,12 +30,10 @@ def exportedOperations (input_var : Var (ProvableVector field inputLen) (F Core.
 
 set_option linter.unusedVariables false in
 @[reducible]
-def exportedOutput (input_var : Var (ProvableVector field inputLen) (F Core.Primes.p)) : Vector (Expression (F p)) outputLen := #v[
+def exportedOutput (input_var : Var (ProvableVector field inputLen) (F p)) : Vector (Expression (F p)) outputLen := #v[
   (var 0),
   (var 6)
 ]
-
-def circuit := Circuits.Point.Alloc.circuit Circuits.Point.Spec.EpAffineParams (p:=Core.Primes.p)
 
 set_option linter.unusedVariables false in
 def deserializeInput (input : Var (ProvableVector field inputLen) (F p)) : Var unit (F p) := ()
@@ -76,4 +74,4 @@ def formal_instance : Core.Statements.FormalInstance where
   same_spec := by intro input output; rfl
   same_assumptions := by intro input; rfl
 
-end Ragu.Instances.Point.Alloc
+end Ragu.Instances.Point.AllocFp

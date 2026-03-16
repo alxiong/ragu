@@ -7,13 +7,18 @@ mod linexp;
 use instance::CircuitInstance;
 
 use crate::instances::{
-    point_add::PointAddInstance, point_alloc::PointAllocInstance,
-    point_double::PointDoubleInstance, point_neg::PointNegInstance,
+    point_add::PointAddInstance, point_alloc::PointAllocInstanceFp,
+    point_alloc::PointAllocInstanceFq, point_double::PointDoubleInstance,
+    point_neg::PointNegInstance,
 };
 
 fn main() {
-    println!("-- Point allocation instance:");
-    PointAllocInstance::export();
+    println!("-- Point allocation instance (Fp):");
+    PointAllocInstanceFp::export();
+    println!("-----------------");
+
+    println!("-- Point allocation instance (Fq):");
+    PointAllocInstanceFq::export();
     println!("-----------------");
 
     println!("-- Point negation instance:");
