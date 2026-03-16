@@ -27,9 +27,21 @@ def exported_operations (input_var : Var Inputs CircuitField) : Operations Circu
 
 set_option linter.unusedVariables false in
 @[reducible]
-def exported_output (input_var : Var Inputs CircuitField) : List (Expression CircuitField) := [(var 0), (var 6)]
+def exported_output (input_var : Var Inputs CircuitField) : Vector (Expression CircuitField) 2 := #v[
+  (var 0),
+  (var 6)
+]
 
-def circuit := (Circuits.Point.Alloc.circuit Circuits.Point.Spec.EpAffineParams).main (F:=CircuitField)
+def circuit := Circuits.Point.Alloc.circuit Circuits.Point.Spec.EpAffineParams (p:=Core.Primes.p)
+
+set_option linter.unusedVariables false in
+def deserializeInput (input : Var Inputs CircuitField) : Var unit CircuitField := ()
+
+def serializeOutput (output: Var Circuits.Point.Spec.Point CircuitField) : Vector (Expression CircuitField) 2 :=
+  #v[
+    output.x,
+    output.y
+  ]
 
 theorem same_circuit (input : Var Inputs CircuitField):
     ((circuit input).operations 0).toFlat = (exported_operations input).toFlat := by
@@ -42,10 +54,9 @@ theorem same_circuit (input : Var Inputs CircuitField):
   rfl
 
 theorem same_output (input : Var Inputs CircuitField) :
-    ((circuit input).output 0).x = (exported_output input)[0] ∧
-    ((circuit input).output 0).y = (exported_output input)[1] := by
+    ((circuit (deserializeInput input)).output 0 |> serializeOutput) = exported_output input := by
   simp [circuit_norm,
-    circuit,
+    circuit, serializeOutput,
     Circuits.Point.Alloc.circuit, Circuits.Point.Alloc.elaborated, Circuits.Point.Alloc.main,
     Circuits.Core.AllocMul.circuit, Circuits.Core.AllocMul.elaborated, Circuits.Core.AllocMul.main,
     Circuits.Element.AllocSquare.circuit, Circuits.Element.AllocSquare.elaborated, Circuits.Element.AllocSquare.main,

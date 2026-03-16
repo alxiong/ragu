@@ -32,15 +32,24 @@ def exported_operations (input_var : Var Inputs CircuitField) : Operations Circu
 
 set_option linter.unusedVariables false in
 @[reducible]
-def exported_output (input_var : Var Inputs CircuitField) : List (Expression CircuitField) := [((var 8) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression CircuitField) * ((input_var.get 0) + (input_var.get 0)))), ((var 11) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression CircuitField) * (input_var.get 1)))]
+def exported_output (input_var : Var Inputs CircuitField) : Vector (Expression CircuitField) 2 := #v[
+  ((var 8) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression CircuitField) * ((input_var.get 0) + (input_var.get 0)))),
+  ((var 11) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression CircuitField) * (input_var.get 1)))
+]
 
-def circuit := (Circuits.Point.Double.circuit Circuits.Point.Spec.EpAffineParams).main (F:=CircuitField)
+def circuit := Circuits.Point.Double.circuit Circuits.Point.Spec.EpAffineParams (p:=Core.Primes.p)
 
 def deserializeInput (input : Var Inputs CircuitField) : Var Circuits.Point.Spec.Point CircuitField :=
   {
     x := input.get 0,
     y := input.get 1
   }
+
+def serializeOutput (output: Var Circuits.Point.Spec.Point CircuitField) : Vector (Expression CircuitField) 2 :=
+  #v[
+    output.x,
+    output.y
+  ]
 
 theorem same_circuit (input : Var Inputs CircuitField):
     ((circuit (deserializeInput input)).operations 0).toFlat = (exported_operations input).toFlat := by
@@ -55,10 +64,9 @@ theorem same_circuit (input : Var Inputs CircuitField):
   constructor
 
 theorem same_output (input : Var Inputs CircuitField) :
-    ((circuit (deserializeInput input)).output 0).x = (exported_output input)[0] ∧
-    ((circuit (deserializeInput input)).output 0).y = (exported_output input)[1] := by
+    ((circuit (deserializeInput input)).output 0 |> serializeOutput) = exported_output input := by
   simp [circuit_norm, FormalCircuit.toSubcircuit,
-    circuit, deserializeInput,
+    circuit, deserializeInput, serializeOutput,
     Circuits.Point.Double.circuit, Circuits.Point.Double.elaborated, Circuits.Point.Double.main,
     Circuits.Core.AllocMul.circuit, Circuits.Core.AllocMul.elaborated, Circuits.Core.AllocMul.main,
     Circuits.Element.Square.circuit, Circuits.Element.Square.elaborated, Circuits.Element.Square.main,

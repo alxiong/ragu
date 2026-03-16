@@ -31,14 +31,14 @@ def exported_operations (input_var : Var Inputs CircuitField) : Operations Circu
 
 set_option linter.unusedVariables false in
 @[reducible]
-def exported_output (input_var : Var Inputs CircuitField) : List (Expression CircuitField) := [
+def exported_output (input_var : Var Inputs CircuitField) : Vector (Expression CircuitField) 3 := #v[
   (((var 8) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression CircuitField) * (input_var.get 0))) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression CircuitField) * (input_var.get 2))),
   ((var 11) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression CircuitField) * (input_var.get 1))),
   (var 2)
 ]
 
 
-def circuit := (Circuits.Point.AddIncomplete.circuit Circuits.Point.Spec.EpAffineParams).main (F:=CircuitField)
+def circuit := Circuits.Point.AddIncomplete.circuit Circuits.Point.Spec.EpAffineParams (p:=Core.Primes.p)
 
 def deserializeInput (input : Var Inputs CircuitField) : Var Circuits.Point.AddIncomplete.Inputs CircuitField :=
   {
@@ -47,6 +47,12 @@ def deserializeInput (input : Var Inputs CircuitField) : Var Circuits.Point.AddI
     nonzero := input.get 4
   }
 
+def serializeOutput (outputs: Var Circuits.Point.AddIncomplete.Outputs CircuitField) : Vector (Expression CircuitField) 3 :=
+  #v[
+    outputs.P3.x,
+    outputs.P3.y,
+    outputs.nonzero
+  ]
 
 theorem same_circuit (input : Var Inputs CircuitField):
     ((circuit (deserializeInput input)).operations 0).toFlat = (exported_operations input).toFlat := by
@@ -60,16 +66,10 @@ theorem same_circuit (input : Var Inputs CircuitField):
   repeat (constructor; rfl)
   constructor
 
-
-lemma exported_output_len (input : Var Inputs CircuitField) : (exported_output input).length = 3 := by
-  simp only [exported_output, List.length_cons, List.length_nil, zero_add, Nat.reduceAdd]
-
 theorem same_output (input : Var Inputs CircuitField) :
-    ((circuit (deserializeInput input)).output 0).P3.x = (exported_output input)[0] ∧
-    ((circuit (deserializeInput input)).output 0).P3.y = (exported_output input)[1] ∧
-    ((circuit (deserializeInput input)).output 0).nonzero = (exported_output input)[2] := by
+    ((circuit (deserializeInput input)).output 0 |> serializeOutput) = exported_output input:= by
   simp [circuit_norm, FormalCircuit.toSubcircuit,
-    circuit, deserializeInput,
+    circuit, deserializeInput, serializeOutput,
     Circuits.Point.AddIncomplete.circuit, Circuits.Point.AddIncomplete.elaborated, Circuits.Point.AddIncomplete.main,
     Circuits.Core.AllocMul.circuit, Circuits.Core.AllocMul.elaborated, Circuits.Core.AllocMul.main,
     Circuits.Element.Square.circuit, Circuits.Element.Square.elaborated, Circuits.Element.Square.main,
