@@ -1,7 +1,9 @@
 //! Polynomials with coefficients in a split structure arrangement.
 
 use ff::Field;
+use pasta_curves::MontProduct;
 use ragu_arithmetic::CurveAffine;
+use ragu_arithmetic::MontgomeryRepr;
 use rand::CryptoRng;
 
 use alloc::vec::Vec;
@@ -121,11 +123,23 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
     }
 
     /// Inner product of `self` with the reversed `other`.
-    pub fn revdot(&self, other: &Self) -> F {
-        fn dot<F: Field>(a: &[F], b: &[F]) -> F {
-            a.iter()
-                .zip(b.iter())
-                .fold(F::ZERO, |acc, (a, b)| acc + (*a * *b))
+    pub fn revdot(&self, other: &Self) -> F
+    where
+        F: MontgomeryRepr,
+    {
+        fn dot<F: Field + MontgomeryRepr>(a: &[F], b: &[F]) -> F {
+            let n = MontProduct::<F>::MAX_NUM_ADD;
+            a.chunks(n)
+                .zip(b.chunks(n))
+                .map(|(ac, bc)| {
+                    ac.iter()
+                        .zip(bc.iter())
+                        .fold(MontProduct::<F>::ZERO, |acc, (x, y)| {
+                            acc + x.mul_unreduced(y)
+                        })
+                        .reduce()
+                })
+                .sum()
         }
 
         dot(&self.u, &other.v)
