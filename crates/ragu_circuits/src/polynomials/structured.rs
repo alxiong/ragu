@@ -1,7 +1,6 @@
 //! Polynomials with coefficients in a split structure arrangement.
 
 use ff::Field;
-use pasta_curves::MontProduct;
 use ragu_arithmetic::CurveAffine;
 use ragu_arithmetic::MontgomeryRepr;
 use rand::CryptoRng;
@@ -127,25 +126,10 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
     where
         F: MontgomeryRepr,
     {
-        fn dot<F: Field + MontgomeryRepr>(a: &[F], b: &[F]) -> F {
-            let n = MontProduct::<F>::MAX_NUM_ADD;
-            a.chunks(n)
-                .zip(b.chunks(n))
-                .map(|(ac, bc)| {
-                    ac.iter()
-                        .zip(bc.iter())
-                        .fold(MontProduct::<F>::ZERO, |acc, (x, y)| {
-                            acc + x.mul_unreduced(y)
-                        })
-                        .reduce()
-                })
-                .sum()
-        }
-
-        dot(&self.u, &other.v)
-            + dot(&self.v, &other.u)
-            + dot(&self.w, &other.d)
-            + dot(&self.d, &other.w)
+        F::inner_product(&self.u, &other.v)
+            + F::inner_product(&self.v, &other.u)
+            + F::inner_product(&self.w, &other.d)
+            + F::inner_product(&self.d, &other.w)
     }
 
     /// Add the coefficients of `other` to `self`.
