@@ -17,10 +17,10 @@ Ragu's approach to `std` and `no_std` follows four principles:
    default `multicore` feature implies `std`; to build without it, use
    `--no-default-features`.
 2. **`alloc` is required.** All library crates depend on the [`alloc`]
-   crate for heap-allocated types such as `Vec` and `Box`. In practice
-   this means Ragu can target environments that provide a global
-   allocator but lack a full `std` runtime, such as WebAssembly or
-   embedded platforms.
+   crate for heap-allocated types such as `Vec` and `Box`, gated behind
+   a default-on `alloc` feature flag. In practice this means Ragu can
+   target environments that provide a global allocator but lack a full
+   `std` runtime, such as WebAssembly or embedded platforms.
 3. **Performance features may depend on `std`.** Optional features like
    `multicore` enable multi-threaded parallelism and imply `std`.
 4. **`std` is required on the host.** Build scripts, procedural macros,
