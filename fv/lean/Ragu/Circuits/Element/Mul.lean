@@ -20,14 +20,13 @@ def main (input : Var Input (F p)) : Circuit (F p) (Var field (F p)) := do
   assertZero (y - input.y)
   return z
 
-def Assumptions (_input : Input (F p)) :=
-  True
+def Assumptions (_input : Input (F p)) := True
 
 def Spec (input : Input (F p)) (out : field (F p)) :=
   out = input.x * input.y
 
 instance elaborated : ElaboratedCircuit (F p) Input field where
-  main := main
+  main
   localLength _ := 3
 
 theorem soundness : Soundness (F p) elaborated Assumptions Spec := by
@@ -49,12 +48,6 @@ theorem completeness : Completeness (F p) elaborated Assumptions := by
   refine ⟨?_, ?_, ?_⟩ <;> ring
 
 def circuit : FormalCircuit (F p) Input field :=
-  {
-    elaborated with
-    Assumptions,
-    Spec,
-    soundness,
-    completeness
-  }
+  { elaborated with Assumptions, Spec, soundness, completeness }
 
 end Ragu.Circuits.Element.Mul
