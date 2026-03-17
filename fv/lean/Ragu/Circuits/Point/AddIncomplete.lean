@@ -20,26 +20,21 @@ structure Outputs (F : Type) where
   nonzero : F
 deriving ProvableStruct
 
--- 4 AllocMul instances: idx..idx+3
--- idx+0: Mul(nonzero, x2-x1) → nonzero_out
--- idx+1: DivNonzero(y2-y1, x2-x1) → delta
--- idx+2: Square(delta) → delta²
--- idx+3: Mul(delta, x1-x3) → delta*(x1-x3)
-def main (idx : ℕ) (input : Var Inputs (F p)) : Circuit (F p) (Var Outputs (F p)) := do
+def main (input : Var Inputs (F p)) : Circuit (F p) (Var Outputs (F p)) := do
   let ⟨⟨x1, y1⟩, ⟨x2, y2⟩, nonzero⟩ := input
 
   -- delta = (y2 - y1) / (x2 - x1)
   let tmp := x2 - x1
-  let nonzero_out ← Element.Mul.circuit idx ⟨nonzero, tmp⟩
+  let nonzero_out ← Element.Mul.circuit ⟨nonzero, tmp⟩
 
-  let delta ← Element.DivNonzero.circuit (idx + 1) ⟨y2 - y1, tmp⟩
+  let delta ← Element.DivNonzero.circuit ⟨y2 - y1, tmp⟩
 
   -- x3 = delta^2 - x1 - x2
-  let ⟨delta2⟩ ← Element.Square.circuit (idx + 2) ⟨delta⟩
+  let ⟨delta2⟩ ← Element.Square.circuit ⟨delta⟩
   let x3 := delta2 - x1 - x2
 
   -- y3 = delta * (x1 - x3) - y1
-  let delta_mul_x_diff ← Element.Mul.circuit (idx + 3) ⟨delta, x1 - x3⟩
+  let delta_mul_x_diff ← Element.Mul.circuit ⟨delta, x1 - x3⟩
   let y3 := delta_mul_x_diff - y1
 
   return {
@@ -47,13 +42,9 @@ def main (idx : ℕ) (input : Var Inputs (F p)) : Circuit (F p) (Var Outputs (F 
     nonzero := nonzero_out
   }
 
-def Assumptions (curveParams : Spec.CurveParams p) (idx : ℕ) (input : Inputs (F p)) (data : ProverData (F p)) :=
+def Assumptions (curveParams : Spec.CurveParams p) (input : Inputs (F p)) (_data : ProverData (F p)) :=
   input.P1.isOnCurve curveParams ∧ input.P2.isOnCurve curveParams ∧
-  Element.Mul.Assumptions idx ⟨input.nonzero, input.P2.x - input.P1.x⟩ data ∧
-  Element.DivNonzero.Assumptions (idx + 1) ⟨input.P2.y - input.P1.y, input.P2.x - input.P1.x⟩ data ∧
-  Element.Square.Assumptions (idx + 2) ⟨(Core.AllocMul.readRow data (idx + 1)).x⟩ data ∧
-  Element.Mul.Assumptions (idx + 3) ⟨(Core.AllocMul.readRow data (idx + 1)).x,
-    input.P1.x - ((Core.AllocMul.readRow data (idx + 2)).z - input.P1.x - input.P2.x)⟩ data
+  (input.P2.x - input.P1.x ≠ 0)
 
 -- Spec is conditional on curve membership
 def Spec (curveParams : Spec.CurveParams p) (input : Inputs (F p)) (output : Outputs (F p)) (_data : ProverData (F p)) :=
@@ -84,11 +75,11 @@ def Spec (curveParams : Spec.CurveParams p) (input : Inputs (F p)) (output : Out
     )
   )
 
-instance elaborated (idx : ℕ) : ElaboratedCircuit (F p) Inputs Outputs where
-  main := main idx
+instance elaborated : ElaboratedCircuit (F p) Inputs Outputs where
+  main := main
   localLength _ := 12
 
-theorem soundness (curveParams : Spec.CurveParams p) (idx : ℕ) : GeneralFormalCircuit.Soundness (F p) (elaborated idx) (Spec curveParams) := by
+theorem soundness (curveParams : Spec.CurveParams p) : GeneralFormalCircuit.Soundness (F p) elaborated (Spec curveParams) := by
   circuit_proof_start
   simp [circuit_norm,
     Element.Square.circuit, Element.Square.Spec,
@@ -124,17 +115,24 @@ theorem soundness (curveParams : Spec.CurveParams p) (idx : ℕ) : GeneralFormal
     apply Ne.symm
     exact h1
 
+theorem completeness (curveParams : Spec.CurveParams p) : GeneralFormalCircuit.Completeness (F p) elaborated (Assumptions curveParams) := by
+  circuit_proof_start [
+    Element.Square.circuit, Element.Square.Assumptions,
+    Element.DivNonzero.circuit, Element.DivNonzero.Assumptions,
+    Element.Mul.circuit, Element.Mul.Assumptions
+  ]
+  obtain ⟨_, _, h_diff⟩ := h_assumptions
+  -- Only non-trivial subcircuit goal: DivNonzero needs x2-x1 ≠ 0
+  rw [Ne, add_neg_eq_zero]
+  exact sub_ne_zero.mp h_diff
 
-theorem completeness (curveParams : Spec.CurveParams p) (idx : ℕ) : GeneralFormalCircuit.Completeness (F p) (elaborated idx) (Assumptions curveParams idx) := by
-  sorry
-
-def circuit (curveParams : Spec.CurveParams p) (idx : ℕ) : GeneralFormalCircuit (F p) Inputs Outputs :=
+def circuit (curveParams : Spec.CurveParams p) : GeneralFormalCircuit (F p) Inputs Outputs :=
   {
-    elaborated idx with
-    Assumptions := Assumptions curveParams idx,
+    elaborated with
+    Assumptions := Assumptions curveParams,
     Spec := Spec curveParams,
-    soundness := soundness curveParams idx,
-    completeness := completeness curveParams idx
+    soundness := soundness curveParams,
+    completeness := completeness curveParams
   }
 
 end Ragu.Circuits.Point.AddIncomplete

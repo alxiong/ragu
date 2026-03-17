@@ -11,33 +11,32 @@ structure Element (F : Type) where
   wire : F
 deriving ProvableStruct
 
-def main (idx : ℕ) (input : Var Element (F p)) : Circuit (F p) (Var Element (F p)) := do
+def main (input : Var Element (F p)) : Circuit (F p) (Var Element (F p)) := do
   let ⟨x⟩ := input
   return {
-    wire := ←Mul.circuit idx ⟨x, x⟩
+    wire := ←Mul.circuit ⟨x, x⟩
   }
 
-def Assumptions (idx : ℕ) (_input : Element (F p)) (data : ProverData (F p)) :=
-  Mul.Assumptions idx ⟨_input.wire, _input.wire⟩ data
+def Assumptions (_input : Element (F p)) (_data : ProverData (F p)) :=
+  True
 
 def Spec (input : Element (F p)) (out : Element (F p)) (_data : ProverData (F p)) :=
   out.wire = input.wire^2
 
-instance elaborated (idx : ℕ) : ElaboratedCircuit (F p) Element Element where
-  main := main idx
+instance elaborated : ElaboratedCircuit (F p) Element Element where
+  main := main
   localLength _ := 3
 
-theorem soundness (idx : ℕ) : GeneralFormalCircuit.Soundness (F p) (elaborated idx) Spec := by
+theorem soundness : GeneralFormalCircuit.Soundness (F p) elaborated Spec := by
   circuit_proof_start
   simp [circuit_norm, Mul.circuit, Mul.Spec] at h_holds ⊢
   rw [h_holds]
   ring
 
-theorem completeness (idx : ℕ) : GeneralFormalCircuit.Completeness (F p) (elaborated idx) (Assumptions idx) := by
+theorem completeness : GeneralFormalCircuit.Completeness (F p) elaborated Assumptions := by
   circuit_proof_start [Mul.circuit, Mul.Assumptions]
-  exact h_assumptions
 
-def circuit (idx : ℕ) : GeneralFormalCircuit (F p) Element Element :=
-  { elaborated idx with Assumptions := Assumptions idx, Spec, soundness := soundness idx, completeness := completeness idx }
+def circuit : GeneralFormalCircuit (F p) Element Element :=
+  { elaborated with Assumptions, Spec, soundness, completeness }
 
 end Ragu.Circuits.Element.Square

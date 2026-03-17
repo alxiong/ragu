@@ -95,7 +95,7 @@ def formal_instance : Core.Statements.FormalInstance where
       )
     )
 
-  reimplementation := Circuits.Point.AddIncomplete.circuit Circuits.Point.Spec.EpAffineParams 0
+  reimplementation := Circuits.Point.AddIncomplete.circuit Circuits.Point.Spec.EpAffineParams
 
   same_constraints := by
     intro input
@@ -103,7 +103,6 @@ def formal_instance : Core.Statements.FormalInstance where
       Operations.toFlat, circuit_norm, GeneralFormalCircuit.toSubcircuit,
       deserializeInput, exportedOperations,
       Circuits.Point.AddIncomplete.circuit, Circuits.Point.AddIncomplete.elaborated, Circuits.Point.AddIncomplete.main,
-      Circuits.Core.AllocMul.circuit, Circuits.Core.AllocMul.elaborated, Circuits.Core.AllocMul.main,
       Circuits.Element.Square.circuit, Circuits.Element.Square.elaborated, Circuits.Element.Square.main,
       Circuits.Element.DivNonzero.circuit, Circuits.Element.DivNonzero.elaborated, Circuits.Element.DivNonzero.main,
       Circuits.Element.Mul.circuit, Circuits.Element.Mul.elaborated, Circuits.Element.Mul.main]
@@ -114,7 +113,6 @@ def formal_instance : Core.Statements.FormalInstance where
     simp [circuit_norm, GeneralFormalCircuit.toSubcircuit,
       deserializeInput, serializeOutput,
       Circuits.Point.AddIncomplete.circuit, Circuits.Point.AddIncomplete.elaborated, Circuits.Point.AddIncomplete.main,
-      Circuits.Core.AllocMul.circuit, Circuits.Core.AllocMul.elaborated, Circuits.Core.AllocMul.main,
       Circuits.Element.Square.circuit, Circuits.Element.Square.elaborated, Circuits.Element.Square.main,
       Circuits.Element.DivNonzero.circuit, Circuits.Element.DivNonzero.elaborated, Circuits.Element.DivNonzero.main,
       Circuits.Element.Mul.circuit, Circuits.Element.Mul.elaborated, Circuits.Element.Mul.main]
