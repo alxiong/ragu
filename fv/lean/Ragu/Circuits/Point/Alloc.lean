@@ -43,11 +43,10 @@ def main (curveParams : Spec.CurveParams p) (idx : ℕ) (_input : Unit) : Circui
 
 def Assumptions (curveParams : Spec.CurveParams p) (idx : ℕ) (_input : Unit) (data : ProverData (F p)) :=
   Element.AllocSquare.Assumptions idx () data ∧
-  -- Mul(x, x²): witness validity (inlined, was Element.Mul.Assumptions)
+  -- Mul(x, x²): witness binding (inlined, was Element.Mul.Assumptions)
   (let w := Core.AllocMul.readRow data (idx + 1)
    w.x = (Core.AllocMul.readRow data idx).x ∧
-   w.y = (Core.AllocMul.readRow data idx).z ∧
-   w.x * w.y = w.z) ∧
+   w.y = (Core.AllocMul.readRow data idx).z) ∧
   Element.AllocSquare.Assumptions (idx + 2) () data ∧
   -- Curve equation: x³ + b = y²
   (Core.AllocMul.readRow data (idx + 1)).z + curveParams.b = (Core.AllocMul.readRow data (idx + 2)).z
@@ -89,14 +88,14 @@ theorem completeness (curveParams : Spec.CurveParams p) (idx : ℕ) : GeneralFor
       show i₀ + 3 + 3 + 1 + 1 = i₀ + 3 + 3 + 2 from by omega]
   rw [h0, h1, h2, h3, h4, h5, h6, h7, h8]
   simp only [Element.AllocSquare.Assumptions, Core.AllocMul.readRow] at h_assumptions
-  obtain ⟨⟨ha1, ha2⟩, ⟨ha3, ha4, ha5⟩, ⟨ha6, ha7⟩, ha8⟩ := h_assumptions
+  obtain ⟨ha1, ⟨ha3, ha4⟩, ha6, ha8⟩ := h_assumptions
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [add_neg_eq_zero]; convert ha2 using 2 <;> try simp
+  · ring
   · rw [add_neg_eq_zero]; convert ha1 using 2 <;> try simp
-  · rw [add_neg_eq_zero]; convert ha5 using 2 <;> try simp
+  · ring
   · rw [add_neg_eq_zero]; convert ha3 using 2 <;> try simp
   · rw [add_neg_eq_zero]; convert ha4 using 2 <;> try simp
-  · rw [add_neg_eq_zero]; convert ha7 using 2 <;> try simp
+  · ring
   · rw [add_neg_eq_zero]; convert ha6 using 2 <;> try simp
   · rw [add_neg_eq_zero]; convert ha8 using 2 <;> try simp
 

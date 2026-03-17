@@ -18,7 +18,7 @@ def main (idx : ℕ) (_input : Unit) : Circuit (F p) (Var Square (F p)) := do
 
 def Assumptions (idx : ℕ) (_input : Unit) (data : ProverData (F p)) :=
   let w := Core.AllocMul.readRow data idx
-  w.x = w.y ∧ w.x * w.y = w.z
+  w.x = w.y
 
 def Spec (_input : Unit) (out : Square (F p)) (_data : ProverData (F p)) :=
   out.a_sq = out.a^2
@@ -45,10 +45,9 @@ theorem completeness (idx : ℕ) : GeneralFormalCircuit.Completeness (F p) (elab
   rw [show i₀ + 1 + 1 = i₀ + 2 from by omega]
   rw [h0, h1, h2]
   simp only [Core.AllocMul.readRow] at h_assumptions
-  obtain ⟨h_eq, h_mul⟩ := h_assumptions
   constructor
-  · rw [add_neg_eq_zero]; convert h_mul using 2 <;> simp
-  · rw [add_neg_eq_zero]; convert h_eq using 2 <;> simp
+  · ring
+  · rw [add_neg_eq_zero]; convert h_assumptions using 2 <;> simp
 
 def circuit (idx : ℕ) : GeneralFormalCircuit (F p) unit Square :=
   { elaborated idx with Assumptions := Assumptions idx, Spec, soundness := soundness idx, completeness := completeness idx }
