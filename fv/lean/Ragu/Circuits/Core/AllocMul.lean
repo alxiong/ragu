@@ -20,22 +20,22 @@ def main (idx : ℕ) (_input : Unit) : Circuit (F p) (Var Row (F p)) := do
   assertZero (x*y - z)
   return ⟨x, y, z⟩
 
-def Assumptions (_idx : ℕ) (_inputs : Unit) (_data : ProverData (F p)) :=
+def Assumptions (_idx : ℕ) (_inputs : Unit) :=
   True
 
-def Spec (_inputs : Unit) (out_point : Row (F p)) (_data : ProverData (F p)) :=
+def Spec (_inputs : Unit) (out_point : Row (F p)) :=
   out_point.x * out_point.y = out_point.z
 
 instance elaborated (idx : ℕ) : ElaboratedCircuit (F p) unit Row where
   main := main idx
   localLength _ := 3
 
-theorem soundness (idx : ℕ) : GeneralFormalCircuit.Soundness (F p) (elaborated idx) Spec := by
+theorem soundness (idx : ℕ) : Soundness (F p) (elaborated idx) (Assumptions idx) Spec := by
   circuit_proof_start
   ring_nf at *
   grind
 
-theorem completeness (idx : ℕ) : GeneralFormalCircuit.Completeness (F p) (elaborated idx) (Assumptions idx) := by
+theorem completeness (idx : ℕ) : Completeness (F p) (elaborated idx) (Assumptions idx) := by
   circuit_proof_start
   have h0 := h_env (0 : Fin 3)
   have h1 := h_env (1 : Fin 3)
@@ -47,7 +47,7 @@ theorem completeness (idx : ℕ) : GeneralFormalCircuit.Completeness (F p) (elab
   rw [h0, h1, h2]
   ring
 
-def circuit (idx : ℕ) : GeneralFormalCircuit (F p) unit Row :=
+def circuit (idx : ℕ) : FormalCircuit (F p) unit Row :=
   {
     elaborated idx with
     Assumptions := Assumptions idx,
