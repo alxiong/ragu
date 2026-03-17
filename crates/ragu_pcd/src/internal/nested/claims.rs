@@ -79,39 +79,31 @@ where
     S: Source<RxComponent = RxComponent>,
     P: Processor<S::Rx>,
 {
-    let num_steps = super::NUM_ENDOSCALING_STEPS;
-
-    use RxComponent::*;
-
-    // 1. Circuit checks FIRST (k(y) = 1)
-    // Process all EndoscalingStep circuits (interleaved across proofs)
-    // Each circuit claim needs: step_rx + endoscalar_rx + points_rx
-    for step in 0..num_steps {
-        for ((step_rx, endo_rx), pts_rx) in source
-            .rx(EndoscalingStep(step as u32))
-            .zip(source.rx(EndoscalarStage))
-            .zip(source.rx(PointsStage))
-        {
-            processor.internal_circuit(
-                InternalCircuitIndex::EndoscalingStep(step as u32),
-                [step_rx, endo_rx, pts_rx].into_iter(),
-            );
+    for &id in &InternalCircuitIndex::ALL {
+        use InternalCircuitIndex::*;
+        match id {
+            EndoscalingStep(step) => {
+                for ((step_rx, endo_rx), pts_rx) in source
+                    .rx(RxComponent::EndoscalingStep(step))
+                    .zip(source.rx(RxComponent::EndoscalarStage))
+                    .zip(source.rx(RxComponent::PointsStage))
+                {
+                    processor.internal_circuit(id, [step_rx, endo_rx, pts_rx].into_iter());
+                }
+            }
+            EndoscalarStage => {
+                processor.stage(id, source.rx(RxComponent::EndoscalarStage))?;
+            }
+            PointsStage => {
+                processor.stage(id, source.rx(RxComponent::PointsStage))?;
+            }
+            PointsFinalStaged => {
+                let num_steps = super::NUM_ENDOSCALING_STEPS;
+                let final_rxs = (0..num_steps)
+                    .flat_map(|step| source.rx(RxComponent::EndoscalingStep(step as u32)));
+                processor.stage(id, final_rxs)?;
+            }
         }
-    }
-
-    // 2. Stage checks SECOND (k(y) = 0)
-    processor.stage(
-        InternalCircuitIndex::EndoscalarStage,
-        source.rx(EndoscalarStage),
-    )?;
-
-    processor.stage(InternalCircuitIndex::PointsStage, source.rx(PointsStage))?;
-
-    // PointsFinalStaged - final stage check
-    // Aggregates all EndoscalingStep rxs from all proofs
-    {
-        let final_rxs = (0..num_steps).flat_map(|step| source.rx(EndoscalingStep(step as u32)));
-        processor.stage(InternalCircuitIndex::PointsFinalStaged, final_rxs)?;
     }
 
     Ok(())
