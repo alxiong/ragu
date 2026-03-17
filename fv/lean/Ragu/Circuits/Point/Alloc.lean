@@ -21,7 +21,9 @@ variable {p : ℕ} [Fact p.Prime]
 -- map to environment entries (i.e., connect readRow indices to env.get offsets).
 def main (curveParams : Spec.CurveParams p) (idx : ℕ) (_input : Unit) : Circuit (F p) (Var Spec.Point (F p)) := do
   -- AllocSquare(x): idx
-  let ⟨w0x, w0y, w0z⟩ ← (witness fun env => Core.AllocMul.readRow env.data idx
+  let ⟨w0x, w0y, w0z⟩ ← (witness fun env =>
+    let a := Element.AllocSquare.readInput env.data idx
+    (⟨a, a, a * a⟩ : Core.AllocMul.Row (F p))
     : Circuit (F p) (Var Core.AllocMul.Row (F p)))
   assertZero (w0x * w0y - w0z)
   assertZero (w0x - w0y)
@@ -32,7 +34,9 @@ def main (curveParams : Spec.CurveParams p) (idx : ℕ) (_input : Unit) : Circui
   assertZero (w1x - w0x)
   assertZero (w1y - w0z)
   -- AllocSquare(y): idx+2
-  let ⟨w2x, w2y, w2z⟩ ← (witness fun env => Core.AllocMul.readRow env.data (idx + 2)
+  let ⟨w2x, w2y, w2z⟩ ← (witness fun env =>
+    let a := Element.AllocSquare.readInput env.data (idx + 2)
+    (⟨a, a, a * a⟩ : Core.AllocMul.Row (F p))
     : Circuit (F p) (Var Core.AllocMul.Row (F p)))
   assertZero (w2x * w2y - w2z)
   assertZero (w2x - w2y)
@@ -42,14 +46,13 @@ def main (curveParams : Spec.CurveParams p) (idx : ℕ) (_input : Unit) : Circui
   return ⟨w0x, w2x⟩
 
 def Assumptions (curveParams : Spec.CurveParams p) (idx : ℕ) (_input : Unit) (data : ProverData (F p)) :=
-  Element.AllocSquare.Assumptions idx () data ∧
-  -- Mul(x, x²): witness binding (inlined, was Element.Mul.Assumptions)
+  -- Mul(x, x²): witness matches AllocSquare(x) output
   (let w := Core.AllocMul.readRow data (idx + 1)
-   w.x = (Core.AllocMul.readRow data idx).x ∧
-   w.y = (Core.AllocMul.readRow data idx).z) ∧
-  Element.AllocSquare.Assumptions (idx + 2) () data ∧
+   let a := Element.AllocSquare.readInput data idx
+   w.x = a ∧ w.y = a * a) ∧
   -- Curve equation: x³ + b = y²
-  (Core.AllocMul.readRow data (idx + 1)).z + curveParams.b = (Core.AllocMul.readRow data (idx + 2)).z
+  (Core.AllocMul.readRow data (idx + 1)).z + curveParams.b =
+    Element.AllocSquare.readInput data (idx + 2) * Element.AllocSquare.readInput data (idx + 2)
 
 def Spec (curveParams : Spec.CurveParams p) (_input : Unit) (out : Spec.Point (F p)) (_data : ProverData (F p)) :=
   out.isOnCurve curveParams
@@ -80,23 +83,23 @@ theorem completeness (curveParams : Spec.CurveParams p) (idx : ℕ) : GeneralFor
   have h0 := he0 (0 : Fin 3); have h1 := he0 (1 : Fin 3); have h2 := he0 (2 : Fin 3)
   have h3 := he1 (0 : Fin 3); have h4 := he1 (1 : Fin 3); have h5 := he1 (2 : Fin 3)
   have h6 := he2 (0 : Fin 3); have h7 := he2 (1 : Fin 3); have h8 := he2 (2 : Fin 3)
-  simp only [toElements, circuit_norm, explicit_provable_type, Core.AllocMul.readRow, List.sum] at h0 h1 h2 h3 h4 h5 h6 h7 h8
+  simp only [toElements, circuit_norm, explicit_provable_type, Element.AllocSquare.readInput, Core.AllocMul.readRow, List.sum] at h0 h1 h2 h3 h4 h5 h6 h7 h8
   norm_num at h0 h1 h2 h3 h4 h5 h6 h7 h8
   try simp at h0 h1 h2 h3 h4 h5 h6 h7 h8
   rw [show i₀ + 1 + 1 = i₀ + 2 from by omega,
       show i₀ + 3 + 1 + 1 = i₀ + 3 + 2 from by omega,
       show i₀ + 3 + 3 + 1 + 1 = i₀ + 3 + 3 + 2 from by omega]
   rw [h0, h1, h2, h3, h4, h5, h6, h7, h8]
-  simp only [Element.AllocSquare.Assumptions, Core.AllocMul.readRow] at h_assumptions
-  obtain ⟨ha1, ⟨ha3, ha4⟩, ha6, ha8⟩ := h_assumptions
+  simp only [Element.AllocSquare.readInput, Core.AllocMul.readRow] at h_assumptions
+  obtain ⟨⟨ha3, ha4⟩, ha8⟩ := h_assumptions
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · ring
-  · rw [add_neg_eq_zero]; convert ha1 using 2 <;> try simp
+  · ring
   · ring
   · rw [add_neg_eq_zero]; convert ha3 using 2 <;> try simp
   · rw [add_neg_eq_zero]; convert ha4 using 2 <;> try simp
   · ring
-  · rw [add_neg_eq_zero]; convert ha6 using 2 <;> try simp
+  · ring
   · rw [add_neg_eq_zero]; convert ha8 using 2 <;> try simp
 
 def circuit (curveParams : Spec.CurveParams p) (idx : ℕ) : GeneralFormalCircuit (F p) unit Spec.Point :=
