@@ -1,3 +1,4 @@
+mod codegen;
 mod driver;
 mod expr;
 mod instance;
