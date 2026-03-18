@@ -71,7 +71,6 @@ def formal_instance : Core.Statements.FormalInstance where
   Spec input output :=
     input.P1.isOnCurve Circuits.Point.Spec.EpAffineParams →
     input.P2.isOnCurve Circuits.Point.Spec.EpAffineParams →
-    input.P2.x - input.P1.x ≠ 0 →
     (
       -- If the x coordinates of P1 and P2 are different, then we can conclude that the
       -- addition output is affine and is the correct result of the addition

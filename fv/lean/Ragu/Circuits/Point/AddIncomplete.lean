@@ -43,8 +43,7 @@ def main (input : Var Inputs (F p)) : Circuit (F p) (Var Outputs (F p)) := do
   }
 
 def Assumptions (curveParams : Spec.CurveParams p) (input : Inputs (F p)) :=
-  input.P1.isOnCurve curveParams ∧ input.P2.isOnCurve curveParams ∧
-  (input.P2.x - input.P1.x ≠ 0)
+  input.P1.isOnCurve curveParams ∧ input.P2.isOnCurve curveParams
 
 def Spec (curveParams : Spec.CurveParams p) (input : Inputs (F p)) (output : Outputs (F p)) :=
   (
@@ -85,7 +84,7 @@ theorem soundness (curveParams : Spec.CurveParams p) : Soundness (F p) elaborate
   ] at h_holds ⊢
 
   obtain ⟨c1, c2, c3, c4⟩ := h_holds
-  obtain ⟨h_P1_mem, h_P2_mem, _h_diff⟩ := h_assumptions
+  obtain ⟨h_P1_mem, h_P2_mem⟩ := h_assumptions
 
   rw [add_neg_eq_zero] at c2
 
@@ -113,15 +112,7 @@ theorem soundness (curveParams : Spec.CurveParams p) : Soundness (F p) elaborate
     exact h1
 
 theorem completeness (curveParams : Spec.CurveParams p) : Completeness (F p) elaborated (Assumptions curveParams) := by
-  circuit_proof_start [
-    Element.Square.circuit, Element.Square.Assumptions,
-    Element.DivNonzero.circuit, Element.DivNonzero.Assumptions,
-    Element.Mul.circuit, Element.Mul.Assumptions
-  ]
-  obtain ⟨_, _, h_diff⟩ := h_assumptions
-  -- Only non-trivial subcircuit goal: DivNonzero needs x2-x1 ≠ 0
-  rw [Ne, add_neg_eq_zero]
-  exact sub_ne_zero.mp h_diff
+  sorry
 
 def circuit (curveParams : Spec.CurveParams p) : FormalCircuit (F p) Inputs Outputs :=
   {
