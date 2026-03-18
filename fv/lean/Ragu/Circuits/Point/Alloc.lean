@@ -27,8 +27,8 @@ instance elaborated (curveParams : Spec.CurveParams p) (idx : ℕ) : ElaboratedC
 
 theorem soundness (curveParams : Spec.CurveParams p) (idx : ℕ) : GeneralFormalCircuit.Soundness (F p) (elaborated curveParams idx) (Spec curveParams) := by
   circuit_proof_start [
-    Element.AllocSquare.generalCircuit, Element.AllocSquare.GeneralAssumptions,
-    Element.AllocSquare.GeneralSpec,
+    Element.AllocSquare.generalCircuit, Element.AllocSquare.Assumptions,
+    Element.AllocSquare.Spec,
     Element.Mul.circuit, Element.Mul.Assumptions, Element.Mul.Spec
   ]
   simp only [Spec.Point.isOnCurve]
@@ -39,8 +39,8 @@ theorem soundness (curveParams : Spec.CurveParams p) (idx : ℕ) : GeneralFormal
 
 theorem completeness (curveParams : Spec.CurveParams p) (idx : ℕ) : GeneralFormalCircuit.Completeness (F p) (elaborated curveParams idx) (Assumptions curveParams idx) := by
   circuit_proof_start [
-    Element.AllocSquare.generalCircuit, Element.AllocSquare.GeneralAssumptions,
-    Element.AllocSquare.GeneralSpec, Element.AllocSquare.GeneralCompletenessSpec,
+    Element.AllocSquare.generalCircuit, Element.AllocSquare.Assumptions,
+    Element.AllocSquare.Spec, Element.AllocSquare.CompletenessSpec,
     Element.Mul.circuit, Element.Mul.Assumptions, Element.Mul.Spec
   ]
   obtain ⟨⟨_, h_x, h_xsq⟩, h_mul, ⟨_, _, h_ysq⟩⟩ := h_env
