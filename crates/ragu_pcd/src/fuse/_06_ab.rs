@@ -45,7 +45,7 @@ use crate::{
     proof,
 };
 
-use super::claims::{FuseAtom, FuseProofSource, TrackedPoly};
+use super::claims::{FoldKey, FuseProofSource, TrackedPoly};
 
 type NativeN = <native::RevdotParameters as fold_revdot::Parameters>::N;
 
@@ -53,7 +53,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     pub(super) fn compute_ab<'dr, D, RNG: CryptoRng>(
         &self,
         rng: &mut RNG,
-        a: FixedVec<TrackedPoly<'_, FuseAtom, C::CircuitField, R>, NativeN>,
+        a: FixedVec<TrackedPoly<'_, FoldKey, C::CircuitField, R>, NativeN>,
         b: FixedVec<structured::Polynomial<C::CircuitField, R>, NativeN>,
         source: &FuseProofSource<'_, C, R>,
         mu_prime: &Element<'dr, D>,
@@ -79,7 +79,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     fn compute_native_ab<'dr, D, RNG: CryptoRng>(
         &self,
         rng: &mut RNG,
-        a: FixedVec<TrackedPoly<'_, FuseAtom, C::CircuitField, R>, NativeN>,
+        a: FixedVec<TrackedPoly<'_, FoldKey, C::CircuitField, R>, NativeN>,
         b: FixedVec<structured::Polynomial<C::CircuitField, R>, NativeN>,
         source: &FuseProofSource<'_, C, R>,
         mu_prime: &Element<'dr, D>,
@@ -112,7 +112,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             // Deduplicate terms by key, summing coefficients.
             // TODO: O(n²) linear scan; switch to HashMap or sort-based dedup
             // if the number of terms grows beyond current M×N ≈ 108.
-            let mut entries: Vec<(FuseAtom, C::CircuitField)> = Vec::new();
+            let mut entries: Vec<(FoldKey, C::CircuitField)> = Vec::new();
             for &(key, coeff) in &a_decomp.terms {
                 if let Some(entry) = entries.iter_mut().find(|(k, _)| *k == key) {
                     entry.1 += coeff;
@@ -125,10 +125,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             let mut msm: Vec<(C::CircuitField, C::HostCurve)> =
                 Vec::with_capacity(entries.len() + 1);
             for (key, coeff) in entries {
-                let (commitment, blind) = source.resolve_atom(key);
+                let (commitment, blind) = source.get(key);
                 accumulated_blind += coeff * blind;
                 msm.push((coeff, commitment));
             }
+            // Each source commitment cm_i = <poly_i, G> + blind_i * H, so
+            // sum_i coeff_i * cm_i = <a_poly, G> + accumulated_blind * H.
+            // We want a fresh commitment <a_poly, G> + a_blind * H, so we
+            // correct the blinding factor by pushing (a_blind - accumulated_blind) * H.
             msm.push((a_blind - accumulated_blind, *host_gen.h()));
 
             ragu_arithmetic::mul(msm.iter().map(|(c, _)| c), msm.iter().map(|(_, b)| b))

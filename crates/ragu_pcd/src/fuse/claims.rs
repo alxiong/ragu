@@ -4,7 +4,7 @@
 //! commitments so that `_06_ab` can compute `a_commitment` via a small MSM
 //! over known child-proof commitments instead of a full polynomial-degree MSM.
 //!
-//! Each polynomial entering the claims pipeline is tagged with a [`FuseAtom`]
+//! Each polynomial entering the claims pipeline is tagged with a [`FoldKey`]
 //! key — a `(`[`Side`]`, `[`RxComponent`]`)` pair identifying which child
 //! proof and component it came from. As polynomials are summed and folded,
 //! the corresponding [`CommitmentDecomposition`] accumulates the linear
@@ -38,7 +38,7 @@ use crate::{
 /// Each term `(key, coefficient)` records that this polynomial includes
 /// `coefficient * source[key]`. The same key may appear multiple times;
 /// duplicates are summed during resolution. The key type `K` is chosen by
-/// the caller (the fuse path uses [`FuseAtom`]).
+/// the caller (the fuse path uses [`FoldKey`]).
 #[derive(Clone)]
 pub(super) struct CommitmentDecomposition<K, F: Field> {
     pub(super) terms: Vec<(K, F)>,
@@ -149,10 +149,10 @@ pub(super) enum Side {
 
 /// Key identifying a polynomial and its corresponding commitment within the
 /// fuse pipeline: which child proof, and which component of that proof.
-pub(super) type FuseAtom = (Side, RxComponent);
+pub(super) type FoldKey = (Side, RxComponent);
 
 /// The two child proofs being fused. Provides [`Atom`]-tagged rx values
-/// for claim building, and resolves [`FuseAtom`] keys back to their
+/// for claim building, and resolves [`FoldKey`] keys back to their
 /// `(commitment, blind)` pairs for the MSM in `_06_ab`.
 pub(super) struct FuseProofSource<'rx, C: Cycle, R: Rank> {
     pub(super) left: &'rx Proof<C, R>,
@@ -160,12 +160,9 @@ pub(super) struct FuseProofSource<'rx, C: Cycle, R: Rank> {
 }
 
 impl<'rx, C: Cycle, R: Rank> FuseProofSource<'rx, C, R> {
-    /// Look up the `(commitment, blind)` pair for a [`FuseAtom`] key in the
+    /// Look up the `(commitment, blind)` pair for a [`FoldKey`] in the
     /// corresponding child proof.
-    pub(super) fn resolve_atom(
-        &self,
-        (side, component): FuseAtom,
-    ) -> (C::HostCurve, C::CircuitField) {
+    pub(super) fn get(&self, (side, component): FoldKey) -> (C::HostCurve, C::CircuitField) {
         let proof = match side {
             Side::Left => self.left,
             Side::Right => self.right,
@@ -180,7 +177,7 @@ impl<'rx, C: Cycle, R: Rank> FuseProofSource<'rx, C, R> {
 
 impl<'rx, C: Cycle, R: Rank> Source for FuseProofSource<'rx, C, R> {
     type RxComponent = RxComponent;
-    type Rx = Atom<'rx, FuseAtom, C::CircuitField, R>;
+    type Rx = Atom<'rx, FoldKey, C::CircuitField, R>;
     type AppCircuitId = CircuitIndex;
 
     fn rx(&self, component: RxComponent) -> impl Iterator<Item = Self::Rx> {
@@ -209,7 +206,7 @@ impl<'rx, C: Cycle, R: Rank> Source for FuseProofSource<'rx, C, R> {
 /// [`Builder`] specialized for the fuse pipeline, where `A`
 /// polynomials carry [`CommitmentDecomposition`]s via [`TrackedPoly`].
 pub(super) type FuseBuilder<'m, 'rx, F, R> =
-    Builder<'m, 'rx, TrackedPoly<'rx, FuseAtom, F, R>, F, R>;
+    Builder<'m, 'rx, TrackedPoly<'rx, FoldKey, F, R>, F, R>;
 
 /// Fuse-path [`Processor`] implementation.
 ///
@@ -217,16 +214,16 @@ pub(super) type FuseBuilder<'m, 'rx, F, R> =
 /// records how it decomposes as a linear combination of child-proof
 /// polynomials (and therefore their commitments). The decomposition is
 /// consumed in `_06_ab` to compute `a_commitment` via MSM.
-impl<'m, 'rx, F: PrimeField, R: Rank> Processor<Atom<'rx, FuseAtom, F, R>, CircuitIndex>
-    for Builder<'m, 'rx, TrackedPoly<'rx, FuseAtom, F, R>, F, R>
+impl<'m, 'rx, F: PrimeField, R: Rank> Processor<Atom<'rx, FoldKey, F, R>, CircuitIndex>
+    for Builder<'m, 'rx, TrackedPoly<'rx, FoldKey, F, R>, F, R>
 {
-    fn raw_claim(&mut self, a: Atom<'rx, FuseAtom, F, R>, b: Atom<'rx, FuseAtom, F, R>) {
+    fn raw_claim(&mut self, a: Atom<'rx, FoldKey, F, R>, b: Atom<'rx, FoldKey, F, R>) {
         self.a
             .push(TrackedPoly::single(Cow::Borrowed(a.poly), a.key));
         self.b.push(Cow::Borrowed(b.poly));
     }
 
-    fn circuit(&mut self, circuit_id: CircuitIndex, rx: Atom<'rx, FuseAtom, F, R>) {
+    fn circuit(&mut self, circuit_id: CircuitIndex, rx: Atom<'rx, FoldKey, F, R>) {
         self.circuit_impl(
             circuit_id,
             TrackedPoly::single(Cow::Borrowed(rx.poly), rx.key),
@@ -236,7 +233,7 @@ impl<'m, 'rx, F: PrimeField, R: Rank> Processor<Atom<'rx, FuseAtom, F, R>, Circu
     fn internal_circuit(
         &mut self,
         id: InternalCircuitIndex,
-        rxs: impl Iterator<Item = Atom<'rx, FuseAtom, F, R>>,
+        rxs: impl Iterator<Item = Atom<'rx, FoldKey, F, R>>,
     ) {
         let atoms: Vec<_> = rxs.collect();
         // Plain sum: poly = sum_i rx_i, so each constituent has coefficient 1.
@@ -251,7 +248,7 @@ impl<'m, 'rx, F: PrimeField, R: Rank> Processor<Atom<'rx, FuseAtom, F, R>, Circu
     fn stage(
         &mut self,
         id: InternalCircuitIndex,
-        rxs: impl Iterator<Item = Atom<'rx, FuseAtom, F, R>>,
+        rxs: impl Iterator<Item = Atom<'rx, FoldKey, F, R>>,
     ) -> Result<()> {
         let tracked: Vec<_> = rxs
             .map(|a| TrackedPoly::single(Cow::Borrowed(a.poly), a.key))

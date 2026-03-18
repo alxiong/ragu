@@ -62,7 +62,7 @@ pub trait Source {
 ///
 /// The type parameter `A` determines what is stored in the `a` vector:
 /// - Verify path: `A = Cow<'rx, Polynomial>` (plain polynomial references)
-/// - Fuse path: `A = TrackedPoly<'rx, FuseAtom, F, R>` (polynomial +
+/// - Fuse path: `A = TrackedPoly<'rx, FoldKey, F, R>` (polynomial +
 ///   commitment decomposition; see `fuse::claims`)
 pub struct Builder<'m, 'rx, A, F: PrimeField, R: Rank> {
     pub registry: &'m Registry<'m, F, R>,

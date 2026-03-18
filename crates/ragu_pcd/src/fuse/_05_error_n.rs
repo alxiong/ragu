@@ -30,7 +30,7 @@ use crate::{
     proof,
 };
 
-use super::claims::{FuseAtom, FuseBuilder, TrackedPoly};
+use super::claims::{FoldKey, FuseBuilder, TrackedPoly};
 
 type NativeN = <native::RevdotParameters as fold_revdot::Parameters>::N;
 
@@ -51,7 +51,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     ) -> Result<(
         proof::ErrorN<C, R>,
         native::stages::error_n::Witness<C, native::RevdotParameters>,
-        FixedVec<TrackedPoly<'rx, FuseAtom, C::CircuitField, R>, NativeN>,
+        FixedVec<TrackedPoly<'rx, FoldKey, C::CircuitField, R>, NativeN>,
         FixedVec<structured::Polynomial<C::CircuitField, R>, NativeN>,
     )>
     where

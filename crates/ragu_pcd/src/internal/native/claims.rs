@@ -51,7 +51,7 @@ const NUM_UNIFIED_CIRCUITS: usize = 4;
 ///   reference. The processor accumulates polynomials for error term
 ///   construction.
 /// - **Fuse path** ([`Builder`] with `TrackedPoly` `A`): `Rx` is an
-///   `Atom` pairing a polynomial reference with a `FuseAtom` key for
+///   `Atom` pairing a polynomial reference with a `FoldKey` key for
 ///   commitment decomposition tracking (see `fuse::claims`).
 /// - **Evaluation context**: `Rx` carries a single evaluated field element at
 ///   $xz$. Both the `ax` and `bx` vectors derive from this shared evaluation:
