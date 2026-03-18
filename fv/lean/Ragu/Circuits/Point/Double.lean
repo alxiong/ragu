@@ -30,16 +30,13 @@ def main (input : Var Spec.Point (F p)) : Circuit (F p) (Var Spec.Point (F p)) :
 
   return ⟨x3, y3⟩
 
-def Assumptions (curveParams : Spec.CurveParams p) (input : Spec.Point (F p)) (_data : ProverData (F p)) :=
+def Assumptions (curveParams : Spec.CurveParams p) (input : Spec.Point (F p)) :=
   input.isOnCurve curveParams ∧
   -- for the circuit to be sound, there must not exist points of order 2 on the curve,
   -- therefore soundness is also conditioned on the following property:
   curveParams.noOrderTwoPoints
 
--- Spec is conditional on curve membership and no order-2 points
-def Spec (curveParams : Spec.CurveParams p) (input : Spec.Point (F p)) (output : Spec.Point (F p)) (_data : ProverData (F p)) :=
-  input.isOnCurve curveParams →
-  curveParams.noOrderTwoPoints →
+def Spec (curveParams : Spec.CurveParams p) (input : Spec.Point (F p)) (output : Spec.Point (F p)) :=
   (match input.double with
   | none => False -- this case never happens
   | some double => output = double)
@@ -50,7 +47,7 @@ instance elaborated : ElaboratedCircuit (F p) Spec.Point Spec.Point where
   main
   localLength _ := 12
 
-theorem soundness (curveParams : Spec.CurveParams p) : GeneralFormalCircuit.Soundness (F p) elaborated (Spec curveParams) := by
+theorem soundness (curveParams : Spec.CurveParams p) : Soundness (F p) elaborated (Assumptions curveParams) (Spec curveParams) := by
   circuit_proof_start
   simp [circuit_norm,
     Element.Square.circuit, Element.Square.Assumptions, Element.Square.Spec,
@@ -58,8 +55,8 @@ theorem soundness (curveParams : Spec.CurveParams p) : GeneralFormalCircuit.Soun
     Element.Mul.circuit, Element.Mul.Assumptions, Element.Mul.Spec
   ] at h_holds ⊢
   obtain ⟨c1, c2, c3, c4⟩ := h_holds
+  obtain ⟨h_membership, h_order⟩ := h_assumptions
 
-  intro h_membership h_order
   have hy : input_y ≠ 0 := h_order ⟨input_x, input_y⟩ h_membership
   have h2y_ne : input_y + input_y ≠ 0 := by
     rw [← two_mul]; exact mul_ne_zero (NeZero.ne 2) hy
@@ -83,7 +80,7 @@ theorem soundness (curveParams : Spec.CurveParams p) : GeneralFormalCircuit.Soun
     ring_nf at ⊢ h_d
     exact h_d
 
-theorem completeness (curveParams : Spec.CurveParams p) : GeneralFormalCircuit.Completeness (F p) elaborated (Assumptions curveParams) := by
+theorem completeness (curveParams : Spec.CurveParams p) : Completeness (F p) elaborated (Assumptions curveParams) := by
   circuit_proof_start [
     Element.Square.circuit, Element.Square.Assumptions,
     Element.DivNonzero.circuit, Element.DivNonzero.Assumptions,
@@ -94,7 +91,7 @@ theorem completeness (curveParams : Spec.CurveParams p) : GeneralFormalCircuit.C
   have hy : input_y ≠ 0 := h_order ⟨input_x, input_y⟩ h_curve
   rw [← two_mul]; exact mul_ne_zero (NeZero.ne 2) hy
 
-def circuit (curveParams : Spec.CurveParams p) : GeneralFormalCircuit (F p) Spec.Point Spec.Point :=
+def circuit (curveParams : Spec.CurveParams p) : FormalCircuit (F p) Spec.Point Spec.Point :=
   {
     elaborated with
     Assumptions := Assumptions curveParams,

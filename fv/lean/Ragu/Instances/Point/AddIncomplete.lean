@@ -69,7 +69,9 @@ def formal_instance : Core.Statements.FormalInstance where
   serializeOutput
 
   Spec input output :=
-    input.P1.isOnCurve Circuits.Point.Spec.EpAffineParams → input.P2.isOnCurve Circuits.Point.Spec.EpAffineParams →
+    input.P1.isOnCurve Circuits.Point.Spec.EpAffineParams →
+    input.P2.isOnCurve Circuits.Point.Spec.EpAffineParams →
+    input.P2.x - input.P1.x ≠ 0 →
     (
       -- If the x coordinates of P1 and P2 are different, then we can conclude that the
       -- addition output is affine and is the correct result of the addition
@@ -95,12 +97,15 @@ def formal_instance : Core.Statements.FormalInstance where
       )
     )
 
-  reimplementation := Circuits.Point.AddIncomplete.circuit Circuits.Point.Spec.EpAffineParams
+  reimplementation :=
+    FormalCircuit.isGeneralFormalCircuit (F p) _ _
+      (Circuits.Point.AddIncomplete.circuit Circuits.Point.Spec.EpAffineParams)
 
   same_constraints := by
     intro input
     simp [Core.Statements.FlatOperation.eraseCompute, List.map,
       Operations.toFlat, circuit_norm, GeneralFormalCircuit.toSubcircuit, FormalCircuit.toSubcircuit,
+      FormalCircuit.isGeneralFormalCircuit,
       deserializeInput, exportedOperations,
       Circuits.Point.AddIncomplete.circuit, Circuits.Point.AddIncomplete.elaborated, Circuits.Point.AddIncomplete.main,
       Circuits.Element.Square.circuit, Circuits.Element.Square.elaborated, Circuits.Element.Square.main,
@@ -111,6 +116,7 @@ def formal_instance : Core.Statements.FormalInstance where
   same_output := by
     intro input;
     simp [circuit_norm, GeneralFormalCircuit.toSubcircuit, FormalCircuit.toSubcircuit,
+      FormalCircuit.isGeneralFormalCircuit,
       deserializeInput, serializeOutput,
       Circuits.Point.AddIncomplete.circuit, Circuits.Point.AddIncomplete.elaborated, Circuits.Point.AddIncomplete.main,
       Circuits.Element.Square.circuit, Circuits.Element.Square.elaborated, Circuits.Element.Square.main,
@@ -119,17 +125,10 @@ def formal_instance : Core.Statements.FormalInstance where
     repeat (constructor <;> congr)
   same_spec := by
     intro input output
-    constructor
-    · intro h h1 h2
-      generalize input.P1.add_incomplete input.P2 = d at h ⊢
-      cases d with
-      | none => exact h h1 h2
-      | some _ => exact h h1 h2
-    · intro h h1 h2
-      simp only [Circuits.Point.AddIncomplete.circuit, Circuits.Point.AddIncomplete.Spec] at h
-      generalize input.P1.add_incomplete input.P2 = d at h ⊢
-      cases d with
-      | none => exact h h1 h2
-      | some _ => exact h h1 h2
+    dsimp only [FormalCircuit.isGeneralFormalCircuit,
+      Circuits.Point.AddIncomplete.circuit,
+      Circuits.Point.AddIncomplete.Assumptions,
+      Circuits.Point.AddIncomplete.Spec]
+    aesop
 
 end Ragu.Instances.Point.AddIncomplete

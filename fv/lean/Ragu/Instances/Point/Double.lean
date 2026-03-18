@@ -74,12 +74,15 @@ def formal_instance : Core.Statements.FormalInstance where
     ∧
     output.isOnCurve Circuits.Point.Spec.EpAffineParams
 
-  reimplementation := Circuits.Point.Double.circuit Circuits.Point.Spec.EpAffineParams
+  reimplementation :=
+    FormalCircuit.isGeneralFormalCircuit (F p) _ _
+      (Circuits.Point.Double.circuit Circuits.Point.Spec.EpAffineParams)
 
   same_constraints := by
     intro input
     simp [Core.Statements.FlatOperation.eraseCompute, List.map,
       Operations.toFlat, circuit_norm, GeneralFormalCircuit.toSubcircuit, FormalCircuit.toSubcircuit,
+      FormalCircuit.isGeneralFormalCircuit,
       deserializeInput, exportedOperations,
       Circuits.Point.Double.circuit, Circuits.Point.Double.elaborated, Circuits.Point.Double.main,
       Circuits.Element.Square.circuit, Circuits.Element.Square.elaborated, Circuits.Element.Square.main,
@@ -90,6 +93,7 @@ def formal_instance : Core.Statements.FormalInstance where
   same_output := by
     intro input;
     simp [circuit_norm, GeneralFormalCircuit.toSubcircuit, FormalCircuit.toSubcircuit,
+      FormalCircuit.isGeneralFormalCircuit,
       deserializeInput, serializeOutput,
       Circuits.Point.Double.circuit, Circuits.Point.Double.elaborated, Circuits.Point.Double.main,
       Circuits.Element.Square.circuit, Circuits.Element.Square.elaborated, Circuits.Element.Square.main,
@@ -98,17 +102,10 @@ def formal_instance : Core.Statements.FormalInstance where
     constructor <;> rfl
   same_spec := by
     intro input output
-    constructor
-    · intro h h1 h2
-      generalize input.double = d at h ⊢
-      cases d with
-      | none => exact h h1 h2
-      | some _ => exact h h1 h2
-    · intro h h1 h2
-      simp only [Circuits.Point.Double.circuit, Circuits.Point.Double.Spec] at h
-      generalize input.double = d at h ⊢
-      cases d with
-      | none => exact h h1 h2
-      | some _ => exact h h1 h2
+    dsimp only [FormalCircuit.isGeneralFormalCircuit,
+      Circuits.Point.Double.circuit,
+      Circuits.Point.Double.Assumptions,
+      Circuits.Point.Double.Spec]
+    aesop
 
 end Ragu.Instances.Point.Double
