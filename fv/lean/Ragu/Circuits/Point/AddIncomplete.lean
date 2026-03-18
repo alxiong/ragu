@@ -27,7 +27,7 @@ def main (input : Var Inputs (F p)) : Circuit (F p) (Var Outputs (F p)) := do
   let tmp := x2 - x1
   let nonzero_out ← subcircuit Element.Mul.circuit ⟨nonzero, tmp⟩
 
-  let delta ← subcircuit Element.DivNonzero.circuit ⟨y2 - y1, tmp⟩
+  let delta ← Element.DivNonzero.generalCircuit ⟨y2 - y1, tmp⟩
 
   -- x3 = delta^2 - x1 - x2
   let ⟨delta2⟩ ← subcircuit Element.Square.circuit ⟨delta⟩
@@ -42,10 +42,13 @@ def main (input : Var Inputs (F p)) : Circuit (F p) (Var Outputs (F p)) := do
     nonzero := nonzero_out
   }
 
-def Assumptions (curveParams : Spec.CurveParams p) (input : Inputs (F p)) :=
-  input.P1.isOnCurve curveParams ∧ input.P2.isOnCurve curveParams
+def Assumptions (curveParams : Spec.CurveParams p) (input : Inputs (F p)) (_data : ProverData (F p)) :=
+  input.P1.isOnCurve curveParams ∧ input.P2.isOnCurve curveParams ∧
+  (input.P1.x ≠ input.P2.x ∨ (input.P1.x = input.P2.x ∧ input.P1.y = input.P2.y))
 
-def Spec (curveParams : Spec.CurveParams p) (input : Inputs (F p)) (output : Outputs (F p)) :=
+def Spec (curveParams : Spec.CurveParams p) (input : Inputs (F p)) (output : Outputs (F p)) (_data : ProverData (F p)) :=
+  input.P1.isOnCurve curveParams →
+  input.P2.isOnCurve curveParams →
   (
     -- If the x coordinates of P1 and P2 are different, then we can conclude that the
     -- addition output is affine and is the correct result of the addition
@@ -75,16 +78,16 @@ instance elaborated : ElaboratedCircuit (F p) Inputs Outputs where
   main
   localLength _ := 12
 
-theorem soundness (curveParams : Spec.CurveParams p) : Soundness (F p) elaborated (Assumptions curveParams) (Spec curveParams) := by
+theorem soundness (curveParams : Spec.CurveParams p) : GeneralFormalCircuit.Soundness (F p) elaborated (Spec curveParams) := by
   circuit_proof_start
   simp [circuit_norm,
     Element.Square.circuit, Element.Square.Assumptions, Element.Square.Spec,
-    Element.DivNonzero.circuit, Element.DivNonzero.Assumptions, Element.DivNonzero.Spec,
+    Element.DivNonzero.generalCircuit, Element.DivNonzero.GeneralSpec,
     Element.Mul.circuit, Element.Mul.Assumptions, Element.Mul.Spec
   ] at h_holds ⊢
 
   obtain ⟨c1, c2, c3, c4⟩ := h_holds
-  obtain ⟨h_P1_mem, h_P2_mem⟩ := h_assumptions
+  intro h_P1_mem h_P2_mem
 
   rw [add_neg_eq_zero] at c2
 
@@ -111,10 +114,18 @@ theorem soundness (curveParams : Spec.CurveParams p) : Soundness (F p) elaborate
     apply Ne.symm
     exact h1
 
-theorem completeness (curveParams : Spec.CurveParams p) : Completeness (F p) elaborated (Assumptions curveParams) := by
-  sorry
+theorem completeness (curveParams : Spec.CurveParams p) : GeneralFormalCircuit.Completeness (F p) elaborated (Assumptions curveParams) := by
+  circuit_proof_start [
+    Element.Square.circuit, Element.Square.Assumptions,
+    Element.DivNonzero.generalCircuit, Element.DivNonzero.GeneralAssumptions,
+    Element.Mul.circuit, Element.Mul.Assumptions
+  ]
+  obtain ⟨_, _, h_condition⟩ := h_assumptions
+  rcases h_condition with h_diff | ⟨h_x_eq, h_y_eq⟩
+  · left; rw [Ne, add_neg_eq_zero]; exact Ne.symm h_diff
+  · right; rw [add_neg_eq_zero]; exact h_y_eq.symm
 
-def circuit (curveParams : Spec.CurveParams p) : FormalCircuit (F p) Inputs Outputs :=
+def circuit (curveParams : Spec.CurveParams p) : GeneralFormalCircuit (F p) Inputs Outputs :=
   {
     elaborated with
     Assumptions := Assumptions curveParams,

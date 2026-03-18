@@ -55,7 +55,7 @@ def serializeOutput (outputs: Var Circuits.Point.AddIncomplete.Outputs (F p)) : 
     outputs.nonzero
   ]
 
-def formal_instance : Core.Statements.FormalInstance where
+def formal_instance : Core.Statements.GeneralFormalInstance where
   p
   inputLen
   outputLen
@@ -102,27 +102,26 @@ def formal_instance : Core.Statements.FormalInstance where
   same_constraints := by
     intro input
     simp [Core.Statements.FlatOperation.eraseCompute, List.map,
-      Operations.toFlat, circuit_norm, FormalCircuit.toSubcircuit,
+      Operations.toFlat, circuit_norm, GeneralFormalCircuit.toSubcircuit, FormalCircuit.toSubcircuit,
       deserializeInput, exportedOperations,
       Circuits.Point.AddIncomplete.circuit, Circuits.Point.AddIncomplete.elaborated, Circuits.Point.AddIncomplete.main,
       Circuits.Element.Square.circuit, Circuits.Element.Square.elaborated, Circuits.Element.Square.main,
-      Circuits.Element.DivNonzero.circuit, Circuits.Element.DivNonzero.elaborated, Circuits.Element.DivNonzero.main,
+      Circuits.Element.DivNonzero.generalCircuit, Circuits.Element.DivNonzero.elaborated, Circuits.Element.DivNonzero.main,
       Circuits.Element.Mul.circuit, Circuits.Element.Mul.elaborated, Circuits.Element.Mul.main]
     repeat (constructor; rfl)
     constructor
   same_output := by
     intro input;
-    simp [circuit_norm, FormalCircuit.toSubcircuit,
+    simp [circuit_norm, GeneralFormalCircuit.toSubcircuit, FormalCircuit.toSubcircuit,
       deserializeInput, serializeOutput,
       Circuits.Point.AddIncomplete.circuit, Circuits.Point.AddIncomplete.elaborated, Circuits.Point.AddIncomplete.main,
       Circuits.Element.Square.circuit, Circuits.Element.Square.elaborated, Circuits.Element.Square.main,
-      Circuits.Element.DivNonzero.circuit, Circuits.Element.DivNonzero.elaborated, Circuits.Element.DivNonzero.main,
+      Circuits.Element.DivNonzero.generalCircuit, Circuits.Element.DivNonzero.elaborated, Circuits.Element.DivNonzero.main,
       Circuits.Element.Mul.circuit, Circuits.Element.Mul.elaborated, Circuits.Element.Mul.main]
     repeat (constructor <;> congr)
   same_spec := by
     intro input output
     dsimp only [Circuits.Point.AddIncomplete.circuit,
-      Circuits.Point.AddIncomplete.Assumptions,
       Circuits.Point.AddIncomplete.Spec]
     aesop
 

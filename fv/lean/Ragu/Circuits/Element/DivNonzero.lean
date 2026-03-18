@@ -57,4 +57,45 @@ theorem completeness : Completeness (F p) elaborated Assumptions := by
 def circuit : FormalCircuit (F p) Inputs field :=
   { elaborated with Assumptions, Spec, soundness, completeness }
 
+-- General versions with weaker assumptions for completeness
+
+def GeneralAssumptions (input : Inputs (F p)) (_data : ProverData (F p)) :=
+  input.y ≠ 0 ∨ input.x = 0
+
+def GeneralSpec (input : Inputs (F p)) (out : field (F p)) (_data : ProverData (F p)) :=
+  input.y ≠ 0 → out = input.x / input.y
+
+theorem generalSoundness : GeneralFormalCircuit.Soundness (F p) elaborated GeneralSpec := by
+  circuit_proof_start
+  obtain ⟨c1, c2, c3⟩ := h_holds
+  rw [add_neg_eq_zero] at c1 c2 c3
+  rw [←c2, ←c3] at c1
+  intro h_y_ne
+  exact eq_div_of_mul_eq h_y_ne c1
+
+theorem generalCompleteness : GeneralFormalCircuit.Completeness (F p) elaborated GeneralAssumptions := by
+  circuit_proof_start
+  have h0 := h_env (0 : Fin 3)
+  have h1 := h_env (1 : Fin 3)
+  have h2 := h_env (2 : Fin 3)
+  simp only [toElements, circuit_norm, explicit_provable_type, List.sum] at h0 h1 h2
+  norm_num at h0 h1 h2
+  simp at h0 h1 h2
+  rw [show i₀ + 1 + 1 = i₀ + 2 from by omega]
+  rw [h0, h1, h2]
+  refine ⟨?_, ?_, ?_⟩
+  · rw [add_neg_eq_zero]
+    rcases h_assumptions with h_y_ne | h_x_zero
+    · field_simp [h_y_ne]
+    · simp only [] at h_x_zero; rw [h_x_zero]; simp
+  · ring
+  · ring
+
+def generalCircuit : GeneralFormalCircuit (F p) Inputs field :=
+  { elaborated with
+    Assumptions := GeneralAssumptions,
+    Spec := GeneralSpec,
+    soundness := generalSoundness,
+    completeness := generalCompleteness }
+
 end Ragu.Circuits.Element.DivNonzero
