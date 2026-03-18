@@ -1,13 +1,12 @@
 use core::marker::PhantomData;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 use ff::Field;
 use ragu_core::convert::WireMap;
 use ragu_core::gadgets::Gadget;
 
-use crate::codegen::{
-    FieldExporter, render_exported_operations, render_exported_output, render_field_definition,
-    render_input_len, render_output_len,
-};
+use crate::codegen::{FieldExporter, render_autogen_module};
 use crate::driver::ExtractionDriver;
 use crate::expr::Expr;
 
@@ -121,23 +120,28 @@ pub trait CircuitInstance {
     fn circuit(dr: &mut ExtractionDriver<Self::Field>)
     -> ragu_core::Result<Vec<Expr<Self::Field>>>;
 
-    fn render_generated() -> String {
+    fn render_generated(module_name: &str) -> String {
         let mut dr = ExtractionDriver::<Self::Field>::new();
         let wires = Self::circuit(&mut dr).expect("circuit failed");
-        let input_len = dr.input_wire_count();
-
-        format!(
-            "{}\n{}\n{}\n{}\n{}",
-            render_field_definition::<Self::Field>(),
-            render_input_len(input_len),
-            render_output_len(wires.len()),
-            render_exported_operations(&dr.ops),
-            render_exported_output(&wires),
-        )
+        render_autogen_module::<Self::Field>(module_name, dr.input_wire_count(), &dr.ops, &wires)
     }
 
-    /// Run the circuit and print the Lean definitions for operations and output.
-    fn export() {
-        print!("{}", Self::render_generated());
+    fn autogen_file_path(module_name: &str, autogen_root: impl AsRef<Path>) -> PathBuf {
+        let mut path = autogen_root.as_ref().to_path_buf();
+        for segment in module_name.split('.') {
+            path.push(segment);
+        }
+        path.set_extension("lean");
+        path
+    }
+
+    /// Run the circuit and write the generated Lean module to the autogen tree.
+    fn export(module_name: &str, autogen_root: impl AsRef<Path>) -> std::io::Result<PathBuf> {
+        let path = Self::autogen_file_path(module_name, autogen_root);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&path, Self::render_generated(module_name))?;
+        Ok(path)
     }
 }

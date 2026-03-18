@@ -105,3 +105,19 @@ def exportedOutput (input_var : Var (ProvableVector field inputLen) (F p)) : Vec
     output.push(']');
     output
 }
+
+pub fn render_autogen_module<F: FieldExporter + std::fmt::Debug>(
+    module_name: &str,
+    input_len: usize,
+    ops: &[Op<F>],
+    wires: &[Expr<F>],
+) -> String {
+    format!(
+        "import Ragu.Core\n\nnamespace {module_name}\nopen Core.Primes\n\n{}\n{}\n{}\n{}\n{}\n\nend {module_name}\n",
+        render_field_definition::<F>(),
+        render_input_len(input_len),
+        render_output_len(wires.len()),
+        render_exported_operations(ops),
+        render_exported_output(wires),
+    )
+}
