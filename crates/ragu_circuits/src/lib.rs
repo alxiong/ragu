@@ -60,9 +60,9 @@ use polynomials::{Rank, structured, unstructured};
 /// [`into_parts`]: WithAux::into_parts
 pub struct WithAux<O, A> {
     /// The primary output value.
-    pub output: O,
+    pub(crate) output: O,
     /// Auxiliary data produced alongside the output.
-    pub aux: A,
+    pub(crate) aux: A,
 }
 
 impl<O, A> WithAux<O, A> {
