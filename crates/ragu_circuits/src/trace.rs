@@ -148,7 +148,7 @@ impl<F: Field> Trace<F> {
 /// Per-routine state that is saved and restored by [`DriverScope`].
 struct TraceScope {
     /// Gate index within the current segment, from paired allocation.
-    available_b: Option<usize>,
+    available_d: Option<usize>,
 
     /// Index of the segment that receives new gates.
     current_segment: usize,
@@ -188,7 +188,7 @@ impl<'scope, 'env, F: Field> Evaluator<'scope, 'env, F> {
             scope,
             tx,
             state: TraceScope {
-                available_b: None,
+                available_d: None,
                 current_segment: 0,
                 routine_counter: 0,
                 dfs_prefix: prefix,
@@ -203,7 +203,7 @@ impl<'scope, 'env, F: Field> Evaluator<'scope, 'env, F> {
             scope,
             deferred: Vec::new(),
             state: TraceScope {
-                available_b: None,
+                available_d: None,
                 current_segment: 0,
                 routine_counter: 0,
                 dfs_prefix: prefix,
@@ -248,7 +248,7 @@ impl<'scope, 'env, F: Field> Driver<'env> for Evaluator<'scope, 'env, F> {
     fn alloc(&mut self, value: impl Fn() -> Result<Coeff<Self::F>>) -> Result<Self::Wire> {
         // Packs two allocations into one gate with layout (0, a, 0, b),
         // which costs less in multiexp than two separate gates.
-        if let Some(index) = self.state.available_b.take() {
+        if let Some(index) = self.state.available_d.take() {
             let seg = &mut self.segments[self.state.current_segment].segment;
             seg.d[index] = value()?.value();
             Ok(())
@@ -259,7 +259,7 @@ impl<'scope, 'env, F: Field> Driver<'env> for Evaluator<'scope, 'env, F> {
             seg.b.push(value()?.value());
             seg.c.push(F::ZERO);
             seg.d.push(F::ZERO);
-            self.state.available_b = Some(index);
+            self.state.available_d = Some(index);
             Ok(())
         }
     }
@@ -338,7 +338,7 @@ impl<'scope, 'env, F: Field> Driver<'env> for Evaluator<'scope, 'env, F> {
                 let seg_idx = self.segments.len() - 1;
                 self.with_scope(
                     TraceScope {
-                        available_b: None,
+                        available_d: None,
                         current_segment: seg_idx,
                         routine_counter: 0,
                         dfs_prefix: child_prefix,
