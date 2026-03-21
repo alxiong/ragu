@@ -329,7 +329,7 @@ mod tests {
                 self.num_multiplications
             );
 
-            let idx = 2 * R::n() + 1 + self.skip_multiplications + coefficient_index;
+            let idx = 2 * R::n() - 2 - self.skip_multiplications - coefficient_index;
             generators.g()[idx]
         }
     }
@@ -911,25 +911,25 @@ mod tests {
         }
     }
 
-    /// Tests the generator index formula `2n + 1 + skip + i` for both a root
+    /// Tests the generator index formula `2n - 2 - skip - i` for both a root
     /// stage and a child stage with non-zero skip.
     #[test]
     fn test_generator_index_edge_cases() {
         assert_eq!(
             <ParentAOnlyStage as StageExt<Fp, R>>::generator_index_for_a(0),
-            2 * R::n() + 1
+            2 * R::n() - 2
         );
         assert_eq!(
             <ParentAOnlyStage as StageExt<Fp, R>>::generator_index_for_a(2),
-            2 * R::n() + 3
+            2 * R::n() - 4
         );
         assert_eq!(
             <ChildOfParentAOnlyStage as StageExt<Fp, R>>::generator_index_for_a(0),
-            2 * R::n() + 4
+            2 * R::n() - 5
         );
         assert_eq!(
             <ChildOfParentAOnlyStage as StageExt<Fp, R>>::generator_index_for_a(2),
-            2 * R::n() + 6
+            2 * R::n() - 7
         );
     }
 
