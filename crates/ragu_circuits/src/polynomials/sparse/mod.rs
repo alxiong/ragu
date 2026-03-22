@@ -66,10 +66,6 @@ pub struct Polynomial<T, R: Rank> {
     _marker: PhantomData<R>,
 }
 
-// ---------------------------------------------------------------------------
-// Invariant checking
-// ---------------------------------------------------------------------------
-
 impl<T, R: Rank> Polynomial<T, R> {
     /// Panics if the block list violates any structural invariant: blocks must
     /// be sorted by start index, non-empty, non-overlapping, and each block
@@ -103,10 +99,6 @@ impl<T, R: Rank> Polynomial<T, R> {
         poly
     }
 }
-
-// ---------------------------------------------------------------------------
-// Construction
-// ---------------------------------------------------------------------------
 
 impl<T, R: Rank> Default for Polynomial<T, R> {
     fn default() -> Self {
@@ -184,10 +176,6 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Block storage operations (generic, no field bounds)
-// ---------------------------------------------------------------------------
-
 impl<T, R: Rank> Polynomial<T, R> {
     /// Applies a closure to every stored element.
     fn apply_all(&mut self, mut op: impl FnMut(&mut T)) {
@@ -199,55 +187,88 @@ impl<T, R: Rank> Polynomial<T, R> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Polynomial operations (require F: Field)
-// ---------------------------------------------------------------------------
-
 impl<F: Field, R: Rank> Polynomial<F, R> {
-    /// Expands to a dense coefficient vector of length `R::num_coeffs()`.
-    pub(crate) fn to_dense(&self) -> Vec<F> {
-        let mut dense = alloc::vec![F::ZERO; R::num_coeffs()];
-        for (start, data) in &self.blocks {
-            dense[*start..*start + data.len()].copy_from_slice(data);
-        }
-        dense
-    }
-
     /// Iterates over the coefficients of this polynomial in ascending order of
     /// degree, yielding `F::ZERO` for gaps between blocks.
     pub fn iter_coeffs(&self) -> impl DoubleEndedIterator<Item = F> + ExactSizeIterator + '_ {
-        self.to_dense().into_iter()
+        CoeffIter {
+            blocks: &self.blocks,
+            front: 0,
+            back: R::num_coeffs(),
+        }
     }
 
     /// Merges another polynomial into this one using the given binary
     /// operation, pruning zero-valued results.
     fn combine_assign(&mut self, other: &Self, mut op: impl FnMut(&mut F, &F)) {
-        let capacity = R::num_coeffs();
-        let mut dense = alloc::vec![F::ZERO; capacity];
+        let lhs_blocks = core::mem::take(&mut self.blocks);
 
-        for (start, data) in &self.blocks {
-            dense[*start..*start + data.len()].copy_from_slice(data);
-        }
-
-        for (start, data) in &other.blocks {
-            for (i, val) in data.iter().enumerate() {
-                op(&mut dense[start + i], val);
-            }
-        }
+        let mut li = lhs_blocks
+            .iter()
+            .flat_map(|(start, data)| (*start..).zip(data.iter()))
+            .peekable();
+        let mut ri = other
+            .blocks
+            .iter()
+            .flat_map(|(start, data)| (*start..).zip(data.iter()))
+            .peekable();
 
         let mut blocks: Vec<(usize, Vec<F>)> = Vec::new();
         let mut current_block: Option<(usize, Vec<F>)> = None;
-        for (i, val) in dense.into_iter().enumerate() {
-            if !bool::from(val.is_zero()) {
-                if let Some((_, ref mut data)) = current_block {
-                    data.push(val);
-                } else {
-                    current_block = Some((i, alloc::vec![val]));
+
+        loop {
+            let (idx, val) = match (li.peek(), ri.peek()) {
+                (Some(&(li_idx, _)), Some(&(ri_idx, _))) => match li_idx.cmp(&ri_idx) {
+                    core::cmp::Ordering::Less => {
+                        let (i, lv) = li.next().unwrap();
+                        (i, *lv)
+                    }
+                    core::cmp::Ordering::Greater => {
+                        let (i, rv) = ri.next().unwrap();
+                        let mut out = F::ZERO;
+                        op(&mut out, rv);
+                        (i, out)
+                    }
+                    core::cmp::Ordering::Equal => {
+                        let (i, lv) = li.next().unwrap();
+                        let (_, rv) = ri.next().unwrap();
+                        let mut out = *lv;
+                        op(&mut out, rv);
+                        (i, out)
+                    }
+                },
+                (Some(_), None) => {
+                    let (i, lv) = li.next().unwrap();
+                    (i, *lv)
                 }
-            } else if let Some(block) = current_block.take() {
-                blocks.push(block);
+                (None, Some(_)) => {
+                    let (i, rv) = ri.next().unwrap();
+                    let mut out = F::ZERO;
+                    op(&mut out, rv);
+                    (i, out)
+                }
+                (None, None) => break,
+            };
+
+            if bool::from(val.is_zero()) {
+                if let Some(block) = current_block.take() {
+                    blocks.push(block);
+                }
+            } else {
+                match &mut current_block {
+                    Some((start, data)) if *start + data.len() == idx => {
+                        data.push(val);
+                    }
+                    _ => {
+                        if let Some(block) = current_block.take() {
+                            blocks.push(block);
+                        }
+                        current_block = Some((idx, alloc::vec![val]));
+                    }
+                }
             }
         }
+
         if let Some(block) = current_block {
             blocks.push(block);
         }
@@ -297,8 +318,9 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
         let mut power = F::ONE;
         let mut prev_end: usize = 0;
         for (start, data) in &self.blocks {
-            for _ in prev_end..*start {
-                power *= z;
+            let gap = *start - prev_end;
+            if gap > 0 {
+                power *= z.pow_vartime([gap as u64]);
             }
             for coeff in data {
                 result += *coeff * power;
@@ -315,8 +337,9 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
         let mut power = F::ONE;
         let mut prev_end: usize = 0;
         for (start, data) in &mut self.blocks {
-            for _ in prev_end..*start {
-                power *= z;
+            let gap = *start - prev_end;
+            if gap > 0 {
+                power *= z.pow_vartime([gap as u64]);
             }
             for coeff in data.iter_mut() {
                 *coeff *= power;
@@ -418,9 +441,57 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Trait impls
-// ---------------------------------------------------------------------------
+/// Iterator over all coefficients of a sparse polynomial in ascending degree
+/// order, yielding `F::ZERO` for gaps between blocks.
+struct CoeffIter<'a, F> {
+    blocks: &'a [(usize, Vec<F>)],
+    front: usize,
+    back: usize,
+}
+
+impl<F: Field> CoeffIter<'_, F> {
+    fn get(&self, pos: usize) -> F {
+        for (start, data) in self.blocks {
+            if pos < *start {
+                break;
+            }
+            if pos < *start + data.len() {
+                return data[pos - *start];
+            }
+        }
+        F::ZERO
+    }
+}
+
+impl<F: Field> Iterator for CoeffIter<'_, F> {
+    type Item = F;
+
+    fn next(&mut self) -> Option<F> {
+        if self.front >= self.back {
+            return None;
+        }
+        let val = self.get(self.front);
+        self.front += 1;
+        Some(val)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.back - self.front;
+        (len, Some(len))
+    }
+}
+
+impl<F: Field> DoubleEndedIterator for CoeffIter<'_, F> {
+    fn next_back(&mut self) -> Option<F> {
+        if self.front >= self.back {
+            return None;
+        }
+        self.back -= 1;
+        Some(self.get(self.back))
+    }
+}
+
+impl<F: Field> ExactSizeIterator for CoeffIter<'_, F> {}
 
 impl<F: Field, R: Rank> ragu_arithmetic::Ring for Polynomial<F, R> {
     type R = Self;
@@ -440,5 +511,13 @@ impl<F: Field, R: Rank> ragu_arithmetic::Ring for Polynomial<F, R> {
 impl<F: Field, R: Rank> core::ops::AddAssign<&Self> for Polynomial<F, R> {
     fn add_assign(&mut self, rhs: &Self) {
         Polynomial::add_assign(self, rhs);
+    }
+}
+
+#[cfg(test)]
+impl<F: Field, R: Rank> Polynomial<F, R> {
+    /// Expands to a dense coefficient vector of length `R::num_coeffs()`.
+    pub(crate) fn to_dense(&self) -> Vec<F> {
+        self.iter_coeffs().collect()
     }
 }

@@ -125,16 +125,16 @@ impl Perspective for Backward {
 /// [`forward`](Self::forward) for trace polynomials or
 /// [`backward`](Self::backward) for wiring polynomials.
 pub struct View<T, R: Rank, P: Perspective> {
-    /// The A wires of multiplication gates.
+    /// The A wires of multiplication gates. Must have at most `R::n()` entries.
     pub a: Vec<T>,
 
-    /// The B wires of multiplication gates.
+    /// The B wires of multiplication gates. Must have at most `R::n()` entries.
     pub b: Vec<T>,
 
-    /// The C wires of multiplication gates.
+    /// The C wires of multiplication gates. Must have at most `R::n()` entries.
     pub c: Vec<T>,
 
-    /// The D wires of multiplication gates.
+    /// The D wires of multiplication gates. Must have at most `R::n()` entries.
     pub d: Vec<T>,
 
     _marker: PhantomData<(R, P)>,

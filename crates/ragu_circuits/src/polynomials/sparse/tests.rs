@@ -463,6 +463,88 @@ proptest! {
     }
 
     // -----------------------------------------------------------------------
+    // iter_coeffs (forward, reverse, interleaved, size_hint)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn iter_coeffs_forward_matches_dense(poly in arb_any_poly()) {
+        let dense = poly.to_dense();
+        let from_iter: Vec<Fp> = poly.iter_coeffs().collect();
+        prop_assert_eq!(from_iter, dense);
+    }
+
+    #[test]
+    fn iter_coeffs_rev_matches_dense(poly in arb_any_poly()) {
+        let mut dense = poly.to_dense();
+        dense.reverse();
+        let from_iter: Vec<Fp> = poly.iter_coeffs().rev().collect();
+        prop_assert_eq!(from_iter, dense);
+    }
+
+    #[test]
+    fn iter_coeffs_interleaved(poly in arb_any_poly()) {
+        let dense = poly.to_dense();
+        let n = dense.len();
+        let mut iter = poly.iter_coeffs();
+
+        // Alternate front and back, collecting into a vec we can compare.
+        let mut front_vals = Vec::new();
+        let mut back_vals = Vec::new();
+        let mut from_front = true;
+        loop {
+            if from_front {
+                match iter.next() {
+                    Some(v) => front_vals.push(v),
+                    None => break,
+                }
+            } else {
+                match iter.next_back() {
+                    Some(v) => back_vals.push(v),
+                    None => break,
+                }
+            }
+            from_front = !from_front;
+        }
+
+        // front_vals got indices 0, 2, 4, ... and back_vals got n-1, n-3, ...
+        // Reconstruct the full sequence and compare.
+        back_vals.reverse();
+        let mut reconstructed = front_vals;
+        reconstructed.extend(back_vals);
+        prop_assert_eq!(reconstructed.len(), n);
+        prop_assert_eq!(reconstructed, dense);
+    }
+
+    #[test]
+    fn iter_coeffs_exact_size(poly in arb_any_poly()) {
+        let mut iter = poly.iter_coeffs();
+        let total = R::num_coeffs();
+        prop_assert_eq!(iter.len(), total);
+
+        // Consume a few from the front.
+        let front_take = total / 3;
+        for _ in 0..front_take {
+            iter.next();
+        }
+        prop_assert_eq!(iter.len(), total - front_take);
+
+        // Consume a few from the back.
+        let back_take = total / 4;
+        for _ in 0..back_take {
+            iter.next_back();
+        }
+        prop_assert_eq!(iter.len(), total - front_take - back_take);
+    }
+
+    #[test]
+    fn iter_coeffs_sparse_rev(poly in arb_sparse_forward_poly()) {
+        let mut dense = poly.to_dense();
+        dense.reverse();
+        let from_iter: Vec<Fp> = poly.iter_coeffs().rev().collect();
+        prop_assert_eq!(from_iter, dense);
+    }
+
+    // -----------------------------------------------------------------------
     // Zero pruning after arithmetic
     // -----------------------------------------------------------------------
 
@@ -603,4 +685,56 @@ fn alloc_optimization_pattern() {
     let d_nonzero = d_region.iter().filter(|x| bool::from(!x.is_zero())).count();
     let expected_allocs = (0..n).filter(|i| i % 10 == 0).count();
     assert_eq!(d_nonzero, expected_allocs);
+}
+
+#[test]
+fn iter_coeffs_zero_polynomial() {
+    let zero = Polynomial::<Fp, R>::new();
+    assert_eq!(zero.iter_coeffs().len(), R::num_coeffs());
+    assert!(zero.iter_coeffs().all(|c| c == Fp::ZERO));
+    assert!(zero.iter_coeffs().rev().all(|c| c == Fp::ZERO));
+}
+
+#[test]
+fn iter_coeffs_single_block_at_end() {
+    let val = Fp::from(7u64);
+    let last = R::num_coeffs() - 1;
+    let mut coeffs = alloc::vec![Fp::ZERO; R::num_coeffs()];
+    coeffs[last] = val;
+    let poly = Polynomial::<Fp, R>::from_coeffs(coeffs);
+
+    // Forward: all zeros then val at the end.
+    let fwd: Vec<Fp> = poly.iter_coeffs().collect();
+    assert_eq!(fwd[last], val);
+    assert!(fwd[..last].iter().all(|c| *c == Fp::ZERO));
+
+    // Reverse: val first then all zeros.
+    let mut rev_iter = poly.iter_coeffs().rev();
+    assert_eq!(rev_iter.next(), Some(val));
+    assert!(rev_iter.all(|c| c == Fp::ZERO));
+}
+
+#[test]
+fn iter_coeffs_fully_drain_both_ends() {
+    // Build a polynomial with two separated blocks.
+    let mut coeffs = alloc::vec![Fp::ZERO; R::num_coeffs()];
+    coeffs[0] = Fp::from(1u64);
+    coeffs[R::num_coeffs() - 1] = Fp::from(2u64);
+    let poly = Polynomial::<Fp, R>::from_coeffs(coeffs.clone());
+
+    let mut iter = poly.iter_coeffs();
+    let total = R::num_coeffs();
+
+    // Take from front: should get 1.
+    assert_eq!(iter.next(), Some(Fp::from(1u64)));
+    assert_eq!(iter.len(), total - 1);
+
+    // Take from back: should get 2.
+    assert_eq!(iter.next_back(), Some(Fp::from(2u64)));
+    assert_eq!(iter.len(), total - 2);
+
+    // Everything remaining should be zero.
+    for c in iter {
+        assert_eq!(c, Fp::ZERO);
+    }
 }
