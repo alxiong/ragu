@@ -10,10 +10,6 @@ use super::View;
 
 type R = TestRank;
 
-// ---------------------------------------------------------------------------
-// Strategies
-// ---------------------------------------------------------------------------
-
 fn arb_fe() -> impl Strategy<Value = Fp> {
     any::<u64>().prop_map(Fp::from)
 }
@@ -134,16 +130,8 @@ fn arb_dense_coeffs() -> impl Strategy<Value = Vec<Fp>> {
     ]
 }
 
-// ---------------------------------------------------------------------------
-// Property tests
-// ---------------------------------------------------------------------------
-
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(1024))]
-
-    // -----------------------------------------------------------------------
-    // from_coeffs roundtrip
-    // -----------------------------------------------------------------------
 
     #[test]
     fn from_coeffs_roundtrip(coeffs in arb_dense_coeffs()) {
@@ -152,10 +140,6 @@ proptest! {
         expected.resize(R::num_coeffs(), Fp::ZERO);
         prop_assert_eq!(poly.to_dense(), expected);
     }
-
-    // -----------------------------------------------------------------------
-    // View degree mapping
-    // -----------------------------------------------------------------------
 
     #[test]
     fn forward_view_degree_mapping(
@@ -250,20 +234,12 @@ proptest! {
         prop_assert_eq!(fwd_dense, bwd_reversed);
     }
 
-    // -----------------------------------------------------------------------
-    // eval consistency
-    // -----------------------------------------------------------------------
-
     #[test]
     fn eval_matches_dense(poly in arb_any_poly(), x in arb_fe()) {
         let dense = poly.to_dense();
         let expected = ragu_arithmetic::eval(&dense, x);
         prop_assert_eq!(poly.eval(x), expected);
     }
-
-    // -----------------------------------------------------------------------
-    // dilate consistency
-    // -----------------------------------------------------------------------
 
     #[test]
     fn dilate_correct(poly in arb_any_poly(), x in arb_fe(), z in arb_fe()) {
@@ -272,10 +248,6 @@ proptest! {
         dilated.dilate(z);
         prop_assert_eq!(dilated.eval(x), original_eval);
     }
-
-    // -----------------------------------------------------------------------
-    // revdot consistency
-    // -----------------------------------------------------------------------
 
     #[test]
     fn revdot_matches_dense(a in arb_any_poly(), b in arb_any_poly()) {
@@ -295,10 +267,6 @@ proptest! {
         let expected = ragu_arithmetic::dot(a_dense.iter(), b_dense.iter().rev());
         prop_assert_eq!(a.revdot(&b), expected);
     }
-
-    // -----------------------------------------------------------------------
-    // Arithmetic operations
-    // -----------------------------------------------------------------------
 
     #[test]
     fn add_assign_correct(a in arb_any_poly(), b in arb_any_poly(), x in arb_fe()) {
@@ -386,10 +354,6 @@ proptest! {
         prop_assert_eq!(result.to_dense(), original);
     }
 
-    // -----------------------------------------------------------------------
-    // fold
-    // -----------------------------------------------------------------------
-
     #[test]
     fn fold_correct(
         p1 in arb_any_poly(),
@@ -410,10 +374,6 @@ proptest! {
         prop_assert_eq!(folded.eval(x), poly.eval(x));
     }
 
-    // -----------------------------------------------------------------------
-    // Ring FFT roundtrip
-    // -----------------------------------------------------------------------
-
     #[test]
     fn ring_fft_roundtrip(
         p0 in arb_any_poly(),
@@ -432,10 +392,6 @@ proptest! {
             prop_assert_eq!(orig.to_dense(), result.to_dense());
         }
     }
-
-    // -----------------------------------------------------------------------
-    // Commitment consistency
-    // -----------------------------------------------------------------------
 
     #[test]
     fn commit_matches_dense(poly in arb_any_poly(), blind in arb_fe()) {
@@ -461,10 +417,6 @@ proptest! {
 
         prop_assert_eq!(sparse_commit, dense_commit);
     }
-
-    // -----------------------------------------------------------------------
-    // iter_coeffs (interleaved, ExactSizeIterator)
-    // -----------------------------------------------------------------------
 
     #[test]
     fn iter_coeffs_interleaved(poly in arb_any_poly()) {
@@ -529,10 +481,6 @@ proptest! {
         prop_assert_eq!(from_iter, dense);
     }
 
-    // -----------------------------------------------------------------------
-    // Zero pruning after arithmetic
-    // -----------------------------------------------------------------------
-
     #[test]
     fn sub_self_is_zero(poly in arb_any_poly()) {
         let mut result = poly.clone();
@@ -551,10 +499,6 @@ proptest! {
         prop_assert_eq!(result.eval(x), Fp::ZERO, "add_assign(-self) should yield zero");
     }
 }
-
-// ---------------------------------------------------------------------------
-// Deterministic edge cases
-// ---------------------------------------------------------------------------
 
 #[test]
 fn zero_polynomial_operations() {

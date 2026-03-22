@@ -51,6 +51,11 @@ pub trait Perspective: private::Sealed {
     /// and `a` are full); this is permitted by the sparse polynomial
     /// representation. The `n` parameter is `R::n()` (the maximum number of
     /// multiplication gates).
+    ///
+    /// # Preconditions
+    ///
+    /// Each vector must have at most `n` entries. This is enforced by
+    /// [`View::build`] before calling this method.
     fn map_to_blocks<T>(
         a: Vec<T>,
         b: Vec<T>,
@@ -124,6 +129,10 @@ impl Perspective for Backward {
 /// [`build`](Self::build) to map them to degree positions. Use
 /// [`forward`](Self::forward) for trace polynomials or
 /// [`backward`](Self::backward) for wiring polynomials.
+///
+/// Each wire buffer must have at most `R::n()` entries. This invariant is
+/// enforced by [`build`](Self::build), which panics if any buffer exceeds the
+/// limit.
 pub struct View<T, R: Rank, P: Perspective> {
     /// The A wires of multiplication gates. Must have at most `R::n()` entries.
     pub a: Vec<T>,

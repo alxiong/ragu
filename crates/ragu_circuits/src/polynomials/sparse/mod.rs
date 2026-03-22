@@ -1,34 +1,31 @@
-//! Sparse polynomial representation with block-compressed coefficient storage.
+//! Block-compressed sparse polynomial representation.
 //!
-//! Circuits produced by the alloc optimization have wire assignments where the
-//! `b` and `c` wires are zero for most alloc gates and the `d` wire is zero
-//! for most multiplication gates. A dense coefficient vector would store those
-//! zeros explicitly, wasting memory and commitment bandwidth. This module
-//! stores coefficients as sorted, non-overlapping blocks of contiguous
-//! values. Gaps between blocks are implicitly zero; individual elements
-//! within a block may be zero when the polynomial is built from wire
-//! buffers via [`View`].
+//! [`Polynomial<T, R>`] stores a polynomial of degree up to
+//! `R::num_coeffs() - 1` as sorted, non-overlapping blocks of contiguous
+//! coefficients. Gaps between blocks are implicitly zero, so memory and
+//! commitment cost scale with the number of stored coefficients rather than the
+//! total degree.
 //!
-//! [`Polynomial<T, R>`] stores a degree $4n - 1$ polynomial (where $4n$ =
-//! `R::num_coeffs()`) as sorted, non-overlapping blocks of contiguous
-//! coefficients. Gaps between blocks are implicitly zero.
+//! Several sources of sparsity arise in practice:
+//!
+//! - **Alloc-optimized circuits** leave most `b`/`c`-wire coefficients zero for
+//!   allocation gates and the `d`-wire zero for multiplication gates.
+//! - **Stage polynomials** are zero outside a small active region.
+//! - **Tail-sparse vectors** have long trailing zero runs after synthesis.
 //!
 //! # Construction
 //!
-//! There are three ways to create a polynomial:
-//!
 //! - [`Polynomial::new`]: empty (zero) polynomial.
-//! - [`Polynomial::from_coeffs`]: compress a dense coefficient vector,
-//!   omitting zero elements.
-//! - [`View`]: a builder with four dense wire buffers (a, b, c, d) that
-//!   maps gate-indexed values to degree positions and produces a polynomial via
-//!   [`View::build`]. Zero elements within a wire buffer
-//!   are preserved in the resulting blocks.
+//! - [`Polynomial::from_coeffs`]: compress a dense coefficient vector, stripping
+//!   zero runs.
+//! - [`View`]: a builder that maps four gate-indexed wire buffers to degree
+//!   positions, producing a polynomial via [`View::build`]. Zero elements within
+//!   a wire buffer are preserved in the resulting blocks.
 //!
 //! Once constructed, the polynomial supports algebraic operations ([`scale`],
 //! [`add_assign`], [`sub_assign`], [`negate`], [`eval`], [`revdot`],
-//! [`dilate`], [`fold`], [`commit`], etc.) but cannot be converted back to a
-//! view. Construction and mutation are separate phases.
+//! [`dilate`], [`fold`], [`commit`]) but cannot be deconstructed back into wire
+//! buffers.
 //!
 //! [`scale`]: Polynomial::scale
 //! [`add_assign`]: Polynomial::add_assign
@@ -46,13 +43,13 @@ pub use view::View;
 #[cfg(test)]
 mod tests;
 
-use alloc::vec::Vec;
-use core::borrow::Borrow;
-use core::marker::PhantomData;
-
 use ff::Field;
 use ragu_arithmetic::CurveAffine;
 use rand::CryptoRng;
+
+use alloc::vec::Vec;
+use core::borrow::Borrow;
+use core::marker::PhantomData;
 
 use super::Rank;
 
@@ -100,6 +97,30 @@ impl<T, R: Rank> Polynomial<T, R> {
     }
 }
 
+/// Splits `data` into maximal runs of non-zero coefficients and appends each
+/// run to `out` as `(base + run_offset, run_values)`.
+fn extend_nonzero_runs<F: Field>(out: &mut Vec<(usize, Vec<F>)>, base: usize, data: Vec<F>) {
+    let mut run_start = None;
+    let mut run = Vec::new();
+
+    for (i, coeff) in data.into_iter().enumerate() {
+        if bool::from(coeff.is_zero()) {
+            if let Some(s) = run_start.take() {
+                out.push((s, core::mem::take(&mut run)));
+            }
+        } else {
+            if run_start.is_none() {
+                run_start = Some(base + i);
+            }
+            run.push(coeff);
+        }
+    }
+
+    if let Some(s) = run_start {
+        out.push((s, run));
+    }
+}
+
 impl<T, R: Rank> Default for Polynomial<T, R> {
     fn default() -> Self {
         Self::new()
@@ -117,8 +138,8 @@ impl<T, R: Rank> Polynomial<T, R> {
 }
 
 impl<F: Field, R: Rank> Polynomial<F, R> {
-    /// Compresses a dense coefficient vector into sparse block form, omitting
-    /// zero elements.
+    /// Compresses a dense coefficient vector into sparse block form, stripping
+    /// zero runs.
     ///
     /// Panics if `coeffs.len()` exceeds `R::num_coeffs()`.
     pub fn from_coeffs(coeffs: Vec<F>) -> Self {
@@ -130,49 +151,15 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
         );
 
         let mut blocks = Vec::new();
-        let mut block_start = None;
-        let mut current_block = Vec::new();
-
-        for (i, coeff) in coeffs.into_iter().enumerate() {
-            if bool::from(coeff.is_zero()) {
-                if !current_block.is_empty() {
-                    blocks.push((
-                        block_start.expect("set when current_block is non-empty"),
-                        current_block,
-                    ));
-                    current_block = Vec::new();
-                    block_start = None;
-                }
-            } else {
-                if block_start.is_none() {
-                    block_start = Some(i);
-                }
-                current_block.push(coeff);
-            }
-        }
-
-        if !current_block.is_empty() {
-            blocks.push((
-                block_start.expect("set when current_block is non-empty"),
-                current_block,
-            ));
-        }
-
-        let poly = Self {
-            blocks,
-            _marker: PhantomData,
-        };
-        poly.assert_invariants();
-        poly
+        extend_nonzero_runs(&mut blocks, 0, coeffs);
+        Self::from_blocks(blocks)
     }
 
     /// Creates a polynomial with random coefficients filling all `4n` slots.
     pub fn random<RNG: CryptoRng>(rng: &mut RNG) -> Self {
+        assert!(R::num_coeffs() > 0, "num_coeffs must be positive");
         let coeffs: Vec<F> = (0..R::num_coeffs()).map(|_| F::random(&mut *rng)).collect();
-        Self {
-            blocks: alloc::vec![(0, coeffs)],
-            _marker: PhantomData,
-        }
+        Self::from_blocks(alloc::vec![(0, coeffs)])
     }
 }
 
@@ -218,14 +205,12 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
                     (*s, v)
                 })
                 .collect();
-            self.blocks
-                .retain(|(_, data)| data.iter().any(|x| !bool::from(x.is_zero())));
             return;
         }
 
         let mut lhs = core::mem::take(&mut self.blocks);
         let rhs = &other.blocks;
-        let mut out: Vec<(usize, Vec<F>)> = Vec::with_capacity(lhs.len() + rhs.len());
+        let mut out = Vec::with_capacity(lhs.len() + rhs.len());
         let mut li = 0usize;
         let mut ri = 0usize;
 
@@ -285,11 +270,10 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
                 }
             }
 
-            out.push((cluster_start, data));
+            extend_nonzero_runs(&mut out, cluster_start, data);
         }
 
-        // Remove all-zero blocks (possible after cancellation).
-        out.retain(|(_, data)| data.iter().any(|x| !bool::from(x.is_zero())));
+        out.shrink_to_fit();
         self.blocks = out;
     }
 
@@ -331,21 +315,22 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
         })
     }
 
-    /// Evaluates this polynomial at `z`.
+    /// Evaluates this polynomial at `z` using reverse Horner's method by block.
     pub fn eval(&self, z: F) -> F {
         let mut result = F::ZERO;
-        let mut power = F::ONE;
-        let mut prev_end: usize = 0;
-        for (start, data) in &self.blocks {
-            let gap = *start - prev_end;
+        let mut prev_start = R::num_coeffs();
+        for (start, data) in self.blocks.iter().rev() {
+            let gap = prev_start - (start + data.len());
             if gap > 0 {
-                power *= z.pow_vartime([gap as u64]);
+                result *= z.pow_vartime([gap as u64]);
             }
-            for coeff in data {
-                result += *coeff * power;
-                power *= z;
+            for coeff in data.iter().rev() {
+                result = result * z + *coeff;
             }
-            prev_end = *start + data.len();
+            prev_start = *start;
+        }
+        if prev_start > 0 {
+            result *= z.pow_vartime([prev_start as u64]);
         }
         result
     }

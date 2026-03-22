@@ -350,6 +350,9 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
     let one = xn4 * x_inv;
 
     let mut evaluator = Evaluator::<F, R> {
+        // Zero-initialized: the evaluator fills specific indices during
+        // synthesis. Unfilled indices must remain zero as they represent
+        // unused wire slots.
         result: vec![F::ZERO; R::num_coeffs()],
         scope: SxScope {
             available_b: None,
