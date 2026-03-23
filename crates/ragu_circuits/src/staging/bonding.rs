@@ -496,13 +496,17 @@ mod tests {
     /// pairs.
     fn build_trace(gate_values: &[(Fp, Fp)]) -> sparse::Polynomial<Fp, R> {
         let mut view = sparse::View::<_, R, _>::forward();
+        // ONE gate placeholder.
         view.a.push(Fp::ZERO);
         view.b.push(Fp::ZERO);
         view.c.push(Fp::ZERO);
+        view.d.push(Fp::ZERO);
+        // Layout: (0, a, 0, b) per gate.
         for &(a, b) in gate_values {
-            view.a.push(a);
-            view.b.push(b);
-            view.c.push(a * b);
+            view.a.push(Fp::ZERO);
+            view.b.push(a);
+            view.c.push(Fp::ZERO);
+            view.d.push(b);
         }
         view.build()
     }
