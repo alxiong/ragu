@@ -181,7 +181,7 @@ impl<'dr, F: Field> Driver<'dr> for BondingValidator<F> {
 
 /// Wraps a [`CircuitObject`] and strips the `enforce_one` contribution,
 /// giving a zero constant term in $Y$.
-struct Stripped<'a, F: Field, R: Rank>(Box<dyn CircuitObject<F, R> + 'a>);
+pub(crate) struct Stripped<'a, F: Field, R: Rank>(pub(crate) Box<dyn CircuitObject<F, R> + 'a>);
 
 impl<F: Field, R: Rank> CircuitObject<F, R> for Stripped<'_, F, R> {
     fn sxy(&self, x: F, y: F, key: &registry::Key<F>, floor_plan: &[ConstraintSegment]) -> F {
