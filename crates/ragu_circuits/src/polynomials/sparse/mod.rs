@@ -289,6 +289,15 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
                 }
             }
 
+            // No RHS blocks in this cluster — LHS blocks pass through
+            // unchanged, avoiding the dense intermediate buffer.
+            if ri == ri_start {
+                for block in &mut lhs[li_start..li] {
+                    out.push((block.0, core::mem::take(&mut block.1)));
+                }
+                continue;
+            }
+
             let cluster_len = cluster_end - cluster_start;
 
             // If one LHS block covers the entire cluster, reuse its
