@@ -3,7 +3,7 @@
 //! This module produces a [`BondingObject`] from any [`MultiStageCircuit`]
 //! whose witness uses only linear constraints: [`Driver::alloc`],
 //! [`Driver::add`], and [`Driver::enforce_zero`] with normal wires (no
-//! [`Driver::mul`], [`Driver::constant`], or `ONE`-wire references). Because
+//! [`Driver::gate`], [`Driver::constant`], or `ONE`-wire references). Because
 //! the circuit has no multiplication gates, it needs no final trace of its own
 //! and exists purely to enforce wiring between stages.
 //!
@@ -11,7 +11,7 @@
 //! zero, as required of a bonding polynomial. [`StageMask`] is a hand-optimized
 //! bonding polynomial for stage well-formedness masks.
 //!
-//! [`Driver::mul`]: ragu_core::drivers::Driver::mul
+//! [`Driver::gate`]: ragu_core::drivers::Driver::gate
 //! [`Driver::add`]: ragu_core::drivers::Driver::add
 //! [`Driver::alloc`]: ragu_core::drivers::Driver::alloc
 //! [`Driver::constant`]: ragu_core::drivers::Driver::constant
@@ -47,13 +47,13 @@ where
     ///
     /// The witness must use only linear constraints: [`Driver::alloc`],
     /// [`Driver::add`], and [`Driver::enforce_zero`] are permitted (without
-    /// referencing the [`Driver::ONE`] wire), but [`Driver::mul`] and
+    /// referencing the [`Driver::ONE`] wire), but [`Driver::gate`] and
     /// [`Driver::constant`] are rejected.
     ///
     /// The `ONE`-wire contribution is stripped so that the constant term in $Y$
     /// is zero, as required of a bonding polynomial.
     ///
-    /// [`Driver::mul`]: ragu_core::drivers::Driver::mul
+    /// [`Driver::gate`]: ragu_core::drivers::Driver::gate
     /// [`Driver::add`]: ragu_core::drivers::Driver::add
     /// [`Driver::alloc`]: ragu_core::drivers::Driver::alloc
     /// [`Driver::constant`]: ragu_core::drivers::Driver::constant
@@ -105,7 +105,7 @@ impl<F: Field> LinearExpression<BondingWire, F> for RejectOne {
 ///
 /// Bonding circuits may only use [`alloc`](Driver::alloc),
 /// [`add`](Driver::add), and [`enforce_zero`](Driver::enforce_zero) with
-/// normal wires. Calling [`mul`](Driver::mul),
+/// normal wires. Calling [`mul`](Driver::gate),
 /// [`constant`](Driver::constant), or referencing the [`ONE`](Driver::ONE)
 /// wire in any linear constraint records a violation.
 ///

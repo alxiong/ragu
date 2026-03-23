@@ -101,7 +101,7 @@ closure bodies are dead-code-eliminated. The expression-building closures on
 The [`enforce_equal()`] method is a convenience helper that constrains two wires
 to have the same value by calling [`enforce_zero()`] on their difference.
 
-[`mul()`]: ragu_core::drivers::Driver::mul
+[`mul()`]: ragu_core::drivers::Driver::gate
 [`enforce_zero()`]: ragu_core::drivers::Driver::enforce_zero
 [`add()`]: ragu_core::drivers::Driver::add
 [`ONE`]: ragu_core::drivers::Driver::ONE

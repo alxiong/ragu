@@ -19,7 +19,7 @@
 //!
 //! The driver redefines each operation as follows:
 //!
-//! - [`mul()`][`Driver::mul`]: Returns wire handles that hold monomial
+//! - [`gate()`][`Driver::gate`]: Returns wire handles that hold monomial
 //!   evaluations $x^{2n - 1 - i}$, $x^{2n + i}$, $x^{4n - 1 - i}$ for the
 //!   $i$-th gate.
 //!
@@ -66,7 +66,7 @@
 //! [`Driver::add`]: ragu_core::drivers::Driver::add
 //! [`Driver::alloc`]: ragu_core::drivers::Driver::alloc
 //! [`Driver::enforce_zero`]: ragu_core::drivers::Driver::enforce_zero
-//! [`Driver::mul`]: ragu_core::drivers::Driver::mul
+//! [`Driver::gate`]: ragu_core::drivers::Driver::gate
 //! [`sxy`]: super::sxy
 
 use ff::Field;

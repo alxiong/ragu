@@ -127,7 +127,7 @@ pub trait DriverTypes {
 /// ## Usage
 ///
 /// * Wires can be created with the [`alloc`](Driver::alloc) and
-///   [`mul`](Driver::mul) methods. The [`add`](Driver::add) method can also
+///   [`gate`](Driver::gate) methods. The [`add`](Driver::add) method can also
 ///   create a virtual wire that is defined as a linear combination of some
 ///   existing wires. The [`constant`](Driver::constant) method is a helper for
 ///   creating a wire with a constant value.
@@ -139,7 +139,7 @@ pub trait DriverTypes {
 ///   `Option`-like abstraction called [`Maybe`] which allows for compile-time
 ///   optimization and static analysis of witness data computation and memory.
 /// * Finally, and most importantly, wires can be constrained in two ways:
-///     * The [`mul`](Driver::mul) method enforces a multiplicative constraint
+///     * The [`gate`](Driver::gate) method enforces a multiplicative constraint
 ///       on the created wires; the wires are the inputs and output of a
 ///       multiplication gate of an arithmetic circuit.
 ///     * The [`enforce_zero`](Driver::enforce_zero) method can be used to
@@ -241,7 +241,7 @@ pub trait Driver<'dr>: DriverTypes<ImplWire = Self::Wire, ImplField = Self::F> +
     /// # Purity
     ///
     /// The `Fn` bound signals that this closure should be side-effect-free, as
-    /// with [`mul`](Driver::mul). Unlike witness-providing closures, however,
+    /// with [`gate`](Driver::gate). Unlike witness-providing closures, however,
     /// drivers with `MaybeKind = Empty` still call expression-building closures
     /// when they need constraint structure, so `Fn` is the sole type-level
     /// purity signal here.
