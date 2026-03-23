@@ -15,7 +15,6 @@ use instance::CircuitInstance;
 use crate::instances::{
     point_add::PointAddInstance, point_alloc::PointAllocInstanceFp,
     point_alloc::PointAllocInstanceFq, point_double::PointDoubleInstance,
-    point_neg::PointNegInstance,
 };
 
 fn default_autogen_root() -> PathBuf {
@@ -93,11 +92,6 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
         name: "Ragu.Instances.Autogen.Point.AllocFq",
         export: export_instance::<PointAllocInstanceFq>,
         generated_file: generated_file_instance::<PointAllocInstanceFq>,
-    },
-    ExportTarget {
-        name: "Ragu.Instances.Autogen.Point.Negate",
-        export: export_instance::<PointNegInstance>,
-        generated_file: generated_file_instance::<PointNegInstance>,
     },
     ExportTarget {
         name: "Ragu.Instances.Autogen.Point.Double",
