@@ -86,11 +86,11 @@ fn test_internal_circuit_constraint_counts() {
         }};
     }
 
-    check_constraints!(Hashes1Circuit,         mul = 2045, lin = 3423);
-    check_constraints!(Hashes2Circuit,         mul = 1879, lin = 2952);
-    check_constraints!(InnerCollapseCircuit,  mul = 1756, lin = 1919);
-    check_constraints!(OuterCollapseCircuit,  mul = 811 , lin = 809);
-    check_constraints!(ComputeVCircuit,        mul = 1140, lin = 1774);
+    check_constraints!(Hashes1Circuit,         mul = 2045, lin = 3422);
+    check_constraints!(Hashes2Circuit,         mul = 1879, lin = 2951);
+    check_constraints!(InnerCollapseCircuit,  mul = 1756, lin = 1918);
+    check_constraints!(OuterCollapseCircuit,  mul = 811 , lin = 808);
+    check_constraints!(ComputeVCircuit,        mul = 1140, lin = 1773);
 }
 
 #[rustfmt::skip]
