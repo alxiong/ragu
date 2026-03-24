@@ -208,7 +208,7 @@ impl<'params, F: FromUniformBytes<64>, R: Rank> RegistryBuilder<'params, F, R> {
             omega_lookup.insert(omega_j, i);
         }
 
-        // Create provisional registry (circuits still have placeholder K)
+        // Create provisional registry (key not yet computed)
         let mut registry = Registry {
             domain,
             circuits,
@@ -520,9 +520,8 @@ impl<F: PrimeField, R: Rank> RegistryAt<'_, F, R> {
         );
 
         // Add the registry key contribution k * (XY)^{4n-1}.  Restricted
-        // to X, this is k * y^{4n-1} on the c-wire of gate 0 (X^{4n-1}).
-        // The prover sets c[0] = 0, so the constraint is trivially satisfied;
-        // its role is to embed k into the wiring polynomial.
+        // at Y, this is k * y^{4n-1} at X^{4n-1} (c-wire of gate 0 in
+        // the backward layout).
         if y != F::ZERO {
             let y_4n_minus_1 = y.pow_vartime([(4 * R::n() - 1) as u64]);
             let mut key_view = sparse::View::<_, R, _>::backward();
@@ -546,7 +545,7 @@ impl<F: PrimeField, R: Rank> RegistryAt<'_, F, R> {
         );
 
         // Add the registry key contribution k * (XY)^{4n-1}.  Restricted
-        // to Y, this is k * x^{4n-1} at Y^{4n-1}.
+        // at X, this is k * x^{4n-1} at Y^{4n-1}.
         if x != F::ZERO {
             let x_4n_minus_1 = x.pow_vartime([(4 * R::n() - 1) as u64]);
             let key_coeff = self.registry.key.value() * x_4n_minus_1;
