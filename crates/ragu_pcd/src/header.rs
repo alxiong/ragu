@@ -79,7 +79,7 @@ fn test_suffix_map() {
 /// inputs to recursive proofs in order to represent the current state of the
 /// computation.
 ///
-/// See the [Writing Circuits](https://tachyon.z.cash/guide/writing_circuits.html)
+/// See the [Writing Circuits](https://tachyon.z.cash/ragu/guide/writing_circuits.html)
 /// guide for usage patterns and examples.
 pub trait Header<F: Field>: Send + Sync + Any {
     /// Each header should use a unique suffix to distinguish itself from other

@@ -22,9 +22,9 @@ accumulator input, forming a lopsided binary tree.
 The primary type that applications interact with is `Pcd` (proof-carrying data):
 
 ```rust
-pub struct Pcd<'source, C: Cycle, R: Rank, H: Header<C::CircuitField>> {
-    pub proof: Proof<C, R>,
-    pub data: H::Data<'source>,
+pub struct Pcd<C: Cycle, R: Rank, H: Header<C::CircuitField>> {
+    proof: Proof<C, R>,
+    data: H::Data,
 }
 ```
 
@@ -69,8 +69,8 @@ The associated types define the step's interface:
 
 * **`INDEX`**: Unique identifier for this step within the application.
 * **`Witness`**: Private data provided by the prover (not visible to verifiers).
-* **`Aux`**: Auxiliary output returned after proving, often used to construct
-  the output header data.
+* **`Aux`**: Auxiliary data produced during synthesis, returned alongside the
+  output header data. Used for pipelining values to future steps.
 * **`Left`, `Right`**: The header types of the two child proofs.
 * **`Output`**: The header type of the resulting proof.
 

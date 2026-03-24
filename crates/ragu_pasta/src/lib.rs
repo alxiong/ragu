@@ -17,7 +17,7 @@
 //! expense of a larger binary size.
 //!
 //! For configuration guidance, see the
-//! [Configuration](https://tachyon.z.cash/guide/configuration.html) chapter
+//! [Configuration](https://tachyon.z.cash/ragu/guide/configuration.html) chapter
 //! in the Ragu book.
 
 #![no_std]
@@ -54,7 +54,7 @@ pub use poseidon_fq::PoseidonFq;
 /// cycle.
 ///
 /// Runtime parameters are stored in [`PastaParams`]. See the
-/// [Configuration](https://tachyon.z.cash/guide/configuration.html) guide for
+/// [Configuration](https://tachyon.z.cash/ragu/guide/configuration.html) guide for
 /// usage patterns.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Pasta;

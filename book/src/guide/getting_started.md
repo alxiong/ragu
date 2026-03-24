@@ -71,12 +71,12 @@ struct LeafNode;
 
 impl<F: Field> Header<F> for LeafNode {
     const SUFFIX: Suffix = Suffix::new(0);  // Unique ID
-    type Data<'source> = F;                  // Field element
+    type Data = F;                  // Field element
     type Output = Kind![F; Element<'_, _>];  // Circuit representation
 
-    fn encode<'dr, 'source: 'dr, D: Driver<'dr, F = F>>(
+    fn encode<'dr, D: Driver<'dr, F = F>>(
         dr: &mut D,
-        witness: DriverValue<D, Self::Data<'source>>,
+        witness: DriverValue<D, Self::Data>,
     ) -> Result<Bound<'dr, D, Self::Output>> {
         Element::alloc(dr, witness)  // Convert to circuit element
     }
@@ -87,12 +87,12 @@ struct InternalNode;
 
 impl<F: Field> Header<F> for InternalNode {
     const SUFFIX: Suffix = Suffix::new(1);  // Different ID
-    type Data<'source> = F;
+    type Data = F;
     type Output = Kind![F; Element<'_, _>];
 
-    fn encode<'dr, 'source: 'dr, D: Driver<'dr, F = F>>(
+    fn encode<'dr, D: Driver<'dr, F = F>>(
         dr: &mut D,
-        witness: DriverValue<D, Self::Data<'source>>,
+        witness: DriverValue<D, Self::Data>,
     ) -> Result<Bound<'dr, D, Self::Output>> {
         Element::alloc(dr, witness)
     }
@@ -131,14 +131,15 @@ impl<'params, C: Cycle> Step<C> for CreateLeaf<'params, C> {
         &self,
         dr: &mut D,
         witness: DriverValue<D, Self::Witness<'source>>,
-        _: DriverValue<D, <Self::Left as Header<C::CircuitField>>::Data<'source>>,
-        _: DriverValue<D, <Self::Right as Header<C::CircuitField>>::Data<'source>>,
+        _: DriverValue<D, <Self::Left as Header<C::CircuitField>>::Data>,
+        _: DriverValue<D, <Self::Right as Header<C::CircuitField>>::Data>,
     ) -> Result<(
         (
             Encoded<'dr, D, Self::Left, HEADER_SIZE>,
             Encoded<'dr, D, Self::Right, HEADER_SIZE>,
             Encoded<'dr, D, Self::Output, HEADER_SIZE>,
         ),
+        DriverValue<D, <Self::Output as Header<C::CircuitField>>::Data>,
         DriverValue<D, Self::Aux<'source>>,
     )>
     where
@@ -158,7 +159,7 @@ impl<'params, C: Cycle> Step<C> for CreateLeaf<'params, C> {
         // 4. Encode as a proof
         let leaf_encoded = Encoded::from_gadget(leaf);
 
-        // 5. Return (left, right, output) proofs + aux data
+        // 5. Return (left, right, output) proofs + output data + aux
         Ok((
             (
                 Encoded::from_gadget(()),  // No left
@@ -200,14 +201,15 @@ impl<'params, C: Cycle> Step<C> for CombineNodes<'params, C> {
         &self,
         dr: &mut D,
         _: DriverValue<D, Self::Witness<'source>>,
-        left: DriverValue<D, <Self::Left as Header<C::CircuitField>>::Data<'source>>,
-        right: DriverValue<D, <Self::Right as Header<C::CircuitField>>::Data<'source>>,
+        left: DriverValue<D, <Self::Left as Header<C::CircuitField>>::Data>,
+        right: DriverValue<D, <Self::Right as Header<C::CircuitField>>::Data>,
     ) -> Result<(
         (
             Encoded<'dr, D, Self::Left, HEADER_SIZE>,
             Encoded<'dr, D, Self::Right, HEADER_SIZE>,
             Encoded<'dr, D, Self::Output, HEADER_SIZE>,
         ),
+        DriverValue<D, <Self::Output as Header<C::CircuitField>>::Data>,
         DriverValue<D, Self::Aux<'source>>,
     )>
     where
@@ -227,8 +229,8 @@ impl<'params, C: Cycle> Step<C> for CombineNodes<'params, C> {
         let output_value = output.value().map(|v| *v);
         let output = Encoded::from_gadget(output);
 
-        // 4. Return verified proofs + combined hash
-        Ok(((left, right, output), output_value))
+        // 4. Return verified proofs + output data + aux
+        Ok(((left, right, output), output_value, output_value))
     }
 }
 ```
