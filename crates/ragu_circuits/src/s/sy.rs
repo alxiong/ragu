@@ -42,7 +42,7 @@
 //!    constituent terms, then recursively free those terms.
 //!
 //! 4. **Cascading to allocated wires** — Resolution cascades through the
-//!    virtual wire graph until reaching allocated wires ($a$, $b$, $c$), where
+//!    virtual wire graph until reaching allocated wires ($a$, $b$, $c$, $d$), where
 //!    values are written directly to the backward view of the polynomial.
 //!
 //! ### Backward View
@@ -51,7 +51,7 @@
 //! uses a "revdot" inner product: coefficients of $r(X)$ are matched against
 //! coefficients of $s(X, y)$ in a specific order based on wire type. Rather
 //! than building a flat coefficient vector and reinterpreting it, the backward
-//! view provides direct access to the $a$, $b$, and $c$ coefficient regions.
+//! view provides direct access to the $a$, $b$, $c$, and $d$ coefficient regions.
 //! See [`sparse::View`] for details.
 //!
 //! [`common`]: super::common
@@ -89,8 +89,8 @@ use crate::{
 ///
 /// # Variants
 ///
-/// - `A(i)`, `B(i)`, `C(i)` — Allocated wires from gate $i$, corresponding to
-///   the $a$, $b$, $c$ wires respectively. Values are written directly to the
+/// - `A(i)`, `B(i)`, `C(i)`, `D(i)` — Allocated wires from gate $i$, corresponding
+///   to the $a$, $b$, $c$, $d$ wires respectively. Values are written directly to the
 ///   backward view when resolved.
 ///
 /// - `Virtual(i)` — A virtual wire (linear combination) at index $i$ in the
@@ -102,6 +102,7 @@ enum WireIndex {
     A(usize),
     B(usize),
     C(usize),
+    D(usize),
     Virtual(usize),
 }
 
@@ -118,7 +119,7 @@ enum WireIndex {
 /// increments the refcount; dropping decrements it. When a virtual wire's
 /// refcount reaches zero, it resolves (see [`VirtualTable::free`]).
 ///
-/// For allocated wires (`A`, `B`, `C`), reference counting is a no-op since
+/// For allocated wires (`A`, `B`, `C`, `D`), reference counting is a no-op since
 /// these wires write directly to the backward view upon resolution.
 ///
 /// # The `ONE` Wire
@@ -253,13 +254,14 @@ struct VirtualTable<'sy, F: Field, R: Rank> {
 
     /// Backward-view wire buffers for the polynomial $s(X, y)$.
     ///
-    /// Provides direct mutable access to the $a$, $b$, $c$ coefficient vectors.
-    /// When allocated wires (A/B/C) receive values during resolution, they are
-    /// written here. See the [module documentation](self) for the backward view
-    /// concept.
+    /// Provides direct mutable access to the $a$, $b$, $c$, $d$ coefficient
+    /// vectors. When allocated wires (A/B/C/D) receive values during
+    /// resolution, they are written here. See the [module documentation](self)
+    /// for the backward view concept.
     a: &'sy mut Vec<F>,
     b: &'sy mut Vec<F>,
     c: &'sy mut Vec<F>,
+    d: &'sy mut Vec<F>,
 
     _marker: core::marker::PhantomData<R>,
 }
@@ -270,6 +272,7 @@ impl<F: Field, R: Rank> VirtualTable<'_, F, R> {
             WireIndex::A(i) => &mut self.a[i],
             WireIndex::B(i) => &mut self.b[i],
             WireIndex::C(i) => &mut self.c[i],
+            WireIndex::D(i) => &mut self.d[i],
             WireIndex::Virtual(i) => {
                 self.wires[i].value = self.wires[i].value + value;
                 return;
@@ -282,7 +285,7 @@ impl<F: Field, R: Rank> VirtualTable<'_, F, R> {
     ///
     /// Resolved virtual wires distribute their accumulated value to all
     /// constituent terms, which are then recursively freed. This cascading
-    /// resolution eventually reaches allocated wires (A, B, C) where the values
+    /// resolution eventually reaches allocated wires (A, B, C, D) where the values
     /// are written to the polynomial.
     fn free(&mut self, index: WireIndex) {
         if let WireIndex::Virtual(index) = index {
@@ -495,6 +498,39 @@ impl<'table, 'sy, F: Field, R: Rank> DriverTypes for Evaluator<'table, 'sy, '_, 
     type LCenforce = TermEnforcer<'table, 'sy, F, R>;
     type ImplField = F;
     type ImplWire = Wire<'table, 'sy, F, R>;
+
+    /// Consumes a multiplication gate, returning wire handles for $(a, b, c, d)$.
+    ///
+    /// The gate index comes from the absolute floor-plan position tracked in
+    /// `scope.multiplication_constraints`. Backward view slots are
+    /// pre-allocated, so no push is needed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::MultiplicationBoundExceeded`] if the gate count reaches
+    /// [`Rank::n()`].
+    fn gate(
+        &mut self,
+        _: impl Fn() -> Result<(Coeff<F>, Coeff<F>, Coeff<F>, Coeff<F>)>,
+    ) -> Result<(
+        Wire<'table, 'sy, F, R>,
+        Wire<'table, 'sy, F, R>,
+        Wire<'table, 'sy, F, R>,
+        Wire<'table, 'sy, F, R>,
+    )> {
+        let index = self.scope.multiplication_constraints;
+        if index == R::n() {
+            return Err(Error::MultiplicationBoundExceeded { limit: R::n() });
+        }
+        self.scope.multiplication_constraints += 1;
+
+        let a = Wire::new(WireIndex::A(index), self.virtual_table);
+        let b = Wire::new(WireIndex::B(index), self.virtual_table);
+        let c = Wire::new(WireIndex::C(index), self.virtual_table);
+        let d = Wire::new(WireIndex::D(index), self.virtual_table);
+
+        Ok((a, b, c, d))
+    }
 }
 
 impl<'table, 'sy, F: Field, R: Rank> Driver<'table> for Evaluator<'table, 'sy, '_, F, R> {
@@ -519,33 +555,6 @@ impl<'table, 'sy, F: Field, R: Rank> Driver<'table> for Evaluator<'table, 'sy, '
 
             Ok(a)
         }
-    }
-
-    /// Consumes a multiplication gate, returning wire handles for $(a, b, c)$.
-    ///
-    /// The gate index comes from the absolute floor-plan position tracked in
-    /// `scope.multiplication_constraints`. Backward view slots are
-    /// pre-allocated, so no push is needed.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::MultiplicationBoundExceeded`] if the gate count reaches
-    /// [`Rank::n()`].
-    fn mul(
-        &mut self,
-        _: impl Fn() -> Result<(Coeff<F>, Coeff<F>, Coeff<F>)>,
-    ) -> Result<(Self::Wire, Self::Wire, Self::Wire)> {
-        let index = self.scope.multiplication_constraints;
-        if index == R::n() {
-            return Err(Error::MultiplicationBoundExceeded { limit: R::n() });
-        }
-        self.scope.multiplication_constraints += 1;
-
-        let a = Wire::new(WireIndex::A(index), self.virtual_table);
-        let b = Wire::new(WireIndex::B(index), self.virtual_table);
-        let c = Wire::new(WireIndex::C(index), self.virtual_table);
-
-        Ok((a, b, c))
     }
 
     /// Creates a virtual wire representing a linear combination.
@@ -688,6 +697,7 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
             a: &mut view.a,
             b: &mut view.b,
             c: &mut view.c,
+            d: &mut view.d,
             _marker: core::marker::PhantomData,
         });
 
@@ -697,6 +707,7 @@ pub fn eval<F: Field, C: Circuit<F>, R: Rank>(
             table.a.resize(total_multiplications, F::ZERO);
             table.b.resize(total_multiplications, F::ZERO);
             table.c.resize(total_multiplications, F::ZERO);
+            table.d.resize(total_multiplications, F::ZERO);
         }
 
         {

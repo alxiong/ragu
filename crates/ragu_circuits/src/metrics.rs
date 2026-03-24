@@ -33,7 +33,7 @@
 //!
 //! [`TypeId`]: core::any::TypeId
 
-use ff::{Field, FromUniformBytes, PrimeField};
+use ff::{FromUniformBytes, PrimeField};
 use ragu_arithmetic::Coeff;
 use ragu_core::{
     Result,
@@ -228,6 +228,9 @@ struct CounterScope<F> {
     /// Running monomial for $c$ wires: $x_2^{i+1}$ at gate $i$.
     current_c: F,
 
+    /// Running monomial for $d$ wires: $x_3^{i+1}$ at gate $i$.
+    current_d: F,
+
     /// Horner accumulator for the fingerprint evaluation result.
     result: F,
 }
@@ -235,10 +238,11 @@ struct CounterScope<F> {
 /// A [`Driver`] that simultaneously counts constraints and computes routine
 /// identity fingerprints via Schwartz–Zippel evaluation.
 ///
-/// Assigns three independent geometric sequences (bases $x_0, x_1, x_2$) to
-/// the $a$, $b$, $c$ wires and accumulates constraint values via Horner's rule
-/// over $y$. When entering a routine, the identity state is saved and reset so
-/// that each routine is fingerprinted independently of its calling context.
+/// Assigns four independent geometric sequences (bases $x_0, x_1, x_2, x_3$) to
+/// the $a$, $b$, $c$, $d$ wires and accumulates constraint values via Horner's
+/// rule over $y$. When entering a routine, the identity state is saved and
+/// reset so that each routine is fingerprinted independently of its calling
+/// context.
 ///
 /// Nested routine outputs are treated as auxiliary inputs to the caller: on
 /// return, output wires are remapped to fresh allocations in the parent scope
@@ -250,10 +254,10 @@ struct Counter<F> {
     num_multiplication_constraints: usize,
     segments: Vec<SegmentRecord>,
 
-    /// When false, `mul` advances geometric sequences but does not increment
+    /// When false, `gate` advances geometric sequences but does not increment
     /// constraint counts.  Used during input and output wire remapping in
     /// [`routine`](Driver::routine), where only `alloc` (and transitively
-    /// `mul`) is reachable via [`WireMap::convert_wire`].
+    /// `mul`, which calls `gate`) is reachable via [`WireMap::convert_wire`].
     counting: bool,
 
     /// Base for the $a$-wire geometric sequence.
@@ -264,6 +268,9 @@ struct Counter<F> {
 
     /// Base for the $c$-wire geometric sequence.
     x2: F,
+
+    /// Base for the $d$-wire geometric sequence.
+    x3: F,
 
     /// Multiplier for Horner accumulation, applied per [`enforce_zero`] call.
     ///
@@ -303,9 +310,10 @@ impl<F: FromUniformBytes<64>> Counter<F> {
         let x0 = point(0);
         let x1 = point(1);
         let x2 = point(2);
-        let y = point(3);
-        let h = point(4);
-        let one = point(5);
+        let x3 = point(3);
+        let y = point(4);
+        let h = point(5);
+        let one = point(6);
 
         Self {
             scope: CounterScope {
@@ -314,6 +322,7 @@ impl<F: FromUniformBytes<64>> Counter<F> {
                 current_a: x0,
                 current_b: x1,
                 current_c: x2,
+                current_d: x3,
                 result: h,
             },
             num_linear_constraints: 0,
@@ -327,6 +336,7 @@ impl<F: FromUniformBytes<64>> Counter<F> {
             x0,
             x1,
             x2,
+            x3,
             y,
             one,
             h,
@@ -335,7 +345,7 @@ impl<F: FromUniformBytes<64>> Counter<F> {
 
     /// Runs `f` with `counting` set to `false`, restoring it afterward.
     ///
-    /// Used during wire remapping so that `mul` advances geometric
+    /// Used during wire remapping so that `gate` advances geometric
     /// sequences without incrementing constraint counts, and
     /// `enforce_zero` is a no-op.
     fn uncounted<R>(&mut self, f: impl FnOnce(&mut Self) -> Result<R>) -> Result<R> {
@@ -346,12 +356,42 @@ impl<F: FromUniformBytes<64>> Counter<F> {
     }
 }
 
-impl<F: Field> DriverTypes for Counter<F> {
+impl<F: FromUniformBytes<64>> DriverTypes for Counter<F> {
     type MaybeKind = Empty;
     type ImplField = F;
     type ImplWire = WireEval<F>;
     type LCadd = WireEvalSum<F>;
     type LCenforce = WireEvalSum<F>;
+
+    /// Consumes a multiplication gate: increments constraint counts and returns
+    /// wire values from four independent geometric sequences, advancing each
+    /// by its base.
+    fn gate(
+        &mut self,
+        _: impl Fn() -> Result<(Coeff<F>, Coeff<F>, Coeff<F>, Coeff<F>)>,
+    ) -> Result<(WireEval<F>, WireEval<F>, WireEval<F>, WireEval<F>)> {
+        if self.counting {
+            self.num_multiplication_constraints += 1;
+            self.segments[self.scope.current_segment].num_multiplication_constraints += 1;
+        }
+
+        let a = self.scope.current_a;
+        let b = self.scope.current_b;
+        let c = self.scope.current_c;
+        let d = self.scope.current_d;
+
+        self.scope.current_a *= self.x0;
+        self.scope.current_b *= self.x1;
+        self.scope.current_c *= self.x2;
+        self.scope.current_d *= self.x3;
+
+        Ok((
+            WireEval::Value(a),
+            WireEval::Value(b),
+            WireEval::Value(c),
+            WireEval::Value(d),
+        ))
+    }
 }
 
 impl<'dr, F: FromUniformBytes<64>> Driver<'dr> for Counter<F> {
@@ -368,29 +408,6 @@ impl<'dr, F: FromUniformBytes<64>> Driver<'dr> for Counter<F> {
             self.scope.available_b = Some(b);
             Ok(a)
         }
-    }
-
-    /// Consumes a multiplication gate: increments constraint counts and returns
-    /// wire values from three independent geometric sequences, advancing each
-    /// by its base.
-    fn mul(
-        &mut self,
-        _: impl Fn() -> Result<(Coeff<F>, Coeff<F>, Coeff<F>)>,
-    ) -> Result<(Self::Wire, Self::Wire, Self::Wire)> {
-        if self.counting {
-            self.num_multiplication_constraints += 1;
-            self.segments[self.scope.current_segment].num_multiplication_constraints += 1;
-        }
-
-        let a = self.scope.current_a;
-        let b = self.scope.current_b;
-        let c = self.scope.current_c;
-
-        self.scope.current_a *= self.x0;
-        self.scope.current_b *= self.x1;
-        self.scope.current_c *= self.x2;
-
-        Ok((WireEval::Value(a), WireEval::Value(b), WireEval::Value(c)))
     }
 
     /// Computes a linear combination of wire evaluations.
@@ -430,6 +447,7 @@ impl<'dr, F: FromUniformBytes<64>> Driver<'dr> for Counter<F> {
                 current_a: self.x0,
                 current_b: self.x1,
                 current_c: self.x2,
+                current_d: self.x3,
                 result: self.h,
             },
         );
@@ -466,7 +484,7 @@ impl<'dr, F: FromUniformBytes<64>> Driver<'dr> for Counter<F> {
         // parent's geometric sequences.
         //
         // The remap calls `alloc` for each output wire, which may call
-        // `mul` internally. This has two side effects on the parent scope:
+        // `gate` internally. This has two side effects on the parent scope:
         //
         // 1. Geometric sequences advance — `current_a`, `current_b`,
         //    `current_c` move past the remap gates.
