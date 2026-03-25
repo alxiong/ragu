@@ -774,8 +774,8 @@ fn from_coeffs_leading_zeros_trimmed() {
     assert_eq!(recovered, coeffs);
 
     // Verify the lo segment is trimmed (not storing 5 leading zeros).
-    assert_eq!(poly.lo_offset, 5);
-    assert_eq!(poly.lo.len(), 1);
+    assert_eq!(poly.segments[0].0, 5);
+    assert_eq!(poly.segments[0].1.len(), 1);
 }
 
 /// Verifies `from_coeffs` decomposes across all three regions correctly.
@@ -793,7 +793,7 @@ fn from_coeffs_spans_all_regions() {
     assert_eq!(recovered, coeffs);
 
     // Each region should have exactly 1 element.
-    assert_eq!(poly.lo.len(), 1);
-    assert_eq!(poly.mid.len(), 1);
-    assert_eq!(poly.hi.len(), 1);
+    assert_eq!(poly.segments[0].1.len(), 1);
+    assert_eq!(poly.segments[1].1.len(), 1);
+    assert_eq!(poly.segments[2].1.len(), 1);
 }
