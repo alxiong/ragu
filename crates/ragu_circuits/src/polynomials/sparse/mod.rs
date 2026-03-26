@@ -274,24 +274,27 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
         if o_data.is_empty() {
             return;
         }
-        if s_data.is_empty() {
-            *s_off = o_off;
-            *s_data = alloc::vec![F::ZERO; o_data.len()];
-            for (dst, src) in s_data.iter_mut().zip(o_data) {
-                op(dst, src);
-            }
-            return;
-        }
-        let s_end = *s_off + s_data.len();
-        let o_end = o_off + o_data.len();
-        let new_off = (*s_off).min(o_off);
-        let new_end = s_end.max(o_end);
 
-        if new_off < *s_off || new_end > s_end {
-            let mut new_buf = alloc::vec![F::ZERO; new_end - new_off];
-            let rel = *s_off - new_off;
-            new_buf[rel..rel + s_data.len()].copy_from_slice(s_data);
-            *s_data = new_buf;
+        // When self is empty, adopt other's range; otherwise compute the union.
+        let s_end = *s_off + s_data.len();
+        let new_off = if s_data.is_empty() {
+            o_off
+        } else {
+            (*s_off).min(o_off)
+        };
+        let new_end = if s_data.is_empty() {
+            o_off + o_data.len()
+        } else {
+            s_end.max(o_off + o_data.len())
+        };
+
+        // Expand self to cover [new_off, new_end) if needed.
+        if new_off != *s_off || new_end != s_end {
+            let mut buf = alloc::vec![F::ZERO; new_end - new_off];
+            if !s_data.is_empty() {
+                buf[*s_off - new_off..*s_off - new_off + s_data.len()].copy_from_slice(s_data);
+            }
+            *s_data = buf;
             *s_off = new_off;
         }
 
@@ -370,13 +373,14 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
     /// lo `[0,n)` pairs with reversed hi `[3n,4n)`, mid `[n,3n)` with
     /// reversed mid, and hi with reversed lo.
     pub fn revdot(&self, other: &Self) -> F {
-        // For global indices: self[a_off + i] pairs with other[b_off + j]
-        // where (a_off + i) + (b_off + j) = 4n - 1, i.e. i + j = mirror.
+        // self[a_off+i] pairs with other[b_off+j] where i+j = mirror.
+        // Fixed regions pair: lo(0) x hi(2), mid(1) x mid(1), hi(2) x lo(0).
         let mirror_base = R::num_coeffs() - 1;
-        // lo x rev(hi), mid x rev(mid), hi x rev(lo)
-        Self::revdot_pair(&self.blocks[0], &other.blocks[2], mirror_base)
-            + Self::revdot_pair(&self.blocks[1], &other.blocks[1], mirror_base)
-            + Self::revdot_pair(&self.blocks[2], &other.blocks[0], mirror_base)
+        let mut result = F::ZERO;
+        for i in 0..3 {
+            result += Self::revdot_pair(&self.blocks[i], &other.blocks[2 - i], mirror_base);
+        }
+        result
     }
 
     /// Dot product of block `a` with the coefficient-reversed block `b`.
