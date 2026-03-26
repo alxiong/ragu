@@ -370,40 +370,39 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
     /// lo `[0,n)` pairs with reversed hi `[3n,4n)`, mid `[n,3n)` with
     /// reversed mid, and hi with reversed lo.
     pub fn revdot(&self, other: &Self) -> F {
-        let n4 = R::num_coeffs();
+        // For global indices: self[a_off + i] pairs with other[b_off + j]
+        // where (a_off + i) + (b_off + j) = 4n - 1, i.e. i + j = mirror.
+        let mirror_base = R::num_coeffs() - 1;
         // lo x rev(hi), mid x rev(mid), hi x rev(lo)
-        Self::revdot_pair(&self.blocks[0], &other.blocks[2], n4)
-            + Self::revdot_pair(&self.blocks[1], &other.blocks[1], n4)
-            + Self::revdot_pair(&self.blocks[2], &other.blocks[0], n4)
+        Self::revdot_pair(&self.blocks[0], &other.blocks[2], mirror_base)
+            + Self::revdot_pair(&self.blocks[1], &other.blocks[1], mirror_base)
+            + Self::revdot_pair(&self.blocks[2], &other.blocks[0], mirror_base)
     }
 
     /// Dot product of block `a` with the coefficient-reversed block `b`.
-    fn revdot_pair(a: &(usize, Vec<F>), b: &(usize, Vec<F>), n4: usize) -> F {
+    ///
+    /// `a_data[i]` pairs with `b_data[j]` where `i + j = mirror`, and
+    /// `mirror = mirror_base - a_off - b_off`.
+    fn revdot_pair(a: &(usize, Vec<F>), b: &(usize, Vec<F>), mirror_base: usize) -> F {
         let (a_off, a_data) = (a.0, a.1.as_slice());
         let (b_off, b_data) = (b.0, b.1.as_slice());
         if a_data.is_empty() || b_data.is_empty() {
             return F::ZERO;
         }
 
-        // Block b at [b_off, b_off+b_len) reversed maps to
-        // [n4 - b_off - b_len, n4 - b_off).
-        let a_end = a_off + a_data.len();
-        let rev_lo = n4 - b_off - b_data.len();
-        let rev_hi = n4 - b_off;
+        // i + j = mirror, with i ∈ [0, a_len) and j ∈ [0, b_len).
+        let Some(mirror) = mirror_base.checked_sub(a_off + b_off) else {
+            return F::ZERO;
+        };
 
-        let overlap_lo = a_off.max(rev_lo);
-        let overlap_hi = a_end.min(rev_hi);
-        if overlap_lo >= overlap_hi {
+        let i_lo = mirror.saturating_sub(b_data.len() - 1);
+        let i_hi = (mirror + 1).min(a_data.len()); // exclusive
+        if i_lo >= i_hi {
             return F::ZERO;
         }
 
-        let a_slice = &a_data[overlap_lo - a_off..overlap_hi - a_off];
-        // For index k in [overlap_lo, overlap_hi), b's value is at
-        // b_data[n4 - 1 - k - b_off]. As k increases, the b_data index
-        // decreases, so we zip a forward with b reversed.
-        let b_idx_lo = n4 - 1 - (overlap_hi - 1) - b_off;
-        let b_idx_hi = n4 - 1 - overlap_lo - b_off;
-        let b_slice = &b_data[b_idx_lo..=b_idx_hi];
+        let a_slice = &a_data[i_lo..i_hi];
+        let b_slice = &b_data[mirror - (i_hi - 1)..=mirror - i_lo];
 
         let mut result = F::ZERO;
         for (a_val, b_val) in a_slice.iter().zip(b_slice.iter().rev()) {
