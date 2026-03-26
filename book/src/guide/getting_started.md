@@ -25,7 +25,7 @@ ragu_core = "0.1"
 ragu_pasta = { version = "0.1", features = ["baked"] }
 ragu_pcd = "0.1"
 ragu_primitives = "0.1"
-arithmetic = "0.1"
+ragu_arithmetic = "0.1"
 ff = "0.13"
 rand = "0.8"
 ```
@@ -110,7 +110,7 @@ impl<F: Field> Header<F> for InternalNode {
 This step creates leaf proofs from raw values:
 
 ```rust
-use arithmetic::Cycle;
+use ragu_arithmetic::Cycle;
 use ragu_pcd::step::{Encoded, Index, Step};
 use ragu_primitives::poseidon::Sponge;
 
