@@ -63,14 +63,13 @@ const BLOCK_NAMES: [&str; 3] = ["lo", "mid", "hi"];
 /// See the [module documentation](self) for details.
 #[derive(Clone, Debug)]
 pub struct Polynomial<T, R: Rank> {
-    /// Three `(offset, data)` blocks for lo `[0, n)`, mid `[n, 3n)`, hi
-    /// `[3n, 4n)`.
+    /// Three `(offset, data)` blocks for:
+    /// lo in `[0, n)`; mid in `[n, 3n)`; hi in `[3n, 4n)`.
     blocks: [(usize, Vec<T>); 3],
     _marker: PhantomData<R>,
 }
 
 impl<T, R: Rank> Polynomial<T, R> {
-    /// Default offsets for the three regions: `[0, n, 3n]`.
     fn default_offsets() -> [usize; 3] {
         let n = R::n();
         [0, n, 3 * n]
@@ -169,11 +168,13 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
     pub fn random<RNG: CryptoRng>(rng: &mut RNG) -> Self {
         assert!(R::num_coeffs() > 0, "num_coeffs must be positive");
         let n = R::n();
-        let mut coeffs: Vec<F> = (0..R::num_coeffs()).map(|_| F::random(&mut *rng)).collect();
-        let hi = coeffs.split_off(3 * n);
-        let mid = coeffs.split_off(n);
-        let lo = coeffs;
-        Self::from_blocks([(0, lo), (n, mid), (3 * n, hi)])
+        let rand_vec = |prng: &mut RNG, l: usize| (0..l).map(|_| F::random(prng)).collect();
+
+        Self::from_blocks([
+            (0, rand_vec(rng, n)),
+            (n, rand_vec(rng, 2 * n)),
+            (3 * n, rand_vec(rng, n)),
+        ])
     }
 }
 
@@ -200,33 +201,9 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
             ],
             front: 0,
             back: R::num_coeffs(),
-            front_blk: 0,
-            back_blk: 3,
+            front_block: 0,
+            back_block: 3,
         }
-    }
-
-    /// Multiplies all coefficients by `by`.
-    pub fn scale(&mut self, by: F) {
-        if bool::from(by.is_zero()) {
-            *self = Self::new();
-        } else {
-            self.apply_all(|x| *x *= by);
-        }
-    }
-
-    /// Negates all coefficients.
-    pub fn negate(&mut self) {
-        self.apply_all(|x| *x = -*x);
-    }
-
-    /// Adds the coefficients of `other` to `self`.
-    pub fn add_assign(&mut self, other: &Self) {
-        self.combine_assign(other, |a, b| *a += *b);
-    }
-
-    /// Subtracts the coefficients of `other` from `self`.
-    pub fn sub_assign(&mut self, other: &Self) {
-        self.combine_assign(other, |a, b| *a -= *b);
     }
 
     /// Applies a binary operation block-wise. Always safe because both
@@ -240,8 +217,31 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
                 &other.blocks[i].1,
                 &op,
             );
-            Self::trim_block(&mut self.blocks[i].0, &mut self.blocks[i].1);
         }
+    }
+
+    /// Multiplies all coefficients by `by`.
+    pub fn scale(&mut self, by: F) {
+        if bool::from(by.is_zero()) {
+            *self = Self::new();
+        } else {
+            self.apply_all(|x| *x *= by);
+        }
+    }
+
+    /// Adds the coefficients of `other` to `self`.
+    pub fn add_assign(&mut self, other: &Self) {
+        self.combine_assign(other, |a, b| *a += *b);
+    }
+
+    /// Negates all coefficients.
+    pub fn negate(&mut self) {
+        self.apply_all(|x| *x = -*x);
+    }
+
+    /// Subtracts the coefficients of `other` from `self`.
+    pub fn sub_assign(&mut self, other: &Self) {
+        self.combine_assign(other, |a, b| *a -= *b);
     }
 
     /// Strips leading and trailing zeros from a block in place, adjusting
@@ -275,33 +275,37 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
             return;
         }
 
-        // When self is empty, adopt other's range; otherwise compute the union.
-        let s_end = *s_off + s_data.len();
-        let new_off = if s_data.is_empty() {
-            o_off
+        // find range union, extends self's data with zeros if necessary
+        if s_data.is_empty() {
+            *s_off = o_off;
+            *s_data = alloc::vec![F::ZERO; o_data.len()];
         } else {
-            (*s_off).min(o_off)
-        };
-        let new_end = if s_data.is_empty() {
-            o_off + o_data.len()
-        } else {
-            s_end.max(o_off + o_data.len())
-        };
+            let new_off = (*s_off).min(o_off);
+            let new_end = {
+                let s_end = *s_off + s_data.len();
+                let o_end = o_off + o_data.len();
+                s_end.max(o_end)
+            };
 
-        // Expand self to cover [new_off, new_end) if needed.
-        if new_off != *s_off || new_end != s_end {
-            let mut buf = alloc::vec![F::ZERO; new_end - new_off];
-            if !s_data.is_empty() {
-                buf[*s_off - new_off..*s_off - new_off + s_data.len()].copy_from_slice(s_data);
+            let mut buf = alloc::vec![];
+            if new_off < *s_off {
+                buf.resize(*s_off - new_off, F::ZERO); // zero prefix
             }
-            *s_data = buf;
+            buf.extend_from_slice(s_data);
+            buf.resize(new_end - new_off, F::ZERO); // zero suffix
+
             *s_off = new_off;
+            *s_data = buf;
         }
 
+        // Operate on the range-aligned data
         let rel = o_off - *s_off;
         for (dst, src) in s_data[rel..rel + o_data.len()].iter_mut().zip(o_data) {
             op(dst, src);
         }
+
+        // Trim off leading and trailing zero post-operation
+        Self::trim_block(s_off, s_data);
     }
 
     /// Horner-style weighted sum of polynomials by powers of `scale_factor`.
@@ -318,13 +322,12 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
         })
     }
 
-    /// Evaluates this polynomial at `z` using reverse Horner's method by
-    /// block.
+    /// Evaluates this polynomial at `z` using reverse Horner's method by block.
     pub fn eval(&self, z: F) -> F {
         let mut result = F::ZERO;
         let mut prev_start = R::num_coeffs();
 
-        for &(start, ref data) in self.blocks.iter().rev() {
+        for (start, data) in self.blocks.iter().rev() {
             if data.is_empty() {
                 continue;
             }
@@ -335,7 +338,7 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
             for coeff in data.iter().rev() {
                 result = result * z + *coeff;
             }
-            prev_start = start;
+            prev_start = *start;
         }
         if prev_start > 0 {
             result *= z.pow_vartime([prev_start as u64]);
@@ -349,11 +352,11 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
         let mut power = F::ONE;
         let mut prev_end: usize = 0;
 
-        for &mut (start, ref mut data) in &mut self.blocks {
+        for (start, data) in &mut self.blocks {
             if data.is_empty() {
                 continue;
             }
-            let gap = start - prev_end;
+            let gap = *start - prev_end;
             if gap > 0 {
                 power *= z.pow_vartime([gap as u64]);
             }
@@ -361,7 +364,7 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
                 *coeff *= power;
                 power *= z;
             }
-            prev_end = start + data.len();
+            prev_end = *start + data.len();
         }
     }
 
@@ -373,28 +376,21 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
     /// lo `[0,n)` pairs with reversed hi `[3n,4n)`, mid `[n,3n)` with
     /// reversed mid, and hi with reversed lo.
     pub fn revdot(&self, other: &Self) -> F {
-        // self[a_off+i] pairs with other[b_off+j] where i+j = mirror.
-        // Fixed regions pair: lo(0) x hi(2), mid(1) x mid(1), hi(2) x lo(0).
-        let mirror_base = R::num_coeffs() - 1;
         let mut result = F::ZERO;
         for i in 0..3 {
-            result += Self::revdot_pair(&self.blocks[i], &other.blocks[2 - i], mirror_base);
+            result += Self::revdot_block(&self.blocks[i], &other.blocks[2 - i]);
         }
         result
     }
 
-    /// Dot product of block `a` with the coefficient-reversed block `b`.
-    ///
-    /// `a_data[i]` pairs with `b_data[j]` where `i + j = mirror`, and
-    /// `mirror = mirror_base - a_off - b_off`.
-    fn revdot_pair(a: &(usize, Vec<F>), b: &(usize, Vec<F>), mirror_base: usize) -> F {
-        let (a_off, a_data) = (a.0, a.1.as_slice());
-        let (b_off, b_data) = (b.0, b.1.as_slice());
+    /// Revdot product of block `a` and `b`.
+    fn revdot_block((a_off, a_data): &(usize, Vec<F>), (b_off, b_data): &(usize, Vec<F>)) -> F {
         if a_data.is_empty() || b_data.is_empty() {
             return F::ZERO;
         }
 
-        // i + j = mirror, with i ∈ [0, a_len) and j ∈ [0, b_len).
+        // i + j = mirror, with i \in [0, a_len) and j \in [0, b_len).
+        let mirror_base = R::num_coeffs() - 1;
         let Some(mirror) = mirror_base.checked_sub(a_off + b_off) else {
             return F::ZERO;
         };
@@ -463,9 +459,9 @@ struct CoeffIter<'a, F> {
     front: usize,
     back: usize,
     /// Index of the first block whose end extends past `front`.
-    front_blk: usize,
+    front_block: usize,
     /// One past the last block whose start is at or before `back - 1`.
-    back_blk: usize,
+    back_block: usize,
 }
 
 impl<F: Field> Iterator for CoeffIter<'_, F> {
@@ -476,17 +472,17 @@ impl<F: Field> Iterator for CoeffIter<'_, F> {
             return None;
         }
         // Advance past blocks fully before `front`.
-        while self.front_blk < 3 {
-            let (start, data) = self.blocks[self.front_blk];
-            if start + data.len() > self.front {
+        while self.front_block < 3 {
+            let (start, data) = &self.blocks[self.front_block];
+            if *start + data.len() > self.front {
                 break;
             }
-            self.front_blk += 1;
+            self.front_block += 1;
         }
-        let val = if self.front_blk < 3 {
-            let (start, data) = self.blocks[self.front_blk];
-            if self.front >= start {
-                data[self.front - start]
+        let val = if self.front_block < 3 {
+            let (start, data) = &self.blocks[self.front_block];
+            if self.front >= *start {
+                data[self.front - *start]
             } else {
                 F::ZERO
             }
@@ -510,17 +506,17 @@ impl<F: Field> DoubleEndedIterator for CoeffIter<'_, F> {
         }
         self.back -= 1;
         // Retreat past blocks that start after `back`.
-        while self.back_blk > 0 {
-            let (start, _) = self.blocks[self.back_blk - 1];
-            if start <= self.back {
+        while self.back_block > 0 {
+            let (start, _) = &self.blocks[self.back_block - 1];
+            if *start <= self.back {
                 break;
             }
-            self.back_blk -= 1;
+            self.back_block -= 1;
         }
-        let val = if self.back_blk > 0 {
-            let (start, data) = self.blocks[self.back_blk - 1];
-            if self.back < start + data.len() {
-                data[self.back - start]
+        let val = if self.back_block > 0 {
+            let (start, data) = &self.blocks[self.back_block - 1];
+            if self.back < *start + data.len() {
+                data[self.back - *start]
             } else {
                 F::ZERO
             }
