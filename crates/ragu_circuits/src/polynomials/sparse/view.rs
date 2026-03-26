@@ -43,10 +43,6 @@ mod private {
 }
 
 /// Marker trait for the perspective of a [`View`].
-///
-/// Maps four wire buffers (`a`, `b`, `c`, `d`) to the three degree-region
-/// segments of a [`Polynomial`]: lo, mid, and hi.
-#[allow(private_interfaces)]
 pub trait Perspective: private::Sealed {
     /// Maps the four wire buffers to three `(offset, data)` blocks
     /// corresponding to the lo, mid, and hi degree regions.
@@ -76,7 +72,6 @@ pub struct Forward;
 /// mapping.
 pub struct Backward;
 
-#[allow(private_interfaces)]
 impl Perspective for Forward {
     fn map_to_blocks<T>(
         a: Vec<T>,
@@ -85,14 +80,14 @@ impl Perspective for Forward {
         mut d: Vec<T>,
         n: usize,
     ) -> [(usize, Vec<T>); 3] {
-        // c[i] -> degree i              (range [0, c.len()))
-        // b[i] -> degree 2*n-1-i        (reversed, range [2*n-b.len(), 2*n))
-        // a[i] -> degree 2*n+i          (range [2*n, 2*n+a.len()))
-        // b̂ and a are always adjacent at the 2n boundary, forming one mid segment.
-        // d[i] -> degree 4*n-1-i        (reversed, range [4*n-d.len(), 4*n))
+        // c[i] -> degree i             (range [0, c.len()))
+        // b[i] -> degree 2*n-1-i       (reversed, range [2*n-b.len(), 2*n))
+        // a[i] -> degree 2*n+i         (range [2*n, 2*n+a.len()))
+        // d[i] -> degree 4*n-1-i       (reversed, range [4*n-d.len(), 4*n))
         b.reverse();
         d.reverse();
 
+        // b_rev and a are adjacent at the 2n boundary, forming the mid segment
         let mid_offset = 2 * n - b.len();
         let mut mid = b;
         mid.extend(a);
@@ -103,7 +98,6 @@ impl Perspective for Forward {
     }
 }
 
-#[allow(private_interfaces)]
 impl Perspective for Backward {
     fn map_to_blocks<T>(
         a: Vec<T>,

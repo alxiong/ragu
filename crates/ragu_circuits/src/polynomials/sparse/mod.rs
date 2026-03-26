@@ -1,16 +1,16 @@
-//! Sparse polynomial representation using three fixed-region segments.
+//! Sparse polynomial representation using three fixed-region blocks.
 //!
 //! [`Polynomial<T, R>`] stores a polynomial of degree up to
-//! `R::num_coeffs() - 1` using three dense segments separated by two gaps,
-//! with each segment constrained to a fixed degree region:
+//! `R::num_coeffs() - 1` using three dense blocks separated by two gaps,
+//! with each block constrained to a fixed degree region:
 //!
 //! - **lo**: degrees `[0, n)` — the `c`-wire region
 //! - **mid**: degrees `[n, 3n)` — the `b_rev ++ a` region (meeting at `2n`)
 //! - **hi**: degrees `[3n, 4n)` — the `d_rev` region
 //!
-//! where `n = R::n()`. Each segment stores an offset and a dense vector
+//! where `n = R::n()`. Each block stores an offset and a dense vector
 //! within its region. The fixed region boundaries guarantee that
-//! segment-wise arithmetic is always safe — no variant dispatch or
+//! block-wise arithmetic is always safe — no variant dispatch or
 //! compatibility checks needed.
 //!
 //! # Construction
@@ -20,7 +20,7 @@
 //!   three regions, trimming leading and trailing zeros within each.
 //! - [`View`]: a builder that maps four gate-indexed wire buffers to degree
 //!   positions via [`View::build`]. Zero elements within a wire buffer are
-//!   **preserved** in the resulting segments — push only non-zero values for
+//!   **preserved** in the resulting blocks — push only non-zero values for
 //!   maximum compression, or use [`Polynomial::from_coeffs`] to strip a
 //!   pre-built dense vector.
 //!
@@ -55,17 +55,17 @@ use core::marker::PhantomData;
 
 use super::Rank;
 
-/// Region names for assertion messages.
-const REGION_NAMES: [&str; 3] = ["lo", "mid", "hi"];
+/// Block names for assertion messages.
+const BLOCK_NAMES: [&str; 3] = ["lo", "mid", "hi"];
 
-/// A sparse polynomial with coefficients stored in three fixed-region segments.
+/// A sparse polynomial with coefficients stored in three fixed-region blocks.
 ///
 /// See the [module documentation](self) for details.
 #[derive(Clone, Debug)]
 pub struct Polynomial<T, R: Rank> {
-    /// Three `(offset, data)` segments for lo `[0, n)`, mid `[n, 3n)`, hi
+    /// Three `(offset, data)` blocks for lo `[0, n)`, mid `[n, 3n)`, hi
     /// `[3n, 4n)`.
-    segments: [(usize, Vec<T>); 3],
+    blocks: [(usize, Vec<T>); 3],
     _marker: PhantomData<R>,
 }
 
@@ -76,25 +76,20 @@ impl<T, R: Rank> Polynomial<T, R> {
         [0, n, 3 * n]
     }
 
-    /// Region bounds: `[(0, n), (n, 3n), (3n, 4n)]`.
-    fn region_bounds() -> [(usize, usize); 3] {
-        let n = R::n();
-        [(0, n), (n, 3 * n), (3 * n, 4 * n)]
-    }
-
     /// Panics if the representation violates region-bound invariants.
     ///
-    /// Each segment must stay within its fixed degree region:
+    /// Each block must stay within its fixed degree region:
     /// - `lo` within `[0, n)`
     /// - `mid` within `[n, 3n)`
     /// - `hi` within `[3n, 4n)`
     fn assert_invariants(&self) {
-        let bounds = Self::region_bounds();
-        for (i, ((off, data), (lo, hi))) in self.segments.iter().zip(bounds).enumerate() {
+        let n = R::n();
+        let bounds = [(0, n), (n, 3 * n), (3 * n, 4 * n)];
+        for (i, ((off, data), (lo, hi))) in self.blocks.iter().zip(bounds).enumerate() {
             assert!(
                 *off >= lo && off + data.len() <= hi,
-                "{} segment [{}, {}) exceeds region [{lo}, {hi})",
-                REGION_NAMES[i],
+                "{} block [{}, {}) exceeds region [{lo}, {hi})",
+                BLOCK_NAMES[i],
                 off,
                 off + data.len(),
             );
@@ -103,9 +98,9 @@ impl<T, R: Rank> Polynomial<T, R> {
 
     // Constructs from three `(offset, data)` blocks, asserting region-bound
     // invariants. The blocks correspond to lo, mid, hi in order.
-    fn from_blocks(segments: [(usize, Vec<T>); 3]) -> Self {
+    fn from_blocks(blocks: [(usize, Vec<T>); 3]) -> Self {
         let poly = Self {
-            segments,
+            blocks,
             _marker: PhantomData,
         };
         poly.assert_invariants();
@@ -124,7 +119,7 @@ impl<T, R: Rank> Polynomial<T, R> {
     pub fn new() -> Self {
         let offsets = Self::default_offsets();
         Self {
-            segments: [
+            blocks: [
                 (offsets[0], Vec::new()),
                 (offsets[1], Vec::new()),
                 (offsets[2], Vec::new()),
@@ -135,29 +130,37 @@ impl<T, R: Rank> Polynomial<T, R> {
 }
 
 impl<F: Field, R: Rank> Polynomial<F, R> {
-    /// Decomposes a dense coefficient vector into three fixed-region segments,
+    /// Decomposes a dense coefficient vector into three fixed-region blocks,
     /// trimming leading and trailing zeros within each region.
     ///
     /// Panics if `coeffs.len()` exceeds `R::num_coeffs()`.
     pub fn from_coeffs(mut coeffs: Vec<F>) -> Self {
+        let len = coeffs.len();
         assert!(
-            coeffs.len() <= R::num_coeffs(),
-            "coefficient vector length {} exceeds capacity {}",
-            coeffs.len(),
+            len <= R::num_coeffs(),
+            "coefficient vector length {len} exceeds capacity {}",
             R::num_coeffs()
         );
 
         let n = R::n();
-        coeffs.resize(R::num_coeffs(), F::ZERO);
+        let mut offsets = Self::default_offsets();
 
-        let mut hi = coeffs.split_off(3 * n);
-        let mut mid = coeffs.split_off(n);
+        // Split at region boundaries without padding — only split what exists.
+        let mut hi = if len > 3 * n {
+            coeffs.split_off(3 * n)
+        } else {
+            Vec::new()
+        };
+        let mut mid = if len > n {
+            coeffs.split_off(n)
+        } else {
+            Vec::new()
+        };
         let mut lo = coeffs;
 
-        let mut offsets = Self::default_offsets();
-        Self::trim_segment(&mut offsets[0], &mut lo);
-        Self::trim_segment(&mut offsets[1], &mut mid);
-        Self::trim_segment(&mut offsets[2], &mut hi);
+        Self::trim_block(&mut offsets[0], &mut lo);
+        Self::trim_block(&mut offsets[1], &mut mid);
+        Self::trim_block(&mut offsets[2], &mut hi);
 
         Self::from_blocks([(offsets[0], lo), (offsets[1], mid), (offsets[2], hi)])
     }
@@ -177,7 +180,7 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
 impl<T, R: Rank> Polynomial<T, R> {
     /// Applies a closure to every stored element.
     fn apply_all(&mut self, mut op: impl FnMut(&mut T)) {
-        for (_, data) in &mut self.segments {
+        for (_, data) in &mut self.blocks {
             for elem in data {
                 op(elem);
             }
@@ -187,30 +190,30 @@ impl<T, R: Rank> Polynomial<T, R> {
 
 impl<F: Field, R: Rank> Polynomial<F, R> {
     /// Returns an iterator over the coefficients of this polynomial in
-    /// ascending degree order, yielding `F::ZERO` for gaps between segments.
+    /// ascending degree order, yielding `F::ZERO` for gaps between blocks.
     pub fn iter_coeffs(&self) -> impl DoubleEndedIterator<Item = F> + ExactSizeIterator + '_ {
-        let (segments, num_segments) = self.non_empty_segments();
+        let (packed, num_blocks) = self.non_empty_blocks();
         CoeffIter {
-            segments,
-            num_segments,
+            blocks: packed,
+            num_blocks,
             front: 0,
             back: R::num_coeffs(),
-            front_seg: 0,
-            back_seg: num_segments,
+            front_blk: 0,
+            back_blk: num_blocks,
         }
     }
 
-    /// Returns non-empty segments as a packed fixed-size array plus a count.
-    fn non_empty_segments(&self) -> ([(usize, &[F]); 3], usize) {
-        let mut segs: [(usize, &[F]); 3] = [(0, &[]); 3];
+    /// Returns non-empty blocks as a packed fixed-size array plus a count.
+    fn non_empty_blocks(&self) -> ([(usize, &[F]); 3], usize) {
+        let mut packed: [(usize, &[F]); 3] = [(0, &[]); 3];
         let mut n = 0;
-        for (off, data) in &self.segments {
+        for (off, data) in &self.blocks {
             if !data.is_empty() {
-                segs[n] = (*off, data);
+                packed[n] = (*off, data);
                 n += 1;
             }
         }
-        (segs, n)
+        (packed, n)
     }
 
     /// Multiplies all coefficients by `by`.
@@ -229,32 +232,32 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
 
     /// Adds the coefficients of `other` to `self`.
     pub fn add_assign(&mut self, other: &Self) {
-        self.op_assign(other, |a, b| *a += *b);
+        self.combine_assign(other, |a, b| *a += *b);
     }
 
     /// Subtracts the coefficients of `other` from `self`.
     pub fn sub_assign(&mut self, other: &Self) {
-        self.op_assign(other, |a, b| *a -= *b);
+        self.combine_assign(other, |a, b| *a -= *b);
     }
 
-    /// Applies a binary operation segment-wise. Always safe because both
-    /// polynomials have segments within the same fixed region bounds.
-    fn op_assign(&mut self, other: &Self, op: impl Fn(&mut F, &F)) {
+    /// Applies a binary operation block-wise. Always safe because both
+    /// polynomials have blocks within the same fixed region bounds.
+    fn combine_assign(&mut self, other: &Self, op: impl Fn(&mut F, &F)) {
         for i in 0..3 {
             Self::merge(
-                &mut self.segments[i].0,
-                &mut self.segments[i].1,
-                other.segments[i].0,
-                &other.segments[i].1,
+                &mut self.blocks[i].0,
+                &mut self.blocks[i].1,
+                other.blocks[i].0,
+                &other.blocks[i].1,
                 &op,
             );
-            Self::trim_segment(&mut self.segments[i].0, &mut self.segments[i].1);
+            Self::trim_block(&mut self.blocks[i].0, &mut self.blocks[i].1);
         }
     }
 
-    /// Strips leading and trailing zeros from a segment in place, adjusting
-    /// the offset. Clears the segment entirely if all elements are zero.
-    fn trim_segment(offset: &mut usize, data: &mut Vec<F>) {
+    /// Strips leading and trailing zeros from a block in place, adjusting
+    /// the offset. Clears the block entirely if all elements are zero.
+    fn trim_block(offset: &mut usize, data: &mut Vec<F>) {
         // Trim trailing zeros.
         while data.last().is_some_and(|v| bool::from(v.is_zero())) {
             data.pop();
@@ -270,7 +273,7 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
         }
     }
 
-    /// Merges `other` segment into `self` segment, expanding `self` to cover
+    /// Merges `other` block into `self` block, expanding `self` to cover
     /// the union range if needed, then applying `op` element-wise.
     fn merge(
         s_off: &mut usize,
@@ -324,12 +327,12 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
     }
 
     /// Evaluates this polynomial at `z` using reverse Horner's method by
-    /// segment.
+    /// block.
     pub fn eval(&self, z: F) -> F {
         let mut result = F::ZERO;
         let mut prev_start = R::num_coeffs();
 
-        for &(start, ref data) in self.segments.iter().rev() {
+        for &(start, ref data) in self.blocks.iter().rev() {
             if data.is_empty() {
                 continue;
             }
@@ -354,7 +357,7 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
         let mut power = F::ONE;
         let mut prev_end: usize = 0;
 
-        for &mut (start, ref mut data) in &mut self.segments {
+        for &mut (start, ref mut data) in &mut self.blocks {
             if data.is_empty() {
                 continue;
             }
@@ -376,53 +379,38 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
     pub fn revdot(&self, other: &Self) -> F {
         let n4 = R::num_coeffs();
         let mut result = F::ZERO;
-        for &(s_off, ref s_data) in &self.segments {
-            if s_data.is_empty() {
+        for &(a_off, ref a_data) in &self.blocks {
+            if a_data.is_empty() {
                 continue;
             }
-            for &(o_off, ref o_data) in &other.segments {
-                if o_data.is_empty() {
+            let a_end = a_off + a_data.len();
+            for &(b_off, ref b_data) in &other.blocks {
+                if b_data.is_empty() {
                     continue;
                 }
-                result += Self::revdot_segment_pair(s_off, s_data, o_off, o_data, n4);
+                // Other's block [b_off, b_off+b_len) reversed maps to
+                // [n4 - b_off - b_len, n4 - b_off).
+                let rev_lo = n4 - b_off - b_data.len();
+                let rev_hi = n4 - b_off;
+
+                let overlap_lo = a_off.max(rev_lo);
+                let overlap_hi = a_end.min(rev_hi);
+                if overlap_lo >= overlap_hi {
+                    continue;
+                }
+
+                let a_slice = &a_data[overlap_lo - a_off..overlap_hi - a_off];
+                // For index k in [overlap_lo, overlap_hi), other's value is at
+                // b_data[n4 - 1 - k - b_off]. As k increases, the b_data
+                // index decreases, so we zip a forward with b reversed.
+                let b_idx_lo = n4 - 1 - (overlap_hi - 1) - b_off;
+                let b_idx_hi = n4 - 1 - overlap_lo - b_off;
+                let b_slice = &b_data[b_idx_lo..=b_idx_hi];
+
+                for (a_val, b_val) in a_slice.iter().zip(b_slice.iter().rev()) {
+                    result += *a_val * *b_val;
+                }
             }
-        }
-        result
-    }
-
-    /// Computes the revdot contribution between one segment from self at
-    /// `[a_off, a_off + a_data.len())` and one segment from other at
-    /// `[b_off, b_off + b_data.len())`, where other is coefficient-reversed.
-    ///
-    /// The reversed segment maps to `[n4 - b_off - b_data.len(), n4 - b_off)`.
-    fn revdot_segment_pair(a_off: usize, a_data: &[F], b_off: usize, b_data: &[F], n4: usize) -> F {
-        if a_data.is_empty() || b_data.is_empty() {
-            return F::ZERO;
-        }
-
-        let a_end = a_off + a_data.len();
-        // Reversed range of other's segment.
-        let rev_lo = n4 - b_off - b_data.len();
-        let rev_hi = n4 - b_off;
-
-        let overlap_lo = a_off.max(rev_lo);
-        let overlap_hi = a_end.min(rev_hi);
-
-        if overlap_lo >= overlap_hi {
-            return F::ZERO;
-        }
-
-        let a_slice = &a_data[overlap_lo - a_off..overlap_hi - a_off];
-        // For index k in [overlap_lo, overlap_hi), other's value is at
-        // b_data[n4 - 1 - k - b_off]. As k increases, the b_data index
-        // decreases, so we zip a forward with b reversed.
-        let b_idx_lo = n4 - 1 - (overlap_hi - 1) - b_off;
-        let b_idx_hi = n4 - 1 - overlap_lo - b_off;
-        let b_slice = &b_data[b_idx_lo..=b_idx_hi];
-
-        let mut result = F::ZERO;
-        for (a_val, b_val) in a_slice.iter().zip(b_slice.iter().rev()) {
-            result += *a_val * *b_val;
         }
         result
     }
@@ -440,12 +428,12 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
 
         let g = generators.g();
         ragu_arithmetic::mul(
-            self.segments
+            self.blocks
                 .iter()
                 .filter(|(_, data)| !data.is_empty())
                 .flat_map(|(_, data)| data.iter())
                 .chain(core::iter::once(&blind)),
-            self.segments
+            self.blocks
                 .iter()
                 .filter(|(_, data)| !data.is_empty())
                 .flat_map(|(start, data)| &g[*start..*start + data.len()])
@@ -467,16 +455,16 @@ impl<F: Field, R: Rank> Polynomial<F, R> {
 }
 
 /// An iterator over all coefficients of a sparse polynomial in ascending
-/// degree order, yielding `F::ZERO` for gaps between segments.
+/// degree order, yielding `F::ZERO` for gaps between blocks.
 struct CoeffIter<'a, F> {
-    segments: [(usize, &'a [F]); 3],
-    num_segments: usize,
+    blocks: [(usize, &'a [F]); 3],
+    num_blocks: usize,
     front: usize,
     back: usize,
-    /// Index of the first segment whose end extends past `front`.
-    front_seg: usize,
-    /// One past the last segment whose start is at or before `back - 1`.
-    back_seg: usize,
+    /// Index of the first block whose end extends past `front`.
+    front_blk: usize,
+    /// One past the last block whose start is at or before `back - 1`.
+    back_blk: usize,
 }
 
 impl<F: Field> Iterator for CoeffIter<'_, F> {
@@ -486,16 +474,16 @@ impl<F: Field> Iterator for CoeffIter<'_, F> {
         if self.front >= self.back {
             return None;
         }
-        // Advance past segments fully before `front`.
-        while self.front_seg < self.num_segments {
-            let (start, data) = self.segments[self.front_seg];
+        // Advance past blocks fully before `front`.
+        while self.front_blk < self.num_blocks {
+            let (start, data) = self.blocks[self.front_blk];
             if start + data.len() > self.front {
                 break;
             }
-            self.front_seg += 1;
+            self.front_blk += 1;
         }
-        let val = if self.front_seg < self.num_segments {
-            let (start, data) = self.segments[self.front_seg];
+        let val = if self.front_blk < self.num_blocks {
+            let (start, data) = self.blocks[self.front_blk];
             if self.front >= start {
                 data[self.front - start]
             } else {
@@ -520,16 +508,16 @@ impl<F: Field> DoubleEndedIterator for CoeffIter<'_, F> {
             return None;
         }
         self.back -= 1;
-        // Retreat past segments that start after `back`.
-        while self.back_seg > 0 {
-            let (start, _) = self.segments[self.back_seg - 1];
+        // Retreat past blocks that start after `back`.
+        while self.back_blk > 0 {
+            let (start, _) = self.blocks[self.back_blk - 1];
             if start <= self.back {
                 break;
             }
-            self.back_seg -= 1;
+            self.back_blk -= 1;
         }
-        let val = if self.back_seg > 0 {
-            let (start, data) = self.segments[self.back_seg - 1];
+        let val = if self.back_blk > 0 {
+            let (start, data) = self.blocks[self.back_blk - 1];
             if self.back < start + data.len() {
                 data[self.back - start]
             } else {
