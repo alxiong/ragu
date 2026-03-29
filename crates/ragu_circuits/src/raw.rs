@@ -17,9 +17,9 @@
 //!
 //! Every driver performs the same sequence around the circuit body:
 //!
-//! 1. **Gate 0** — Allocate the ONE gate. Its $b$ wire carries the constant
-//!    $1$ (the `Driver::ONE` wire) and its $d$ wire carries the blinding
-//!    factor $\alpha$. The $a$ and $c$ wires are zero.
+//! 1. **Gate 0** — Allocate the SYSTEM gate. Its $b$ wire carries the
+//!    constant $1$ (the `Driver::ONE` wire) and its $d$ wire carries the
+//!    blinding factor $\alpha$. The $a$ and $c$ wires are zero.
 //! 2. **Witness** — Run the circuit's [`witness`](RawCircuit::witness) method,
 //!    passing gate 0 wires so that internal implementations (e.g.
 //!    [`StageMask`](crate::staging::mask::StageMask)) can reference them.
@@ -187,7 +187,7 @@ where
     D: Driver<'dr, F = F>,
     RC: RawCircuit<F> + 'dr,
 {
-    // 1. Allocate gate 0 (the ONE gate).
+    // 1. Allocate gate 0 (the SYSTEM gate).
     let gate0 =
         GateWires::from(dr.gate(|| Ok((Coeff::Zero, Coeff::Zero, Coeff::Zero, Coeff::Zero)))?);
 

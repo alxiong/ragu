@@ -166,7 +166,7 @@ pub trait Stage<F: Field, R: Rank> {
         Self: 'dr;
 
     /// Returns the number of gates to skip before starting this
-    /// stage. The count includes gate 0 (the ONE gate), so the base
+    /// stage. The count includes gate 0 (the SYSTEM gate), so the base
     /// case `()` returns 1. **This should not be overridden by
     /// implementations except by the base implementation for `()`**.
     fn skip_gates() -> usize {
@@ -365,7 +365,7 @@ pub trait StageExt<F: Field, R: Rank>: Stage<F, R> {
         view.c.reserve_exact(len);
         view.d.reserve_exact(len);
 
-        // ONE gate: d[0] receives alpha (degree 4n-1) to prevent
+        // SYSTEM gate: d[0] receives alpha (degree 4n-1) to prevent
         // point-at-infinity commitments.
         view.a.push(F::ZERO);
         view.b.push(F::ZERO);

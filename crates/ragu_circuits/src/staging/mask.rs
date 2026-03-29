@@ -17,7 +17,7 @@ pub struct StageMask<R: Rank> {
 impl<R: Rank> StageMask<R> {
     /// Creates a new staging wiring polynomial with the given
     /// `skip_gates` and `num_gates` values. `skip_gates` includes
-    /// gate 0 (the ONE gate) and must be at least 1. Gate wires are
+    /// gate 0 (the SYSTEM gate) and must be at least 1. Gate wires are
     /// enforced to zero for gates `1..skip_gates` and
     /// `(skip_gates + num_gates)..n`. Gate 0 is not constrained
     /// here because `d[0]` carries the alpha blinding factor and
@@ -37,7 +37,7 @@ impl<R: Rank> StageMask<R> {
 
     /// Creates the final staging wiring polynomial with the given
     /// `skip_gates` and maximum possible gates. `skip_gates` must
-    /// be at least 1 (it includes gate 0, the ONE gate). The number
+    /// be at least 1 (it includes gate 0, the SYSTEM gate). The number
     /// of gates will be `R::n() - skip_gates`, which is the maximum
     /// before bounds are reached.
     pub fn new_final(skip_gates: usize) -> Result<Self> {

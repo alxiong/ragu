@@ -137,7 +137,7 @@ impl<F: Field> Trace<F> {
             view.d[offset..offset + seg.d.len()].copy_from_slice(&seg.d);
         }
 
-        // Overwrite segment 0's zeroed ONE gate placeholder:
+        // Overwrite segment 0's zeroed SYSTEM gate placeholder:
         // a[0] = c[0] = 0 (already zero), b[0] = 1 (ONE wire),
         // d[0] = alpha (prevents point-at-infinity commitments).
         view.b[0] = F::ONE;

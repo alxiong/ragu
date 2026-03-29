@@ -82,7 +82,9 @@ s_\text{global}(X, Y) = \sum_{i=0}^{4n - 1} (XY)^i - \left((XY)^{2n} + 1\right)\
 $$
 
 which enforces that every wire _except_ the special-purpose wires in the 0th
-gate are zero. This leaves $d_0$ free for use as an arbitrary blinding factor.
+gate are zero. The 0th gate wires are unconstrained by the mask, meaning the
+trace is not forced to zero at those positions. This leaves $d_0$ free for use
+as an arbitrary blinding factor.
 
 Given $g = \text{skip\_gates}$ (the starting active gate index) and
 $m = \text{num\_gates}$ (the number of active gates in the stage), we can define

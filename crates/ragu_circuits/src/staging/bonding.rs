@@ -217,7 +217,7 @@ impl<F: Field, R: Rank> CircuitObject<F, R> for Stripped<'_, F, R> {
     }
 
     // TODO(#614): revisit constraint_counts semantics — ambiguous with
-    // system constraints (enforce_one, registry key, ONE gate).
+    // system constraints (enforce_one, registry key, SYSTEM gate).
     fn constraint_counts(&self) -> (usize, usize) {
         let (mul, lin) = self.0.constraint_counts();
         // The inner object includes the `enforce_one` constraint that we strip.
@@ -492,11 +492,11 @@ mod tests {
         assert_eq!(sxy, obj.sy(y, &floor_plan).eval(x));
     }
 
-    /// Build a trace with gate 0 as ONE (zeros) and gates 1..n from (b, d)
+    /// Build a trace with gate 0 as SYSTEM (zeros) and gates 1..n from (b, d)
     /// pairs.
     fn build_trace(gate_values: &[(Fp, Fp)]) -> sparse::Polynomial<Fp, R> {
         let mut view = sparse::View::<_, R, _>::trace();
-        // ONE gate placeholder.
+        // SYSTEM gate placeholder.
         view.a.push(Fp::ZERO);
         view.b.push(Fp::ZERO);
         view.c.push(Fp::ZERO);
