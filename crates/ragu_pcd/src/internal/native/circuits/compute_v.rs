@@ -456,12 +456,13 @@ impl<'a, 'dr, D: Driver<'dr>> Processor<&'a Element<'dr, D>, &'a Element<'dr, D>
     fn bonding(
         &mut self,
         id: InternalCircuitIndex,
-        rxs: impl Iterator<Item = &'a Element<'dr, D>>,
+        groups: impl Iterator<Item = impl Iterator<Item = &'a Element<'dr, D>>>,
     ) -> Result<()> {
         let sy = self.fixed_registry.get(id);
 
-        // a(xz) = fold of all rx(xz) with z (Horner's rule)
-        self.ax.push(Element::fold(self.dr, rxs, self.z)?);
+        // Sum each group, then Horner-fold the sums with z.
+        let sums: Vec<_> = groups.map(|group| Element::sum(self.dr, group)).collect();
+        self.ax.push(Element::fold(self.dr, &sums, self.z)?);
 
         // b(x) = s_y evaluated at circuit's omega^j
         self.bx.push(sy.clone());
