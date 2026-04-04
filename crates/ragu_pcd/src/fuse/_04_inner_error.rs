@@ -40,7 +40,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     where
         D: Driver<'dr, F = C::CircuitField>,
     {
-        let (rx_triple, registry_wy, inner_error_witness, builder) =
+        let (rx_committed, registry_wy, inner_error_witness, builder) =
             self.compute_native_inner_error(rng, native_registry, y, z, source)?;
 
         let bridge = proof::Bridge::commit(
@@ -48,7 +48,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             nested::stages::inner_error::Stage::<C::HostCurve, R>::rx(
                 C::ScalarField::random(&mut *rng),
                 &nested::stages::inner_error::Witness {
-                    native_inner_error: rx_triple.commitment,
+                    native_inner_error: rx_committed.commitment,
                     registry_wy: registry_wy.commitment,
                 },
             )?,
@@ -56,7 +56,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
 
         Ok((
             proof::InnerError {
-                native: rx_triple,
+                native: rx_committed,
                 bridge,
             },
             inner_error_witness,
@@ -73,7 +73,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         z: &Element<'dr, D>,
         source: &FuseProofSource<'rx, C, R>,
     ) -> Result<(
-        proof::RxTriple<C, R>,
+        proof::RxCommitted<C, R>,
         RegistryWy<C, R>,
         native::stages::inner_error::Witness<C, native::RevdotParameters>,
         FuseBuilder<'_, 'rx, C::CircuitField, R>,
@@ -108,7 +108,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         ]);
 
         Ok((
-            proof::RxTriple {
+            proof::RxCommitted {
                 rx: native_rx,
                 commitment: native_commitment,
             },

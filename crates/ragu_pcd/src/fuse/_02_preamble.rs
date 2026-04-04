@@ -51,7 +51,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         right: &'a Proof<C, R>,
         application: &proof::Application<C, R>,
     ) -> Result<(
-        proof::RxTriple<C, R>,
+        proof::RxCommitted<C, R>,
         native::stages::preamble::Witness<'a, C, R, HEADER_SIZE>,
     )> {
         let preamble_witness = native::stages::preamble::Witness::new(
@@ -67,6 +67,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         )?;
         let commitment = rx.commit_to_affine(C::host_generators(self.params));
 
-        Ok((proof::RxTriple { rx, commitment }, preamble_witness))
+        Ok((proof::RxCommitted { rx, commitment }, preamble_witness))
     }
 }

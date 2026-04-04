@@ -51,7 +51,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 circuit_id: S::INDEX.circuit_index(self.num_application_steps)?,
                 left_header: left_header.into_inner(),
                 right_header: right_header.into_inner(),
-                rx_triple: proof::RxTriple { rx, commitment },
+                rx_committed: proof::RxCommitted { rx, commitment },
             },
             output_data,
             step_aux,

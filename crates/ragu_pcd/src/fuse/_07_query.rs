@@ -45,7 +45,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             nested::stages::query::Stage::<C::HostCurve, R>::rx(
                 C::ScalarField::random(&mut *rng),
                 &nested::stages::query::Witness {
-                    native_query: native_query.rx_triple.commitment,
+                    native_query: native_query.rx_committed.commitment,
                     registry_xy: native_query.registry_xy_commitment,
                 },
             )?,
@@ -120,7 +120,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             proof::NativeQuery {
                 registry_xy_poly,
                 registry_xy_commitment,
-                rx_triple: proof::RxTriple { rx, commitment },
+                rx_committed: proof::RxCommitted { rx, commitment },
             },
             query_witness,
         ))

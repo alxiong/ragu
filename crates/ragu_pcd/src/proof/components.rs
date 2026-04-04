@@ -18,9 +18,9 @@ use ragu_primitives::Element;
 
 use alloc::vec::Vec;
 
-/// A grouped `(rx, commitment)` triple for a native-field rx polynomial.
+/// A native-field rx polynomial paired with its commitment.
 #[derive(Clone)]
-pub struct RxTriple<C: Cycle, R: Rank> {
+pub struct RxCommitted<C: Cycle, R: Rank> {
     /// The rx polynomial.
     pub(crate) rx: sparse::Polynomial<C::CircuitField, R>,
 
@@ -33,7 +33,7 @@ pub(crate) struct Application<C: Cycle, R: Rank> {
     pub(crate) circuit_id: CircuitIndex,
     pub(crate) left_header: Vec<C::CircuitField>,
     pub(crate) right_header: Vec<C::CircuitField>,
-    pub(crate) rx_triple: RxTriple<C, R>,
+    pub(crate) rx_committed: RxCommitted<C, R>,
 }
 
 #[derive(Clone)]
@@ -51,7 +51,7 @@ impl<C: Cycle, R: Rank> Bridge<C, R> {
 
 #[derive(Clone)]
 pub(crate) struct Preamble<C: Cycle, R: Rank> {
-    pub(crate) native: RxTriple<C, R>,
+    pub(crate) native: RxCommitted<C, R>,
     pub(crate) bridge: Bridge<C, R>,
 }
 
@@ -62,13 +62,13 @@ pub(crate) struct SPrime<C: Cycle, R: Rank> {
 
 #[derive(Clone)]
 pub(crate) struct InnerError<C: Cycle, R: Rank> {
-    pub(crate) native: RxTriple<C, R>,
+    pub(crate) native: RxCommitted<C, R>,
     pub(crate) bridge: Bridge<C, R>,
 }
 
 #[derive(Clone)]
 pub(crate) struct OuterError<C: Cycle, R: Rank> {
-    pub(crate) native: RxTriple<C, R>,
+    pub(crate) native: RxCommitted<C, R>,
     pub(crate) bridge: Bridge<C, R>,
 }
 
@@ -90,7 +90,7 @@ pub(crate) struct AB<C: Cycle, R: Rank> {
 pub(crate) struct NativeQuery<C: Cycle, R: Rank> {
     pub(crate) registry_xy_poly: sparse::Polynomial<C::CircuitField, R>,
     pub(crate) registry_xy_commitment: C::HostCurve,
-    pub(crate) rx_triple: RxTriple<C, R>,
+    pub(crate) rx_committed: RxCommitted<C, R>,
 }
 
 #[derive(Clone)]
@@ -106,7 +106,7 @@ pub(crate) struct F<C: Cycle, R: Rank> {
 
 #[derive(Clone)]
 pub(crate) struct Eval<C: Cycle, R: Rank> {
-    pub(crate) native: RxTriple<C, R>,
+    pub(crate) native: RxCommitted<C, R>,
     pub(crate) bridge: Bridge<C, R>,
 }
 
@@ -196,9 +196,9 @@ impl<C: Cycle> Challenges<C> {
 
 #[derive(Clone)]
 pub(crate) struct InternalCircuits<C: Cycle, R: Rank> {
-    pub(crate) hashes_1: RxTriple<C, R>,
-    pub(crate) hashes_2: RxTriple<C, R>,
-    pub(crate) inner_collapse: RxTriple<C, R>,
-    pub(crate) outer_collapse: RxTriple<C, R>,
-    pub(crate) compute_v: RxTriple<C, R>,
+    pub(crate) hashes_1: RxCommitted<C, R>,
+    pub(crate) hashes_2: RxCommitted<C, R>,
+    pub(crate) inner_collapse: RxCommitted<C, R>,
+    pub(crate) outer_collapse: RxCommitted<C, R>,
+    pub(crate) compute_v: RxCommitted<C, R>,
 }

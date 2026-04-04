@@ -77,16 +77,16 @@ pub struct Proof<C: Cycle, R: Rank> {
 }
 
 impl<C: Cycle, R: Rank> core::ops::Index<RxIndex> for Proof<C, R> {
-    type Output = RxTriple<C, R>;
-    fn index(&self, idx: RxIndex) -> &RxTriple<C, R> {
+    type Output = RxCommitted<C, R>;
+    fn index(&self, idx: RxIndex) -> &RxCommitted<C, R> {
         use RxIndex::*;
         match idx {
             Preamble => &self.preamble.native,
             InnerError => &self.inner_error.native,
             OuterError => &self.outer_error.native,
-            Query => &self.query.native.rx_triple,
+            Query => &self.query.native.rx_committed,
             Eval => &self.eval.native,
-            Application => &self.application.rx_triple,
+            Application => &self.application.rx_committed,
             Hashes1 => &self.circuits.hashes_1,
             Hashes2 => &self.circuits.hashes_2,
             InnerCollapse => &self.circuits.inner_collapse,
@@ -197,7 +197,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
             commitment: bridge_commitment,
         };
 
-        let trivial_rx_triple = || RxTriple {
+        let trivial_rx_committed = || RxCommitted {
             rx: ones_host.clone(),
             commitment: host_commitment,
         };
@@ -207,21 +207,21 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
                 circuit_id: CircuitIndex::new(0),
                 left_header: vec![C::CircuitField::ZERO; HEADER_SIZE],
                 right_header: vec![C::CircuitField::ZERO; HEADER_SIZE],
-                rx_triple: trivial_rx_triple(),
+                rx_committed: trivial_rx_committed(),
             },
             preamble: Preamble {
-                native: trivial_rx_triple(),
+                native: trivial_rx_committed(),
                 bridge: trivial_bridge.clone(),
             },
             s_prime: SPrime {
                 bridge: trivial_bridge.clone(),
             },
             inner_error: InnerError {
-                native: trivial_rx_triple(),
+                native: trivial_rx_committed(),
                 bridge: trivial_bridge.clone(),
             },
             outer_error: OuterError {
-                native: trivial_rx_triple(),
+                native: trivial_rx_committed(),
                 bridge: trivial_bridge.clone(),
             },
             ab: AB {
@@ -237,7 +237,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
                 native: NativeQuery {
                     registry_xy_poly,
                     registry_xy_commitment,
-                    rx_triple: trivial_rx_triple(),
+                    rx_committed: trivial_rx_committed(),
                 },
                 bridge: trivial_bridge.clone(),
             },
@@ -245,7 +245,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
                 bridge: trivial_bridge.clone(),
             },
             eval: Eval {
-                native: trivial_rx_triple(),
+                native: trivial_rx_committed(),
                 bridge: trivial_bridge,
             },
             p: P {
@@ -264,11 +264,11 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
             },
             challenges,
             circuits: InternalCircuits {
-                hashes_1: trivial_rx_triple(),
-                hashes_2: trivial_rx_triple(),
-                inner_collapse: trivial_rx_triple(),
-                outer_collapse: trivial_rx_triple(),
-                compute_v: trivial_rx_triple(),
+                hashes_1: trivial_rx_committed(),
+                hashes_2: trivial_rx_committed(),
+                inner_collapse: trivial_rx_committed(),
+                outer_collapse: trivial_rx_committed(),
+                compute_v: trivial_rx_committed(),
             },
         }
     }

@@ -173,7 +173,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         &self,
         rng: &mut RNG,
         outer_error_witness: &native::stages::outer_error::Witness<C, native::RevdotParameters>,
-    ) -> Result<proof::RxTriple<C, R>> {
+    ) -> Result<proof::RxCommitted<C, R>> {
         let rx =
             native::stages::outer_error::Stage::<C, R, HEADER_SIZE, native::RevdotParameters>::rx(
                 C::CircuitField::random(&mut *rng),
@@ -181,6 +181,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             )?;
         let commitment = rx.commit_to_affine(C::host_generators(self.params));
 
-        Ok(proof::RxTriple { rx, commitment })
+        Ok(proof::RxCommitted { rx, commitment })
     }
 }

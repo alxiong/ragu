@@ -166,23 +166,23 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         ]);
 
         Ok(proof::InternalCircuits {
-            hashes_1: proof::RxTriple {
+            hashes_1: proof::RxCommitted {
                 rx: hashes_1_rx,
                 commitment: hashes_1_commitment,
             },
-            hashes_2: proof::RxTriple {
+            hashes_2: proof::RxCommitted {
                 rx: hashes_2_rx,
                 commitment: hashes_2_commitment,
             },
-            inner_collapse: proof::RxTriple {
+            inner_collapse: proof::RxCommitted {
                 rx: inner_collapse_rx,
                 commitment: inner_collapse_commitment,
             },
-            outer_collapse: proof::RxTriple {
+            outer_collapse: proof::RxCommitted {
                 rx: outer_collapse_rx,
                 commitment: outer_collapse_commitment,
             },
-            compute_v: proof::RxTriple {
+            compute_v: proof::RxCommitted {
                 rx: compute_v_rx,
                 commitment: compute_v_commitment,
             },

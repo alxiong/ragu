@@ -69,7 +69,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         ab: &proof::AB<C, R>,
         query: &proof::Query<C, R>,
     ) -> Result<(
-        proof::RxTriple<C, R>,
+        proof::RxCommitted<C, R>,
         native::stages::eval::Witness<C::CircuitField>,
     )>
     where
@@ -99,6 +99,6 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         )?;
         let commitment = rx.commit_to_affine(C::host_generators(self.params));
 
-        Ok((proof::RxTriple { rx, commitment }, eval_witness))
+        Ok((proof::RxCommitted { rx, commitment }, eval_witness))
     }
 }
