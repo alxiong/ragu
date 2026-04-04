@@ -66,24 +66,26 @@ impl InternalCircuitIndex {
     /// in [`RegistryBuilder::finalize()`](ragu_circuits::registry::RegistryBuilder::finalize)
     /// (circuits before masks), since [`circuit_index()`](Self::circuit_index)
     /// derives indices from position in this array.
-    pub const ALL: [Self; NUM_INTERNAL_CIRCUITS] = super::unwrap_all(Self::all_slots());
+    pub const ALL: [Self; NUM_INTERNAL_CIRCUITS] = super::const_fns::unwrap_all(Self::all_slots());
 
     const fn all_slots() -> [Option<Self>; NUM_INTERNAL_CIRCUITS] {
+        use super::const_fns::push;
+
         let mut slots = [None; NUM_INTERNAL_CIRCUITS];
         let mut c = 0;
-        super::push(&mut slots, &mut c, Self::Hashes1Circuit);
-        super::push(&mut slots, &mut c, Self::Hashes2Circuit);
-        super::push(&mut slots, &mut c, Self::InnerCollapseCircuit);
-        super::push(&mut slots, &mut c, Self::OuterCollapseCircuit);
-        super::push(&mut slots, &mut c, Self::ComputeVCircuit);
-        super::push(&mut slots, &mut c, Self::PreambleStage);
-        super::push(&mut slots, &mut c, Self::InnerErrorStage);
-        super::push(&mut slots, &mut c, Self::OuterErrorStage);
-        super::push(&mut slots, &mut c, Self::QueryStage);
-        super::push(&mut slots, &mut c, Self::EvalStage);
-        super::push(&mut slots, &mut c, Self::InnerErrorFinalStaged);
-        super::push(&mut slots, &mut c, Self::OuterErrorFinalStaged);
-        super::push(&mut slots, &mut c, Self::EvalFinalStaged);
+        push(&mut slots, &mut c, Self::Hashes1Circuit);
+        push(&mut slots, &mut c, Self::Hashes2Circuit);
+        push(&mut slots, &mut c, Self::InnerCollapseCircuit);
+        push(&mut slots, &mut c, Self::OuterCollapseCircuit);
+        push(&mut slots, &mut c, Self::ComputeVCircuit);
+        push(&mut slots, &mut c, Self::PreambleStage);
+        push(&mut slots, &mut c, Self::InnerErrorStage);
+        push(&mut slots, &mut c, Self::OuterErrorStage);
+        push(&mut slots, &mut c, Self::QueryStage);
+        push(&mut slots, &mut c, Self::EvalStage);
+        push(&mut slots, &mut c, Self::InnerErrorFinalStaged);
+        push(&mut slots, &mut c, Self::OuterErrorFinalStaged);
+        push(&mut slots, &mut c, Self::EvalFinalStaged);
         assert!(c == NUM_INTERNAL_CIRCUITS);
         slots
     }
@@ -201,22 +203,24 @@ impl RxIndex {
     ///
     /// This order matches the evaluation order in `poly_queries` (compute_v.rs)
     /// and `_08_f.rs`, and drives the `Write` impl for `RxValues`.
-    pub const ALL: [Self; NUM_RX_COMPONENTS] = super::unwrap_all(Self::all_slots());
+    pub const ALL: [Self; NUM_RX_COMPONENTS] = super::const_fns::unwrap_all(Self::all_slots());
 
     const fn all_slots() -> [Option<Self>; NUM_RX_COMPONENTS] {
+        use super::const_fns::push;
+
         let mut slots = [None; NUM_RX_COMPONENTS];
         let mut c = 0;
-        super::push(&mut slots, &mut c, Self::Application);
-        super::push(&mut slots, &mut c, Self::Hashes1);
-        super::push(&mut slots, &mut c, Self::Hashes2);
-        super::push(&mut slots, &mut c, Self::InnerCollapse);
-        super::push(&mut slots, &mut c, Self::OuterCollapse);
-        super::push(&mut slots, &mut c, Self::ComputeV);
-        super::push(&mut slots, &mut c, Self::Preamble);
-        super::push(&mut slots, &mut c, Self::InnerError);
-        super::push(&mut slots, &mut c, Self::OuterError);
-        super::push(&mut slots, &mut c, Self::Query);
-        super::push(&mut slots, &mut c, Self::Eval);
+        push(&mut slots, &mut c, Self::Application);
+        push(&mut slots, &mut c, Self::Hashes1);
+        push(&mut slots, &mut c, Self::Hashes2);
+        push(&mut slots, &mut c, Self::InnerCollapse);
+        push(&mut slots, &mut c, Self::OuterCollapse);
+        push(&mut slots, &mut c, Self::ComputeV);
+        push(&mut slots, &mut c, Self::Preamble);
+        push(&mut slots, &mut c, Self::InnerError);
+        push(&mut slots, &mut c, Self::OuterError);
+        push(&mut slots, &mut c, Self::Query);
+        push(&mut slots, &mut c, Self::Eval);
         assert!(c == NUM_RX_COMPONENTS);
         slots
     }

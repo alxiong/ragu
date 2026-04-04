@@ -71,29 +71,31 @@ impl InternalCircuitIndex {
     /// in [`RegistryBuilder::finalize()`](ragu_circuits::registry::RegistryBuilder::finalize)
     /// (circuits before masks), since [`circuit_index()`](Self::circuit_index)
     /// derives indices from position in this array.
-    pub const ALL: [Self; NUM_INTERNAL_CIRCUITS] = super::unwrap_all(Self::all_slots());
+    pub const ALL: [Self; NUM_INTERNAL_CIRCUITS] = super::const_fns::unwrap_all(Self::all_slots());
 
     const fn all_slots() -> [Option<Self>; NUM_INTERNAL_CIRCUITS] {
+        use super::const_fns::push;
+
         let mut slots = [None; NUM_INTERNAL_CIRCUITS];
         let mut c = 0;
         {
             let mut step = 0;
             while step < NUM_ENDOSCALING_STEPS {
-                super::push(&mut slots, &mut c, Self::EndoscalingStep(step as u32));
+                push(&mut slots, &mut c, Self::EndoscalingStep(step as u32));
                 step += 1;
             }
         }
-        super::push(&mut slots, &mut c, Self::EndoscalarStage);
-        super::push(&mut slots, &mut c, Self::PointsStage);
-        super::push(&mut slots, &mut c, Self::PointsFinalStaged);
-        super::push(&mut slots, &mut c, Self::BridgePreamble);
-        super::push(&mut slots, &mut c, Self::BridgeSPrime);
-        super::push(&mut slots, &mut c, Self::BridgeInnerError);
-        super::push(&mut slots, &mut c, Self::BridgeOuterError);
-        super::push(&mut slots, &mut c, Self::BridgeAB);
-        super::push(&mut slots, &mut c, Self::BridgeQuery);
-        super::push(&mut slots, &mut c, Self::BridgeF);
-        super::push(&mut slots, &mut c, Self::BridgeEval);
+        push(&mut slots, &mut c, Self::EndoscalarStage);
+        push(&mut slots, &mut c, Self::PointsStage);
+        push(&mut slots, &mut c, Self::PointsFinalStaged);
+        push(&mut slots, &mut c, Self::BridgePreamble);
+        push(&mut slots, &mut c, Self::BridgeSPrime);
+        push(&mut slots, &mut c, Self::BridgeInnerError);
+        push(&mut slots, &mut c, Self::BridgeOuterError);
+        push(&mut slots, &mut c, Self::BridgeAB);
+        push(&mut slots, &mut c, Self::BridgeQuery);
+        push(&mut slots, &mut c, Self::BridgeF);
+        push(&mut slots, &mut c, Self::BridgeEval);
         assert!(c == NUM_INTERNAL_CIRCUITS);
         slots
     }
@@ -151,28 +153,30 @@ impl RxIndex {
     ///
     /// Must maintain the same ordering convention as
     /// [`native::RxIndex::ALL`](super::native::RxIndex::ALL).
-    pub const ALL: [Self; NUM_RX_COMPONENTS] = super::unwrap_all(Self::all_slots());
+    pub const ALL: [Self; NUM_RX_COMPONENTS] = super::const_fns::unwrap_all(Self::all_slots());
 
     const fn all_slots() -> [Option<Self>; NUM_RX_COMPONENTS] {
+        use super::const_fns::push;
+
         let mut slots = [None; NUM_RX_COMPONENTS];
         let mut c = 0;
         {
             let mut step = 0;
             while step < NUM_ENDOSCALING_STEPS {
-                super::push(&mut slots, &mut c, Self::EndoscalingStep(step as u32));
+                push(&mut slots, &mut c, Self::EndoscalingStep(step as u32));
                 step += 1;
             }
         }
-        super::push(&mut slots, &mut c, Self::EndoscalarStage);
-        super::push(&mut slots, &mut c, Self::PointsStage);
-        super::push(&mut slots, &mut c, Self::BridgePreamble);
-        super::push(&mut slots, &mut c, Self::BridgeSPrime);
-        super::push(&mut slots, &mut c, Self::BridgeInnerError);
-        super::push(&mut slots, &mut c, Self::BridgeOuterError);
-        super::push(&mut slots, &mut c, Self::BridgeAB);
-        super::push(&mut slots, &mut c, Self::BridgeQuery);
-        super::push(&mut slots, &mut c, Self::BridgeF);
-        super::push(&mut slots, &mut c, Self::BridgeEval);
+        push(&mut slots, &mut c, Self::EndoscalarStage);
+        push(&mut slots, &mut c, Self::PointsStage);
+        push(&mut slots, &mut c, Self::BridgePreamble);
+        push(&mut slots, &mut c, Self::BridgeSPrime);
+        push(&mut slots, &mut c, Self::BridgeInnerError);
+        push(&mut slots, &mut c, Self::BridgeOuterError);
+        push(&mut slots, &mut c, Self::BridgeAB);
+        push(&mut slots, &mut c, Self::BridgeQuery);
+        push(&mut slots, &mut c, Self::BridgeF);
+        push(&mut slots, &mut c, Self::BridgeEval);
         assert!(c == NUM_RX_COMPONENTS);
         slots
     }
