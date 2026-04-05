@@ -117,7 +117,7 @@ impl InternalCircuitIndex {
 ///
 /// Analogous to [`native::RxIndex`](super::native::RxIndex) for the scalar
 /// field. Each variant maps to a polynomial in
-/// [`NestedP`](crate::proof::components::NestedP).
+/// the proof's nested-field polynomial storage.
 #[derive(Clone, Copy, Debug)]
 pub enum RxIndex {
     /// EndoscalingStep circuit rx polynomial (indexed by step number).

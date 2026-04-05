@@ -32,7 +32,9 @@ use core::marker::PhantomData;
 
 use crate::Proof;
 
-use crate::internal::native::{InternalCircuitIndex, InternalCircuitValues, RxIndex, RxValues};
+use crate::internal::native::{
+    InternalCircuitIndex, InternalCircuitValues, RxComponent, RxIndex, RxValues,
+};
 
 /// Witness for a child proof's polynomial evaluations.
 pub struct ChildEvaluationsWitness<F> {
@@ -66,13 +68,12 @@ impl<F: PrimeField> ChildEvaluationsWitness<F> {
         registry_wy: &sparse::Polynomial<F, R>,
     ) -> Self {
         ChildEvaluationsWitness {
-            rx: RxValues::from_fn(|id| proof.native_rx_poly(id).eval(xz)),
-            a_poly_at_xz: proof.ab.native.a_poly.eval(xz),
-            b_poly_at_x: proof.ab.native.b_poly.eval(x),
-            child_registry_xy_at_current_w: proof.query.native.registry_xy_poly.eval(w),
-            current_registry_xy_at_child_circuit_id: registry_xy
-                .eval(proof.application.circuit_id.omega_j()),
-            current_registry_wy_at_child_x: registry_wy.eval(proof.challenges.x),
+            rx: RxValues::from_fn(|id| proof[id].eval(xz)),
+            a_poly_at_xz: proof[RxComponent::AbA].eval(xz),
+            b_poly_at_x: proof[RxComponent::AbB].eval(x),
+            child_registry_xy_at_current_w: proof.native_registry_xy_poly().eval(w),
+            current_registry_xy_at_child_circuit_id: registry_xy.eval(proof.circuit_id().omega_j()),
+            current_registry_wy_at_child_x: registry_wy.eval(proof.x()),
         }
     }
 }

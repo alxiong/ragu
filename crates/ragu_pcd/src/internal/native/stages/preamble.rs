@@ -175,22 +175,11 @@ impl<'dr, D: Driver<'dr, F = C::CircuitField>, C: Cycle, const HEADER_SIZE: usiz
 
         Ok(ProofInputs {
             children: ChildHeaders {
-                left: alloc_header(
-                    dr,
-                    proof.as_ref().map(|p| p.application.left_header.as_slice()),
-                )?,
-                right: alloc_header(
-                    dr,
-                    proof
-                        .as_ref()
-                        .map(|p| p.application.right_header.as_slice()),
-                )?,
+                left: alloc_header(dr, proof.as_ref().map(|p| p.left_header()))?,
+                right: alloc_header(dr, proof.as_ref().map(|p| p.right_header()))?,
             },
             output_header: alloc_header(dr, output_header.as_ref().map(|h| &h[..]))?,
-            circuit_id: Element::alloc(
-                dr,
-                proof.as_ref().map(|p| p.application.circuit_id.omega_j()),
-            )?,
+            circuit_id: Element::alloc(dr, proof.as_ref().map(|p| p.circuit_id().omega_j()))?,
             unified: unified::Output::alloc_from_proof(dr, proof)?,
         })
     }

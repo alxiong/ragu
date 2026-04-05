@@ -1,7 +1,7 @@
 //! Commit to the error (off-diagonal) terms of the first revdot folding
 //! reductions.
 //!
-//! This creates the [`proof::InnerError`] component of the proof, which commits to
+//! This sets the inner-error fields on the [`ProofBuilder`], which commits to
 //! the `inner_error` stage.
 //!
 //! This phase of the fuse operation is also used to commit to the $m(w, X, y)$
@@ -9,7 +9,11 @@
 
 use ff::Field;
 use ragu_arithmetic::Cycle;
-use ragu_circuits::{polynomials::Rank, registry::RegistryAt, staging::StageExt};
+use ragu_circuits::{
+    polynomials::{Rank, sparse},
+    registry::RegistryAt,
+    staging::StageExt,
+};
 use ragu_core::{Result, drivers::Driver, maybe::Maybe};
 use ragu_primitives::Element;
 use rand::CryptoRng;
@@ -17,7 +21,7 @@ use rand::CryptoRng;
 use crate::{
     Application,
     internal::{claims, fold_revdot, native, nested},
-    proof,
+    proof::ProofBuilder,
 };
 
 use super::RegistryWy;
@@ -31,8 +35,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         y: &Element<'dr, D>,
         z: &Element<'dr, D>,
         source: &FuseProofSource<'rx, C, R>,
+        builder: &mut ProofBuilder<'_, C, R>,
     ) -> Result<(
-        proof::InnerError<C, R>,
         native::stages::inner_error::Witness<C, native::RevdotParameters>,
         FuseBuilder<'_, 'rx, C::CircuitField, R>,
         RegistryWy<C, R>,
@@ -40,29 +44,22 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     where
         D: Driver<'dr, F = C::CircuitField>,
     {
-        let (rx_committed, registry_wy, inner_error_witness, builder) =
+        let (native_rx, registry_wy, inner_error_witness, claims_builder) =
             self.compute_native_inner_error(rng, native_registry, y, z, source)?;
 
-        let bridge = proof::Bridge::commit(
-            self.params,
-            nested::stages::inner_error::Stage::<C::HostCurve, R>::rx(
-                C::ScalarField::random(&mut *rng),
-                &nested::stages::inner_error::Witness {
-                    native_inner_error: rx_committed.commitment,
-                    registry_wy: registry_wy.commitment,
-                },
-            )?,
-        );
+        builder.set_native_inner_error_rx(native_rx);
 
-        Ok((
-            proof::InnerError {
-                native: rx_committed,
-                bridge,
+        let bridge_rx = nested::stages::inner_error::Stage::<C::HostCurve, R>::rx(
+            C::ScalarField::random(&mut *rng),
+            &nested::stages::inner_error::Witness {
+                native_inner_error: builder.native_inner_error_commitment(),
+                registry_wy: registry_wy.commitment,
             },
-            inner_error_witness,
-            builder,
-            registry_wy,
-        ))
+        )?;
+        let bridge_commitment = bridge_rx.commit_to_affine(C::nested_generators(self.params));
+        builder.set_bridge_inner_error_rx(bridge_rx, bridge_commitment);
+
+        Ok((inner_error_witness, claims_builder, registry_wy))
     }
 
     fn compute_native_inner_error<'dr, 'rx, D, RNG: CryptoRng>(
@@ -73,7 +70,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         z: &Element<'dr, D>,
         source: &FuseProofSource<'rx, C, R>,
     ) -> Result<(
-        proof::RxCommitted<C, R>,
+        sparse::Polynomial<C::CircuitField, R>,
         RegistryWy<C, R>,
         native::stages::inner_error::Witness<C, native::RevdotParameters>,
         FuseBuilder<'_, 'rx, C::CircuitField, R>,
@@ -102,16 +99,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         let registry_wy_poly = native_registry.y(y);
 
         let host_gen = C::host_generators(self.params);
-        let [registry_wy_commitment, native_commitment] = ragu_arithmetic::batch_to_affine([
-            registry_wy_poly.commit(host_gen),
-            native_rx.commit(host_gen),
-        ]);
+        let registry_wy_commitment = registry_wy_poly.commit_to_affine(host_gen);
 
         Ok((
-            proof::RxCommitted {
-                rx: native_rx,
-                commitment: native_commitment,
-            },
+            native_rx,
             RegistryWy {
                 poly: registry_wy_poly,
                 commitment: registry_wy_commitment,

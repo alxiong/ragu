@@ -1,6 +1,6 @@
 //! Commit to the evaluations of every queried polynomial at $u$.
 //!
-//! This creates the [`proof::Eval`] component of the proof, which contains
+//! This sets the eval fields on the [`ProofBuilder`], which contain
 //! evaluations of every committed or accumulated polynomial (thus far) at the
 //! point $u$, except $f(u)$ which is _derived_ from said evaluations.
 
@@ -12,11 +12,7 @@ use ragu_primitives::Element;
 use rand::CryptoRng;
 
 use super::{NativeSPrime, RegistryWy};
-use crate::{
-    Application, Proof,
-    internal::{native, nested},
-    proof,
-};
+use crate::{Application, Proof, internal::native, proof::ProofBuilder};
 
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_SIZE> {
     pub(super) fn compute_eval<'dr, D, RNG: CryptoRng>(
@@ -27,35 +23,15 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         right: &Proof<C, R>,
         s_prime: &NativeSPrime<C, R>,
         registry_wy: &RegistryWy<C, R>,
-        ab: &proof::AB<C, R>,
-        query: &proof::Query<C, R>,
-    ) -> Result<(
-        proof::Eval<C, R>,
-        native::stages::eval::Witness<C::CircuitField>,
-    )>
+        builder: &mut ProofBuilder<'_, C, R>,
+    ) -> Result<native::stages::eval::Witness<C::CircuitField>>
     where
         D: Driver<'dr, F = C::CircuitField>,
     {
-        let (native_eval, eval_witness) =
-            self.compute_native_eval(rng, u, left, right, s_prime, registry_wy, ab, query)?;
+        let eval_witness =
+            self.compute_native_eval(rng, u, left, right, s_prime, registry_wy, builder)?;
 
-        let bridge = proof::Bridge::commit(
-            self.params,
-            nested::stages::eval::Stage::<C::HostCurve, R>::rx(
-                C::ScalarField::random(&mut *rng),
-                &nested::stages::eval::Witness {
-                    native_eval: native_eval.commitment,
-                },
-            )?,
-        );
-
-        Ok((
-            proof::Eval {
-                native: native_eval,
-                bridge,
-            },
-            eval_witness,
-        ))
+        Ok(eval_witness)
     }
 
     fn compute_native_eval<'dr, D, RNG: CryptoRng>(
@@ -66,12 +42,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         right: &Proof<C, R>,
         s_prime: &NativeSPrime<C, R>,
         registry_wy: &RegistryWy<C, R>,
-        ab: &proof::AB<C, R>,
-        query: &proof::Query<C, R>,
-    ) -> Result<(
-        proof::RxCommitted<C, R>,
-        native::stages::eval::Witness<C::CircuitField>,
-    )>
+        builder: &mut ProofBuilder<'_, C, R>,
+    ) -> Result<native::stages::eval::Witness<C::CircuitField>>
     where
         D: Driver<'dr, F = C::CircuitField>,
     {
@@ -88,17 +60,18 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 registry_wx0: s_prime.registry_wx0_poly.eval(u),
                 registry_wx1: s_prime.registry_wx1_poly.eval(u),
                 registry_wy: registry_wy.poly.eval(u),
-                a_poly: ab.native.a_poly.eval(u),
-                b_poly: ab.native.b_poly.eval(u),
-                registry_xy: query.native.registry_xy_poly.eval(u),
+                a_poly: builder.native_a_poly().eval(u),
+                b_poly: builder.native_b_poly().eval(u),
+                registry_xy: builder.native_registry_xy_poly().eval(u),
             },
         };
         let rx = native::stages::eval::Stage::<C, R, HEADER_SIZE>::rx(
             C::CircuitField::random(&mut *rng),
             &eval_witness,
         )?;
-        let commitment = rx.commit_to_affine(C::host_generators(self.params));
 
-        Ok((proof::RxCommitted { rx, commitment }, eval_witness))
+        builder.set_native_eval_rx(rx);
+
+        Ok(eval_witness)
     }
 }

@@ -187,11 +187,7 @@ impl<'rx, C: Cycle, R: Rank> FuseProofSource<'rx, C, R> {
             Side::Left => self.left,
             Side::Right => self.right,
         };
-        match component {
-            RxComponent::AbA => proof.ab.native.a_commitment,
-            RxComponent::AbB => proof.ab.native.b_commitment,
-            RxComponent::Rx(idx) => proof[idx].commitment,
-        }
+        proof.native_commitment(component)
     }
 }
 
@@ -204,22 +200,18 @@ impl<'rx, C: Cycle, R: Rank> Source for FuseProofSource<'rx, C, R> {
         [
             Atom {
                 key: (Side::Left, component),
-                poly: self.left.native_rx(component),
+                poly: &self.left[component],
             },
             Atom {
                 key: (Side::Right, component),
-                poly: self.right.native_rx(component),
+                poly: &self.right[component],
             },
         ]
         .into_iter()
     }
 
     fn app_circuits(&self) -> impl Iterator<Item = Self::AppCircuitId> {
-        [
-            self.left.application.circuit_id,
-            self.right.application.circuit_id,
-        ]
-        .into_iter()
+        [self.left.circuit_id(), self.right.circuit_id()].into_iter()
     }
 }
 

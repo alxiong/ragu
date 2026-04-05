@@ -42,12 +42,12 @@ impl<C: CurveAffine> ChildWitness<C> {
     pub fn from_proof<CC: Cycle<HostCurve = C>, R: Rank>(proof: &Proof<CC, R>) -> Self {
         use crate::internal::native::RxIndex;
         Self {
-            application: proof[RxIndex::Application].commitment,
-            hashes_1: proof[RxIndex::Hashes1].commitment,
-            hashes_2: proof[RxIndex::Hashes2].commitment,
-            inner_collapse: proof[RxIndex::InnerCollapse].commitment,
-            outer_collapse: proof[RxIndex::OuterCollapse].commitment,
-            compute_v: proof[RxIndex::ComputeV].commitment,
+            application: proof.native_rx_commitment(RxIndex::Application),
+            hashes_1: proof.native_rx_commitment(RxIndex::Hashes1),
+            hashes_2: proof.native_rx_commitment(RxIndex::Hashes2),
+            inner_collapse: proof.native_rx_commitment(RxIndex::InnerCollapse),
+            outer_collapse: proof.native_rx_commitment(RxIndex::OuterCollapse),
+            compute_v: proof.native_rx_commitment(RxIndex::ComputeV),
         }
     }
 }

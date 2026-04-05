@@ -1,7 +1,7 @@
 //! Commit to $m(w, x_i, Y)$ polynomials for the child proofs.
 //!
-//! This creates the [`proof::SPrime`] component of the proof, which commits to
-//! the $m(w, x_i, Y)$ polynomials for the $i$th child proof's $x$ challenge.
+//! This sets the s-prime fields on the [`ProofBuilder`], which commits to the
+//! $m(w, x_i, Y)$ polynomials for the $i$th child proof's $x$ challenge.
 
 use ff::Field;
 use ragu_arithmetic::Cycle;
@@ -10,7 +10,7 @@ use ragu_core::Result;
 use rand::CryptoRng;
 
 use super::NativeSPrime;
-use crate::{Application, Proof, internal::nested, proof};
+use crate::{Application, Proof, internal::nested, proof::ProofBuilder};
 
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_SIZE> {
     pub(super) fn compute_s_prime<RNG: CryptoRng>(
@@ -19,21 +19,21 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         native_registry: &RegistryAt<'_, C::CircuitField, R>,
         left: &Proof<C, R>,
         right: &Proof<C, R>,
-    ) -> Result<(proof::SPrime<C, R>, NativeSPrime<C, R>)> {
+        builder: &mut ProofBuilder<'_, C, R>,
+    ) -> Result<NativeSPrime<C, R>> {
         let native = self.compute_native_s_prime(native_registry, left, right)?;
 
-        let bridge = proof::Bridge::commit(
-            self.params,
-            nested::stages::s_prime::Stage::<C::HostCurve, R>::rx(
-                C::ScalarField::random(&mut *rng),
-                &nested::stages::s_prime::Witness {
-                    registry_wx0: native.registry_wx0_commitment,
-                    registry_wx1: native.registry_wx1_commitment,
-                },
-            )?,
-        );
+        let bridge_rx = nested::stages::s_prime::Stage::<C::HostCurve, R>::rx(
+            C::ScalarField::random(&mut *rng),
+            &nested::stages::s_prime::Witness {
+                registry_wx0: native.registry_wx0_commitment,
+                registry_wx1: native.registry_wx1_commitment,
+            },
+        )?;
+        let bridge_commitment = bridge_rx.commit_to_affine(C::nested_generators(self.params));
+        builder.set_bridge_s_prime_rx(bridge_rx, bridge_commitment);
 
-        Ok((proof::SPrime { bridge }, native))
+        Ok(native)
     }
 
     fn compute_native_s_prime(
@@ -42,8 +42,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         left: &Proof<C, R>,
         right: &Proof<C, R>,
     ) -> Result<NativeSPrime<C, R>> {
-        let x0 = left.challenges.x;
-        let x1 = right.challenges.x;
+        let x0 = left.x();
+        let x1 = right.x();
 
         let registry_wx0_poly = native_registry.x(x0);
         let registry_wx1_poly = native_registry.x(x1);

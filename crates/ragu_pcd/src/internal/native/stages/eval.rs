@@ -14,7 +14,7 @@ use ragu_primitives::{Element, io::Write};
 use core::marker::PhantomData;
 
 use crate::Proof;
-use crate::internal::native::RxValues;
+use crate::internal::native::{RxComponent, RxValues};
 
 /// Pre-computed polynomial evaluations at $u$ (from the parent fuse operation)
 /// for a child proof.
@@ -30,11 +30,11 @@ impl<F: PrimeField> ChildEvaluationsWitness<F> {
     /// Create child evaluations witness from a proof evaluated at point u.
     pub fn from_proof<C: Cycle<CircuitField = F>, R: Rank>(proof: &Proof<C, R>, u: F) -> Self {
         ChildEvaluationsWitness {
-            rx: RxValues::from_fn(|id| proof.native_rx_poly(id).eval(u)),
-            a_poly: proof.ab.native.a_poly.eval(u),
-            b_poly: proof.ab.native.b_poly.eval(u),
-            registry_xy_poly: proof.query.native.registry_xy_poly.eval(u),
-            p_poly: proof.p.native.poly.eval(u),
+            rx: RxValues::from_fn(|id| proof[id].eval(u)),
+            a_poly: proof[RxComponent::AbA].eval(u),
+            b_poly: proof[RxComponent::AbB].eval(u),
+            registry_xy_poly: proof.native_registry_xy_poly().eval(u),
+            p_poly: proof.native_p_poly().eval(u),
         }
     }
 }

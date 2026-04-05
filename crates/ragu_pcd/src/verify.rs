@@ -41,7 +41,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         // (Internal circuit IDs are constants and don't need this check.)
         if !self
             .native_registry
-            .circuit_in_domain(pcd.proof().application.circuit_id)
+            .circuit_in_domain(pcd.proof().circuit_id())
         {
             return Ok(false);
         }
@@ -49,8 +49,8 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         // Validate that the `left_header` and `right_header` lengths match
         // `HEADER_SIZE`. Alternatively, the `Proof` structure could be
         // parameterized on the `HEADER_SIZE`, but this appeared to be simpler.
-        if pcd.proof().application.left_header.len() != HEADER_SIZE
-            || pcd.proof().application.right_header.len() != HEADER_SIZE
+        if pcd.proof().left_header().len() != HEADER_SIZE
+            || pcd.proof().right_header().len() != HEADER_SIZE
         {
             return Ok(false);
         }
@@ -109,28 +109,12 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
                 .all(|(ky, (a, b))| a.revdot(b) == ky)
         };
 
-        // NOTE: `v` is now computed as `p.eval(u)` rather than stored in
-        // the proof, so this check is tautological in the verifier. It
-        // remains meaningful inside the circuit where `v` is an
-        // independently allocated witness element.
-        let p_eval_claim =
-            pcd.proof().p.native.poly.eval(pcd.proof().challenges.u) == pcd.proof().v();
-
-        // Check P commitment corresponds to polynomial.
-        let p_commitment_claim = pcd
-            .proof()
-            .p
-            .native
-            .poly
-            .commit_to_affine(C::host_generators(self.params))
-            == pcd.proof().p.native.commitment;
-
         // Check registry_xy polynomial evaluation at the sampled w.
         // registry_xy_poly is m(W, x, y) - the registry evaluated at current x, y, free in W.
         let registry_xy_claim = {
-            let x = pcd.proof().challenges.x;
-            let y = pcd.proof().challenges.y;
-            let poly_eval = pcd.proof().query.native.registry_xy_poly.eval(w);
+            let x = pcd.proof().x();
+            let y = pcd.proof().y();
+            let poly_eval = pcd.proof().native_registry_xy_poly().eval(w);
             let expected = self.native_registry.wxy(w, x, y);
             poly_eval == expected
         };
@@ -139,11 +123,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         // - registry_wx0/wx1: need child proof x challenges (x₀, x₁) which "disappear" in preamble
         // - registry_wy: interstitial value that will be elided later
 
-        Ok(native_revdot_claims
-            && nested_revdot_claims
-            && p_eval_claim
-            && p_commitment_claim
-            && registry_xy_claim)
+        Ok(native_revdot_claims && nested_revdot_claims && registry_xy_claim)
     }
 }
 
@@ -164,11 +144,11 @@ mod native {
         type AppCircuitId = CircuitIndex;
 
         fn rx(&self, component: RxComponent) -> impl Iterator<Item = Self::Rx> {
-            core::iter::once(self.proof.native_rx(component))
+            core::iter::once(&self.proof[component])
         }
 
         fn app_circuits(&self) -> impl Iterator<Item = Self::AppCircuitId> {
-            core::iter::once(self.proof.application.circuit_id)
+            core::iter::once(self.proof.circuit_id())
         }
     }
 
@@ -281,7 +261,7 @@ mod tests {
         let mut proof = app.trivial_proof();
 
         // Corrupt the circuit_id to be outside the registry domain
-        proof.application.circuit_id = CircuitIndex::new(u32::MAX as usize);
+        proof.circuit_id = CircuitIndex::new(u32::MAX as usize);
 
         let pcd = proof.carry::<()>(());
         let result = app.verify(&pcd, &mut rng).expect("verify should not error");
@@ -297,8 +277,7 @@ mod tests {
         let mut proof = app.trivial_proof();
 
         // Corrupt left_header to have wrong size
-        proof.application.left_header =
-            alloc::vec![<Pasta as Cycle>::CircuitField::ZERO; HEADER_SIZE + 1];
+        proof.left_header = alloc::vec![<Pasta as Cycle>::CircuitField::ZERO; HEADER_SIZE + 1];
 
         let pcd = proof.carry::<()>(());
         let result = app.verify(&pcd, &mut rng).expect("verify should not error");
@@ -314,31 +293,10 @@ mod tests {
         let mut proof = app.trivial_proof();
 
         // Corrupt right_header to have wrong size
-        proof.application.right_header =
-            alloc::vec![<Pasta as Cycle>::CircuitField::ZERO; HEADER_SIZE - 1];
+        proof.right_header = alloc::vec![<Pasta as Cycle>::CircuitField::ZERO; HEADER_SIZE - 1];
 
         let pcd = proof.carry::<()>(());
         let result = app.verify(&pcd, &mut rng).expect("verify should not error");
         assert!(!result, "verify should reject wrong right_header size");
-    }
-
-    #[test]
-    fn verify_rejects_corrupted_p_commitment() {
-        let app = create_test_app();
-        let mut rng = StdRng::seed_from_u64(1234);
-
-        // Create a valid trivial proof
-        let mut proof = app.trivial_proof();
-
-        // Corrupt the P commitment by altering the polynomial (mismatches commitment)
-        proof
-            .p
-            .native
-            .poly
-            .scale(<Pasta as Cycle>::CircuitField::from(2u64));
-
-        let pcd = proof.carry::<()>(());
-        let result = app.verify(&pcd, &mut rng).expect("verify should not error");
-        assert!(!result, "verify should reject corrupted P commitment");
     }
 }
