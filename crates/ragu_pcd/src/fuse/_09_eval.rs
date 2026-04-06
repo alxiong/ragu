@@ -1,8 +1,8 @@
 //! Commit to the evaluations of every queried polynomial at $u$.
 //!
-//! This sets the eval fields on the [`ProofBuilder`], which contain
-//! evaluations of every committed or accumulated polynomial (thus far) at the
-//! point $u$, except $f(u)$ which is _derived_ from said evaluations.
+//! This sets the native `eval` stage containing the claimed evaluations at $u$
+//! of every element that was also queried in the `query` stage. The evaluation
+//! $f(u)$ is derived from the aforementioned evaluations.
 
 use ff::Field;
 use ragu_arithmetic::Cycle;
@@ -16,25 +16,6 @@ use crate::{Application, Proof, internal::native, proof::ProofBuilder};
 
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_SIZE> {
     pub(super) fn compute_eval<'dr, D, RNG: CryptoRng>(
-        &self,
-        rng: &mut RNG,
-        u: &Element<'dr, D>,
-        left: &Proof<C, R>,
-        right: &Proof<C, R>,
-        s_prime: &NativeSPrime<C, R>,
-        registry_wy: &RegistryWy<C, R>,
-        builder: &mut ProofBuilder<'_, C, R>,
-    ) -> Result<native::stages::eval::Witness<C::CircuitField>>
-    where
-        D: Driver<'dr, F = C::CircuitField>,
-    {
-        let eval_witness =
-            self.compute_native_eval(rng, u, left, right, s_prime, registry_wy, builder)?;
-
-        Ok(eval_witness)
-    }
-
-    fn compute_native_eval<'dr, D, RNG: CryptoRng>(
         &self,
         rng: &mut RNG,
         u: &Element<'dr, D>,

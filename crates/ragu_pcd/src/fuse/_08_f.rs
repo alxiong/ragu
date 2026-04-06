@@ -1,12 +1,12 @@
 //! Construct and commit to $f(X)$.
 //!
-//! This sets the $f(X)$ field on the [`ProofBuilder`], a multi-quotient
-//! polynomial that witnesses the correct evaluations of every claimed query
-//! in the query stage for all of the committed polynomials so far.
+//! This computes the multi-quotient polynomial $f(X)$ that acts as a witness
+//! for the claimed evaluations in the `query` stage. This also constructs the
+//! bridge for committing to the polynomial.
 //!
-//! Each `factor_iter` call below produces the coefficients of
-//! $(p\_i(X) - v\_i) / (X - x\_i)$ for a single query. The total number of
-//! terms must match `poly_queries` in the `compute_v` circuit exactly.
+//! Each `factor_iter` call below produces the coefficients of $(p\_i(X) - v\_i)
+//! / (X - x\_i)$ for a single query. The terms must match `poly_queries` in the
+//! `compute_v` circuit exactly.
 
 use ff::Field;
 use ragu_arithmetic::Cycle;
@@ -62,6 +62,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
             right,
         )?;
 
+        // The bridge is manually computed here, rather than having the
+        // [`ProofBuilder`] retain the native copy that derives it, since the
+        // `f` polynomial is not retained after the fuse step, and so does not
+        // need to appear in the proof.
         let bridge_rx = nested::stages::f::Stage::<C::HostCurve, R>::rx(
             C::ScalarField::random(&mut *rng),
             &nested::stages::f::Witness {

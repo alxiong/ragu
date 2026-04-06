@@ -1,9 +1,9 @@
-//! Commit to the polynomial query claims at various points (typically $x$,
-//! $xz$, $w$).
+//! Commit to the polynomial query claims at various points ($x$, $xz$, $w$, and
+//! $\omega^i$ for various internal circuits).
 //!
-//! This sets the query fields on the [`ProofBuilder`], which contain claimed
-//! evaluations (corresponding to each polynomial query) usually at points
-//! like $x$, $xz$, and $w$.
+//! This sets the native `query` stage containing the claimed evaluations at
+//! various points that are then relied on in the revdot claims infrastructure.
+//! (See the `compute_v` circuit.)
 //!
 //! This phase of the fuse operation is also used to commit to the $m(W, x, y)$
 //! restriction.
@@ -20,27 +20,6 @@ use crate::{Application, Proof, internal::native, proof::ProofBuilder};
 
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_SIZE> {
     pub(super) fn compute_query<'dr, D, RNG: CryptoRng>(
-        &self,
-        rng: &mut RNG,
-        w: &Element<'dr, D>,
-        x: &Element<'dr, D>,
-        y: &Element<'dr, D>,
-        z: &Element<'dr, D>,
-        registry_wy: &RegistryWy<C, R>,
-        left: &Proof<C, R>,
-        right: &Proof<C, R>,
-        builder: &mut ProofBuilder<'_, C, R>,
-    ) -> Result<native::stages::query::Witness<C>>
-    where
-        D: Driver<'dr, F = C::CircuitField>,
-    {
-        let query_witness =
-            self.compute_native_query(rng, w, x, y, z, registry_wy, left, right, builder)?;
-
-        Ok(query_witness)
-    }
-
-    fn compute_native_query<'dr, D, RNG: CryptoRng>(
         &self,
         rng: &mut RNG,
         w: &Element<'dr, D>,
