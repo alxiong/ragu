@@ -184,7 +184,16 @@ impl RxIndex {
 
 pub mod claims;
 
-pub mod stages;
+pub mod stages {
+    pub mod ab;
+    pub mod eval;
+    pub mod f;
+    pub mod inner_error;
+    pub mod outer_error;
+    pub mod preamble;
+    pub mod query;
+    pub mod s_prime;
+}
 
 /// Registers internal nested circuits into the provided registry.
 ///
