@@ -55,6 +55,26 @@ macro_rules! native_commitment_getter {
     };
 }
 
+/// Produces `pub(crate) fn $getter(&self) -> C::NestedCurve` that lazily
+/// computes and caches a nested commitment from a polynomial via
+/// `commit_to_affine`.
+macro_rules! nested_commitment_getter {
+    ($getter:ident, $cache:ident, $poly:ident) => {
+        pub(crate) fn $getter(&self) -> C::NestedCurve {
+            if let Some(c) = self.$cache.get() {
+                return c;
+            }
+            let c = self
+                .$poly
+                .as_ref()
+                .expect(concat!(stringify!($poly), " not set"))
+                .commit_to_affine(C::nested_generators(self.params));
+            self.$cache.set(Some(c));
+            c
+        }
+    };
+}
+
 /// Produces a [`setter!`] for `sparse::Polynomial<C::CircuitField, R>`,
 /// eliding the repeated type.
 macro_rules! native_setter {
@@ -246,6 +266,11 @@ pub(crate) struct ProofBuilder<'params, C: Cycle, R: Rank> {
     nested_endoscalar_rx: Option<sparse::Polynomial<C::ScalarField, R>>,
     nested_points_rx: Option<sparse::Polynomial<C::ScalarField, R>>,
 
+    // Nested endoscaling commitment caches (lazily computed from polynomials)
+    nested_endoscaling_step_commitments: Cell<Option<Vec<C::NestedCurve>>>,
+    nested_endoscalar_commitment: Cell<Option<C::NestedCurve>>,
+    nested_points_commitment: Cell<Option<C::NestedCurve>>,
+
     // Challenges
     w: Option<C::CircuitField>,
     y: Option<C::CircuitField>,
@@ -321,6 +346,9 @@ impl<'params, C: Cycle, R: Rank> ProofBuilder<'params, C, R> {
             nested_endoscaling_step_rxs: None,
             nested_endoscalar_rx: None,
             nested_points_rx: None,
+            nested_endoscaling_step_commitments: Cell::new(None),
+            nested_endoscalar_commitment: Cell::new(None),
+            nested_points_commitment: Cell::new(None),
             w: None,
             y: None,
             z: None,
@@ -531,6 +559,38 @@ impl<'params, C: Cycle, R: Rank> ProofBuilder<'params, C, R> {
     setter!(set_nested_endoscalar_rx, nested_endoscalar_rx, sparse::Polynomial<C::ScalarField, R>);
     setter!(set_nested_points_rx, nested_points_rx, sparse::Polynomial<C::ScalarField, R>);
 
+    /// Lazily computes and caches commitments for all endoscaling step rx
+    /// polynomials. Returns the cached slice.
+    pub(crate) fn nested_endoscaling_step_commitments(&self) -> Vec<C::NestedCurve> {
+        if let Some(c) = self.nested_endoscaling_step_commitments.take() {
+            self.nested_endoscaling_step_commitments
+                .set(Some(c.clone()));
+            return c;
+        }
+        let nested_gen = C::nested_generators(self.params);
+        let c: Vec<C::NestedCurve> = self
+            .nested_endoscaling_step_rxs
+            .as_ref()
+            .expect("nested_endoscaling_step_rxs not set")
+            .iter()
+            .map(|rx| rx.commit_to_affine(nested_gen))
+            .collect();
+        self.nested_endoscaling_step_commitments
+            .set(Some(c.clone()));
+        c
+    }
+
+    nested_commitment_getter!(
+        nested_endoscalar_commitment,
+        nested_endoscalar_commitment,
+        nested_endoscalar_rx
+    );
+    nested_commitment_getter!(
+        nested_points_commitment,
+        nested_points_commitment,
+        nested_points_rx
+    );
+
     setter!(set_w, w, C::CircuitField);
     setter!(set_y, y, C::CircuitField);
     setter!(set_z, z, C::CircuitField);
@@ -622,6 +682,11 @@ impl<'params, C: Cycle, R: Rank> ProofBuilder<'params, C, R> {
         self.bridge_query_commitment()?;
         self.bridge_eval_commitment()?;
 
+        // Ensure nested endoscaling commitment caches are populated.
+        self.nested_endoscaling_step_commitments();
+        self.nested_endoscalar_commitment();
+        self.nested_points_commitment();
+
         macro_rules! take {
             ($field:ident) => {
                 self.$field.expect(concat!(stringify!($field), " not set"))
@@ -688,6 +753,24 @@ impl<'params, C: Cycle, R: Rank> ProofBuilder<'params, C, R> {
             nested_endoscaling_step_rxs: take!(nested_endoscaling_step_rxs),
             nested_endoscalar_rx: take!(nested_endoscalar_rx),
             nested_points_rx: take!(nested_points_rx),
+
+            nested_endoscaling_step_commitments: self
+                .nested_endoscaling_step_commitments
+                .take()
+                .expect("nested_endoscaling_step_commitments not set")
+                .into_iter()
+                .map(Cached)
+                .collect(),
+            nested_endoscalar_commitment: Cached(
+                self.nested_endoscalar_commitment
+                    .get()
+                    .expect("nested_endoscalar_commitment not set"),
+            ),
+            nested_points_commitment: Cached(
+                self.nested_points_commitment
+                    .get()
+                    .expect("nested_points_commitment not set"),
+            ),
 
             w: take!(w),
             y: take!(y),

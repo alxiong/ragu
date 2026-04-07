@@ -116,10 +116,15 @@ pub struct Proof<C: Cycle, R: Rank> {
     bridge_query_rx: Cached<sparse::Polynomial<C::ScalarField, R>>,
     bridge_eval_rx: Cached<sparse::Polynomial<C::ScalarField, R>>,
 
-    // Nested endoscaling data (ScalarField, no individual commitments)
+    // Nested endoscaling data (ScalarField, NestedCurve commitment)
     pub(crate) nested_endoscaling_step_rxs: Vec<sparse::Polynomial<C::ScalarField, R>>,
     pub(crate) nested_endoscalar_rx: sparse::Polynomial<C::ScalarField, R>,
     pub(crate) nested_points_rx: sparse::Polynomial<C::ScalarField, R>,
+
+    // Nested endoscaling commitment caches
+    nested_endoscaling_step_commitments: Vec<Cached<C::NestedCurve>>,
+    nested_endoscalar_commitment: Cached<C::NestedCurve>,
+    nested_points_commitment: Cached<C::NestedCurve>,
 
     // Challenges
     pub(crate) w: C::CircuitField,
@@ -360,6 +365,18 @@ impl<C: Cycle, R: Rank> Proof<C, R> {
 
     pub(crate) fn bridge_eval_commitment(&self) -> C::NestedCurve {
         self.bridge_eval_commitment.0
+    }
+
+    pub(crate) fn nested_endoscaling_step_commitment(&self, step: u32) -> C::NestedCurve {
+        self.nested_endoscaling_step_commitments[step as usize].0
+    }
+
+    pub(crate) fn nested_endoscalar_commitment(&self) -> C::NestedCurve {
+        self.nested_endoscalar_commitment.0
+    }
+
+    pub(crate) fn nested_points_commitment(&self) -> C::NestedCurve {
+        self.nested_points_commitment.0
     }
 }
 
