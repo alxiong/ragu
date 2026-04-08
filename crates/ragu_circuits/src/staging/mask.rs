@@ -7,6 +7,39 @@ use crate::{
     polynomials::{Rank, sparse},
 };
 
+/// Evaluates the global stage mask polynomial $S_{\text{global}}(X, Y)$ at
+/// the point $(x, y)$.
+///
+/// The global mask enforces all $4n$ wire slots to zero except the four wires
+/// of the SYSTEM gate (gate 0):
+///
+/// $$S_{\text{global}}(xy) = \sum_{i=0}^{4n-1} (xy)^i
+///     - \bigl((xy)^{2n} + 1\bigr)\bigl((xy)^{2n-1} + 1\bigr)$$
+///
+/// The polynomial depends only on the product $XY$, so both variables
+/// enter only through $xy = x \cdot y$.
+///
+/// This term is invariant across all [`StageMask`] instances for a given
+/// `(R, F)` — it depends only on `R::n()`. The [`Registry`] computes it once
+/// and scales by the sum of Lagrange coefficients for all bonding polynomials,
+/// rather than letting each mask evaluate it redundantly.
+///
+/// Returns [`Field::ZERO`] when `x == 0` or `y == 0` (bonding polynomials
+/// have zero constant term in $Y$).
+///
+/// [`Registry`]: crate::registry::Registry
+pub(crate) fn global_mask<F: Field, R: Rank>(x: F, y: F) -> F {
+    if x == F::ZERO || y == F::ZERO {
+        return F::ZERO;
+    }
+
+    let xy = x * y;
+    let xy_2n = xy.pow_vartime([2 * R::n() as u64]);
+    let xy_inv = xy.invert().expect("xy is not zero");
+
+    geosum(xy, R::n() << 2) - (xy_2n + F::ONE) * (xy_2n * xy_inv + F::ONE)
+}
+
 #[derive(Clone)]
 pub struct StageMask<R: Rank> {
     skip_gates: usize,
@@ -105,36 +138,31 @@ impl<R: Rank> StageMask<R> {
 }
 
 impl<F: Field, R: Rank> CircuitObject<F, R> for StageMask<R> {
+    /// Evaluates the per-instance notch term $-\text{notch}(x, y)$.
+    ///
+    /// The full stage mask is $S_{\text{global}} - \text{notch}$, but
+    /// the invariant $S_{\text{global}}$ term is factored out and applied
+    /// once by the [`Registry`](crate::registry::Registry). This method
+    /// returns only $-\text{notch}$, where
+    ///
+    /// $$\text{notch}(xy) = (1 + (xy)^{2n})\bigl((xy)^g + (xy)^{2n-g-m}\bigr)
+    ///     \cdot \sum_{i=0}^{m-1} (xy)^i$$
+    ///
+    /// with $g = \text{skip\_gates}$ and $m = \text{num\_gates}$.
     fn sxy(&self, x: F, y: F, _floor_plan: &[crate::floor_planner::ConstraintSegment]) -> F {
         if x == F::ZERO || y == F::ZERO {
-            // If either x or y is zero, the polynomial evaluates to zero
-            // (the constant term of a bonding polynomial is always zero).
             return F::ZERO;
         }
 
-        // Precomputed (ideally):
         let xy = x * y;
         let xy_2n = xy.pow_vartime([2 * R::n() as u64]);
         let xy_inv = xy.invert().expect("xy is not zero");
 
-        /// Full wiring polynomial $S(xy)$ over all $4n$ wire slots,
-        /// minus the SYSTEM gate's four unconstrained wires.
-        fn global<F: Field>(xy: F, xy_2n: F, xy_inv: F, n: usize) -> F {
-            geosum(xy, n << 2) - (xy_2n + F::ONE) * (xy_2n * xy_inv + F::ONE)
-        }
+        let gsum = geosum(xy, self.num_gates);
+        let xy_g = xy.pow_vartime([self.skip_gates as u64]);
+        let xy_h = xy_2n * xy_inv.pow_vartime([(self.skip_gates + self.num_gates) as u64]);
 
-        /// Contribution of the `m` active-stage gates starting at gate `g`.
-        /// Subtracted from [`global`] to zero out unconstrained wires.
-        fn notch<F: Field>(xy: F, xy_2n: F, xy_inv: F, g: usize, m: usize) -> F {
-            let gsum = geosum(xy, m);
-            let xy_g = xy.pow_vartime([g as u64]);
-            let xy_h = xy_2n * xy_inv.pow_vartime([(g + m) as u64]);
-
-            (F::ONE + xy_2n) * (xy_g + xy_h) * gsum
-        }
-
-        global(xy, xy_2n, xy_inv, R::n())
-            - notch(xy, xy_2n, xy_inv, self.skip_gates, self.num_gates)
+        -((F::ONE + xy_2n) * (xy_g + xy_h) * gsum)
     }
 
     fn sx(
@@ -410,7 +438,9 @@ mod tests {
         let x = Fp::random(&mut rand::rng());
         let y = Fp::random(&mut rand::rng());
 
-        let sxy = stage_mask.sxy(x, y, &[]);
+        // sxy returns -notch; sx/sy return the full mask (global - notch).
+        let global_xy = super::global_mask::<Fp, R>(x, y);
+        let sxy = stage_mask.sxy(x, y, &[]) + global_xy;
         let sx = stage_mask.sx(x, &[]);
         let sy = stage_mask.sy(y, &[]);
 
@@ -430,7 +460,9 @@ mod tests {
         let stripped = crate::staging::bonding::Stripped::new(generic);
         let corrected_sxy = stripped.sxy(x, y, &plan);
 
-        assert_eq!(stage.sxy(x, y, &[]), corrected_sxy);
+        // StageMask returns -notch; add global to get the full mask.
+        let full_sxy = stage.sxy(x, y, &[]) + super::global_mask::<Fp, R>(x, y);
+        assert_eq!(full_sxy, corrected_sxy);
         assert_eq!(corrected_sxy, stripped.sx(x, &plan).eval(y));
         assert_eq!(corrected_sxy, stripped.sy(y, &plan).eval(x));
     }
@@ -467,7 +499,9 @@ mod tests {
         let x = Fp::random(&mut rand::rng());
         let y = Fp::random(&mut rand::rng());
 
-        let sxy = stage.sxy(x, y, &[]);
+        // sxy returns -notch; sx/sy return the full mask (global - notch).
+        let global_xy = super::global_mask::<Fp, R>(x, y);
+        let sxy = stage.sxy(x, y, &[]) + global_xy;
         let sx = stage.sx(x, &[]);
         let sy = stage.sy(y, &[]);
 
@@ -515,8 +549,9 @@ mod tests {
                 // Internal consistency of the RawCircuit impl (with correction)
                 prop_assert_eq!(sy_eval, sxy);
                 prop_assert_eq!(sx_eval, sxy);
-                // Match against the hand-written CircuitObject
-                prop_assert_eq!(stage_mask.sxy(x, y, &[]), sxy);
+                // StageMask::sxy returns -notch; add global to get the full mask.
+                let global_xy = super::global_mask::<Fp, R>(x, y);
+                prop_assert_eq!(stage_mask.sxy(x, y, &[]) + global_xy, sxy);
                 prop_assert_eq!(stage_mask.sx(x, &[]).eval(y), sxy);
                 prop_assert_eq!(stage_mask.sy(y, &[]).eval(x), sxy);
 

@@ -16,6 +16,7 @@
 //! be efficiently evaluated at different restrictions.
 
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, vec::Vec};
+use core::ops::Range;
 
 use blake2b_simd::Params;
 use ff::{Field, FromUniformBytes, PrimeField};
@@ -177,6 +178,9 @@ impl<'params, F: FromUniformBytes<64>, R: Rank> RegistryBuilder<'params, F, R> {
         let log2_circuits = self.log2_circuits();
         let domain = Domain::<F>::new(log2_circuits);
 
+        let bonding_start = self.internal_circuits.len();
+        let bonding_end = bonding_start + self.bonding.len();
+
         let circuits: Vec<_> = self
             .internal_circuits
             .into_iter()
@@ -214,6 +218,7 @@ impl<'params, F: FromUniformBytes<64>, R: Rank> RegistryBuilder<'params, F, R> {
             circuits,
             floor_plans,
             omega_lookup,
+            bonding_range: bonding_start..bonding_end,
             key: Key::default(),
         };
         registry.key = Key::new(registry.compute_registry_digest());
@@ -306,6 +311,9 @@ pub struct Registry<'params, F: PrimeField, R: Rank> {
     /// Maps from the OmegaKey (which represents some `omega^j`) to the index `i`
     /// of the circuits vector.
     omega_lookup: BTreeMap<OmegaKey, usize>,
+
+    /// Index range of bonding polynomials (stage masks) in `circuits`.
+    bonding_range: Range<usize>,
 
     /// Registry key used to bind circuits to this registry.
     key: Key<F>,
@@ -412,10 +420,22 @@ impl<F: PrimeField, R: Rank> Registry<'_, F, R> {
     pub fn xy(&self, x: F, y: F) -> sparse::Polynomial<F, R> {
         let key_scalar = self.key_sxy(x, y);
         let mut coeffs = alloc::vec![F::ZERO; R::num_coeffs()];
+
         for (i, circuit) in self.circuits.iter().enumerate() {
             let j = bitreverse(i as u32, self.domain.log2_n()) as usize;
             coeffs[j] = circuit.sxy(x, y, &self.floor_plans[i]);
         }
+
+        // Bonding polynomials return only -notch; add the shared global
+        // term to each bonding slot to reconstruct the full mask value.
+        if !self.bonding_range.is_empty() {
+            let global_xy = crate::staging::mask::global_mask::<F, R>(x, y);
+            for i in self.bonding_range.clone() {
+                let j = bitreverse(i as u32, self.domain.log2_n()) as usize;
+                coeffs[j] += global_xy;
+            }
+        }
+
         // Convert from the Lagrange basis.
         let domain = &self.domain;
         domain.ifft(&mut coeffs[..domain.n()]);
@@ -505,6 +525,34 @@ impl<F: PrimeField, R: Rank> Registry<'_, F, R> {
         result
     }
 
+    /// Sums Lagrange coefficients for bonding polynomials at the given $W$ point.
+    fn bonding_coeff_sum(&self, cache: &LagrangeCache<F>) -> F {
+        if self.bonding_range.is_empty() {
+            return F::ZERO;
+        }
+
+        match cache {
+            LagrangeCache::Interpolate(coeffs) => {
+                let mut sum = F::ZERO;
+                for i in self.bonding_range.clone() {
+                    let j = bitreverse(i as u32, self.domain.log2_n()) as usize;
+                    sum += coeffs[j];
+                }
+                sum
+            }
+            LagrangeCache::Direct(i) => {
+                // W is exactly omega^i, so the Lagrange coefficient for
+                // circuit i is ONE and all others are ZERO.
+                if self.bonding_range.contains(i) {
+                    F::ONE
+                } else {
+                    F::ZERO
+                }
+            }
+            LagrangeCache::Empty => F::ZERO,
+        }
+    }
+
     /// Bind the registry to a specific $W$ point, caching Lagrange coefficients.
     ///
     /// Returns a [`RegistryAt`] that can be used to evaluate the registry
@@ -528,7 +576,7 @@ impl<F: PrimeField, R: Rank> Registry<'_, F, R> {
 }
 
 impl<F: PrimeField, R: Rank> RegistryAt<'_, F, R> {
-    /// Evaluate the registry polynomial restricted at $W$, unrestricted at $Y$.
+    /// Evaluate the registry polynomial restricted at $W$ and $Y$, unrestricted at $X$.
     pub fn y(&self, y: F) -> sparse::Polynomial<F, R> {
         let mut poly = self.registry.w_cached(
             &self.cache,
@@ -553,7 +601,7 @@ impl<F: PrimeField, R: Rank> RegistryAt<'_, F, R> {
         poly
     }
 
-    /// Evaluate the registry polynomial restricted at $W$, unrestricted at $X$.
+    /// Evaluate the registry polynomial restricted at $W$ and $X$, unrestricted at $Y$.
     pub fn x(&self, x: F) -> sparse::Polynomial<F, R> {
         let mut poly = self.registry.w_cached(
             &self.cache,
@@ -582,13 +630,20 @@ impl<F: PrimeField, R: Rank> RegistryAt<'_, F, R> {
 
     /// Evaluate the registry polynomial at the point ($W$, $X$, $Y$).
     pub fn xy(&self, x: F, y: F) -> F {
-        let result: F = self.registry.w_cached(
+        let mut result: F = self.registry.w_cached(
             &self.cache,
             || F::ZERO,
             |circuit, floor_plan, coeff, result| {
                 *result += circuit.sxy(x, y, floor_plan) * coeff;
             },
         );
+
+        // Bonding polynomials return only -notch(x, y). Apply the shared
+        // global stage mask scalar once.
+        if !self.registry.bonding_range.is_empty() {
+            result += self.registry.bonding_coeff_sum(&self.cache)
+                * crate::staging::mask::global_mask::<F, R>(x, y);
+        }
 
         // Add the registry key contribution.
         result + self.registry.key_sxy(x, y)
