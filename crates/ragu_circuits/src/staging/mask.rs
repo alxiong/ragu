@@ -47,6 +47,9 @@ pub(crate) fn global_mask<F: Field, R: Rank>(x: F, y: F) -> F {
 /// Used by [`Registry`](crate::registry::Registry) to add the shared global
 /// contribution once, scaled by the sum of bonding Lagrange coefficients.
 pub(crate) fn global_project<F: Field, R: Rank>(p: F) -> sparse::Polynomial<F, R> {
+    if p == F::ZERO {
+        return sparse::Polynomial::default();
+    }
     let n = R::n();
     let mut view = sparse::View::<F, R, _>::wiring();
     view.d.resize(n, F::ZERO);
@@ -188,13 +191,12 @@ impl<F: Field, R: Rank> CircuitObject<F, R> for StageMask<R> {
 
         let xy = x * y;
         let xy_2n = xy.pow_vartime([2 * R::n() as u64]);
-        let xy_inv = xy.invert().expect("xy is not zero");
 
         let gsum = geosum(xy, self.num_gates);
-        let xy_g = xy.pow_vartime([self.skip_gates as u64]);
-        let xy_h = xy_2n * xy_inv.pow_vartime([(self.skip_gates + self.num_gates) as u64]);
+        let skip = xy.pow_vartime([self.skip_gates as u64]);
+        let tail = xy.pow_vartime([(2 * R::n() - self.skip_gates - self.num_gates) as u64]);
 
-        -((F::ONE + xy_2n) * (xy_g + xy_h) * gsum)
+        -((F::ONE + xy_2n) * (skip + tail) * gsum)
     }
 
     fn sx(
@@ -599,6 +601,11 @@ mod tests {
                 prop_assert_eq!(stage_mask.sx(x, &[]).eval(y), notch_sxy);
                 prop_assert_eq!(stage_mask.sy(y, &[]).eval(x), notch_sxy);
 
+                // Polynomial decomposition: global_project + notch_project == full project.
+                let mut reconstructed = super::global_project::<Fp, R>(x);
+                reconstructed += &stage_mask.notch_project(x);
+                prop_assert_eq!(reconstructed.eval(y), sxy);
+
                 Ok(())
             };
 
@@ -609,6 +616,33 @@ mod tests {
             check(x, Fp::ZERO)?;
             check(Fp::ZERO, Fp::ZERO)?;
 
+        }
+
+        /// Two adjacent `StageMask`s that partition gates `1..n` must have
+        /// notch projections that sum to the global projection (negated),
+        /// and notch scalars that sum to the global scalar (negated).
+        #[test]
+        fn test_notch_partition_proptest(split in 1..R::n()) {
+            let mask_a = StageMask::<R>::new(1, split - 1).unwrap();
+            let mask_b = StageMask::<R>::new(split, R::n() - split).unwrap();
+
+            let p = Fp::random(&mut rand::rng());
+            let x = Fp::random(&mut rand::rng());
+            let y = Fp::random(&mut rand::rng());
+
+            // Polynomial-level: (-notch_a(p) + -notch_b(p)).eval(q) == -global_project(p).eval(q)
+            let q = Fp::random(&mut rand::rng());
+            let mut sum_poly = mask_a.notch_project(p);
+            sum_poly += &mask_b.notch_project(p);
+            let mut neg_global = super::global_project::<Fp, R>(p);
+            neg_global.scale(-Fp::ONE);
+            prop_assert_eq!(sum_poly.eval(q), neg_global.eval(q));
+
+            // Scalar-level: -notch_a(x,y) + -notch_b(x,y) == -global_mask(x,y)
+            let sxy_a = mask_a.sxy(x, y, &[]);
+            let sxy_b = mask_b.sxy(x, y, &[]);
+            let global_xy = super::global_mask::<Fp, R>(x, y);
+            prop_assert_eq!(sxy_a + sxy_b, -global_xy);
         }
     }
 

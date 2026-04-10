@@ -337,6 +337,7 @@ enum LagrangeCache<F> {
 pub struct RegistryAt<'a, F: PrimeField, R: Rank> {
     registry: &'a Registry<'a, F, R>,
     cache: LagrangeCache<F>,
+    bonding_coeff_sum: F,
 }
 
 /// Represents a key for identifying a unique $\omega^j$ value where $\omega$ is
@@ -541,8 +542,8 @@ impl<F: PrimeField, R: Rank> Registry<'_, F, R> {
                 sum
             }
             LagrangeCache::Direct(i) => {
-                // W is exactly omega^i, so the Lagrange coefficient for
-                // circuit i is ONE and all others are ZERO.
+                // W is exactly omega^bitreverse(i), so the Lagrange
+                // coefficient for circuit i is ONE and all others are ZERO.
                 if self.bonding_range.contains(i) {
                     F::ONE
                 } else {
@@ -568,9 +569,11 @@ impl<F: PrimeField, R: Rank> Registry<'_, F, R> {
             // w is in the domain but no circuit registered at that index.
             LagrangeCache::Empty
         };
+        let bonding_coeff_sum = self.bonding_coeff_sum(&cache);
         RegistryAt {
             registry: self,
             cache,
+            bonding_coeff_sum,
         }
     }
 }
@@ -592,7 +595,7 @@ impl<F: PrimeField, R: Rank> RegistryAt<'_, F, R> {
         // Add the shared global once, scaled by the sum of Lagrange coefficients.
         if !self.registry.bonding_range.is_empty() {
             let mut global = crate::staging::mask::global_project::<F, R>(y);
-            global.scale(self.registry.bonding_coeff_sum(&self.cache));
+            global.scale(self.bonding_coeff_sum);
             poly.add_assign(&global);
         }
 
@@ -625,7 +628,7 @@ impl<F: PrimeField, R: Rank> RegistryAt<'_, F, R> {
         // Add the shared global once, scaled by the sum of Lagrange coefficients.
         if !self.registry.bonding_range.is_empty() {
             let mut global = crate::staging::mask::global_project::<F, R>(x);
-            global.scale(self.registry.bonding_coeff_sum(&self.cache));
+            global.scale(self.bonding_coeff_sum);
             poly.add_assign(&global);
         }
 
