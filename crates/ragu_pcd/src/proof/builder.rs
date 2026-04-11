@@ -164,32 +164,41 @@ macro_rules! explicit_commitment_getter {
     };
 }
 
-/// Produces `pub(crate) fn $method(&mut self) -> Result<C::NestedCurve>` that
-/// lazily computes a cached bridge commitment. On first call it builds a
+/// Produces `pub(crate) fn $rx(&self) -> Result<&sparse::Polynomial<...>>`
+/// and `pub(crate) fn $commitment(&self) -> Result<C::NestedCurve>` that
+/// lazily derive a cached bridge. On first call, `$rx` builds a
 /// `nested::stages::$stage::Witness` from the given getter methods, derives
-/// the bridge rx polynomial via `Stage::rx`, commits it, and caches both the
-/// polynomial and commitment. Subsequent calls return the cached value.
+/// the bridge rx polynomial via `Stage::rx`, and caches it; `$commitment`
+/// then commits the rx and caches the result. Subsequent calls return the
+/// cached values.
 ///
 /// Witness fields are specified as `field: getter()` pairs — the macro
 /// prepends `self.` to each getter call so that the generated function's own
 /// `self` is used (avoiding macro hygiene issues with `self` in token trees).
 macro_rules! cached_bridge {
-    ($method:ident, $rx_field:ident, $commitment_field:ident,
-     $idx:expr, $stage:ident, { $($field:ident : $getter:ident()),* }) => {
-        pub(crate) fn $method(&mut self) -> Result<C::NestedCurve> {
-            if let Some(c) = self.$commitment_field {
-                return Ok(c);
+    ($rx:ident, $commitment:ident,
+     $idx:expr, $stage:ident, { $($wit_field:ident : $getter:ident()),* }) => {
+        pub(crate) fn $rx(&self) -> Result<&sparse::Polynomial<C::ScalarField, R>> {
+            if let Some(rx) = self.$rx.get() {
+                return Ok(rx);
             }
             let rx = nested::stages::$stage::Stage::<C::HostCurve, R>::rx(
                 self.bridge_alpha_power($idx),
                 &nested::stages::$stage::Witness {
-                    $($field: self.$getter()),*
+                    $($wit_field: self.$getter()),*
                 },
             )?;
-            let c = rx.commit_to_affine(C::nested_generators(self.params));
-            self.$rx_field = Some(rx);
-            self.$commitment_field = Some(c);
-            Ok(c)
+            // `set` only fails when the cell is already occupied, which the
+            // early return above rules out on single-threaded `OnceCell`.
+            let _ = self.$rx.set(rx);
+            Ok(self.$rx.get().expect("just set"))
+        }
+
+        pub(crate) fn $commitment(&self) -> Result<C::NestedCurve> {
+            let rx = self.$rx()?;
+            Ok(*self.$commitment.get_or_init(|| {
+                rx.commit_to_affine(C::nested_generators(self.params))
+            }))
         }
     };
 }
@@ -237,15 +246,14 @@ pub(crate) struct ProofBuilder<'params, C: Cycle, R: Rank> {
     bridge_f_rx: Option<sparse::Polynomial<C::ScalarField, R>>,
     bridge_f_commitment: Option<C::NestedCurve>,
 
-    // Cached bridge rx + commitments (lazily computed from bridge_alpha + native commitments)
-    bridge_outer_error_rx: Option<sparse::Polynomial<C::ScalarField, R>>,
-    bridge_outer_error_commitment: Option<C::NestedCurve>,
-    bridge_ab_rx: Option<sparse::Polynomial<C::ScalarField, R>>,
-    bridge_ab_commitment: Option<C::NestedCurve>,
-    bridge_query_rx: Option<sparse::Polynomial<C::ScalarField, R>>,
-    bridge_query_commitment: Option<C::NestedCurve>,
-    bridge_eval_rx: Option<sparse::Polynomial<C::ScalarField, R>>,
-    bridge_eval_commitment: Option<C::NestedCurve>,
+    // Cached bridge rx polynomials (lazily derived from `bridge_alpha` +
+    // native commitments). Parallels the native rx/commitment split: the rx
+    // slot is populated on first access, and the commitment slot is derived
+    // lazily from it.
+    bridge_outer_error_rx: OnceCell<sparse::Polynomial<C::ScalarField, R>>,
+    bridge_ab_rx: OnceCell<sparse::Polynomial<C::ScalarField, R>>,
+    bridge_query_rx: OnceCell<sparse::Polynomial<C::ScalarField, R>>,
+    bridge_eval_rx: OnceCell<sparse::Polynomial<C::ScalarField, R>>,
 
     // Nested endoscaling data
     nested_endoscaling_step_rxs: Option<Vec<sparse::Polynomial<C::ScalarField, R>>>,
@@ -286,6 +294,12 @@ pub(crate) struct ProofBuilder<'params, C: Cycle, R: Rank> {
     native_inner_collapse_commitment: OnceCell<C::HostCurve>,
     native_outer_collapse_commitment: OnceCell<C::HostCurve>,
     native_compute_v_commitment: OnceCell<C::HostCurve>,
+
+    // Cached bridge commitment caches (lazily computed from their cached rxs)
+    bridge_outer_error_commitment: OnceCell<C::NestedCurve>,
+    bridge_ab_commitment: OnceCell<C::NestedCurve>,
+    bridge_query_commitment: OnceCell<C::NestedCurve>,
+    bridge_eval_commitment: OnceCell<C::NestedCurve>,
 }
 
 impl<'params, C: Cycle, R: Rank> ProofBuilder<'params, C, R> {
@@ -321,14 +335,10 @@ impl<'params, C: Cycle, R: Rank> ProofBuilder<'params, C, R> {
             bridge_inner_error_commitment: None,
             bridge_f_rx: None,
             bridge_f_commitment: None,
-            bridge_outer_error_rx: None,
-            bridge_outer_error_commitment: None,
-            bridge_ab_rx: None,
-            bridge_ab_commitment: None,
-            bridge_query_rx: None,
-            bridge_query_commitment: None,
-            bridge_eval_rx: None,
-            bridge_eval_commitment: None,
+            bridge_outer_error_rx: OnceCell::new(),
+            bridge_ab_rx: OnceCell::new(),
+            bridge_query_rx: OnceCell::new(),
+            bridge_eval_rx: OnceCell::new(),
             nested_endoscaling_step_rxs: None,
             nested_endoscalar_rx: None,
             nested_points_rx: None,
@@ -361,6 +371,10 @@ impl<'params, C: Cycle, R: Rank> ProofBuilder<'params, C, R> {
             native_inner_collapse_commitment: OnceCell::new(),
             native_outer_collapse_commitment: OnceCell::new(),
             native_compute_v_commitment: OnceCell::new(),
+            bridge_outer_error_commitment: OnceCell::new(),
+            bridge_ab_commitment: OnceCell::new(),
+            bridge_query_commitment: OnceCell::new(),
+            bridge_eval_commitment: OnceCell::new(),
         }
     }
 
@@ -514,7 +528,6 @@ impl<'params, C: Cycle, R: Rank> ProofBuilder<'params, C, R> {
     }
 
     cached_bridge!(
-        bridge_outer_error_commitment,
         bridge_outer_error_rx,
         bridge_outer_error_commitment,
         nested::RxIndex::BridgeOuterError,
@@ -523,7 +536,6 @@ impl<'params, C: Cycle, R: Rank> ProofBuilder<'params, C, R> {
     );
 
     cached_bridge!(
-        bridge_ab_commitment,
         bridge_ab_rx,
         bridge_ab_commitment,
         nested::RxIndex::BridgeAB,
@@ -532,7 +544,6 @@ impl<'params, C: Cycle, R: Rank> ProofBuilder<'params, C, R> {
     );
 
     cached_bridge!(
-        bridge_query_commitment,
         bridge_query_rx,
         bridge_query_commitment,
         nested::RxIndex::BridgeQuery,
@@ -541,7 +552,6 @@ impl<'params, C: Cycle, R: Rank> ProofBuilder<'params, C, R> {
     );
 
     cached_bridge!(
-        bridge_eval_commitment,
         bridge_eval_rx,
         bridge_eval_commitment,
         nested::RxIndex::BridgeEval,
@@ -677,7 +687,11 @@ impl<'params, C: Cycle, R: Rank> ProofBuilder<'params, C, R> {
 
         macro_rules! cached_take {
             ($field:ident) => {
-                Cached(self.$field.expect(concat!(stringify!($field), " not set")))
+                Cached(
+                    self.$field
+                        .take()
+                        .expect(concat!(stringify!($field), " not set")),
+                )
             };
         }
 
