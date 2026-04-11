@@ -197,8 +197,8 @@ macro_rules! cached_bridge {
 /// Builder for incremental [`Proof`] construction.
 ///
 /// Native commitment caches are computed lazily from polynomials on first
-/// access. Special commitments (`a`, `p`) must be provided explicitly because
-/// they are computed via non-standard techniques.
+/// access. Special commitments (`a`, `b`, `p`) must be provided explicitly
+/// because they are computed via non-standard techniques.
 pub(crate) struct ProofBuilder<'params, C: Cycle, R: Rank> {
     params: &'params C::Params,
 
