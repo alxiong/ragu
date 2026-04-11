@@ -188,10 +188,9 @@ macro_rules! cached_bridge {
                     $($wit_field: self.$getter()),*
                 },
             )?;
-            // `set` only fails when the cell is already occupied, which the
-            // early return above rules out on single-threaded `OnceCell`.
-            let _ = self.$rx.set(rx);
-            Ok(self.$rx.get().expect("just set"))
+            // The early return above guarantees the cell is empty, so
+            // `get_or_init` will always run the closure and store `rx`.
+            Ok(self.$rx.get_or_init(|| rx))
         }
 
         pub(crate) fn $commitment(&self) -> Result<C::NestedCurve> {
@@ -631,31 +630,21 @@ impl<'params, C: Cycle, R: Rank> ProofBuilder<'params, C, R> {
     /// Build the proof. All polynomial fields must have been set. Commitment
     /// caches that haven't been accessed yet are computed now.
     pub(crate) fn build(mut self) -> Result<Proof<C, R>> {
-        let host_gen = C::host_generators(self.params);
-
-        // Ensure all native commitment caches are populated.
-        macro_rules! resolve {
-            ($cache:ident, $poly:ident) => {
-                self.$cache.get_or_init(|| {
-                    self.$poly
-                        .as_ref()
-                        .expect(concat!(stringify!($poly), " not set"))
-                        .commit_to_affine(host_gen)
-                });
-            };
-        }
-        resolve!(native_application_commitment, native_application_rx);
-        resolve!(native_preamble_commitment, native_preamble_rx);
-        resolve!(native_inner_error_commitment, native_inner_error_rx);
-        resolve!(native_outer_error_commitment, native_outer_error_rx);
-        resolve!(native_query_commitment, native_query_rx);
-        resolve!(native_registry_xy_commitment, native_registry_xy_poly);
-        resolve!(native_eval_commitment, native_eval_rx);
-        resolve!(native_hashes_1_commitment, native_hashes_1_rx);
-        resolve!(native_hashes_2_commitment, native_hashes_2_rx);
-        resolve!(native_inner_collapse_commitment, native_inner_collapse_rx);
-        resolve!(native_outer_collapse_commitment, native_outer_collapse_rx);
-        resolve!(native_compute_v_commitment, native_compute_v_rx);
+        // Force lazy evaluation of every native commitment cache by invoking
+        // its getter. The a/b/p caches are set externally via their explicit
+        // setters, so they are not touched here.
+        self.native_application_commitment();
+        self.native_preamble_commitment();
+        self.native_inner_error_commitment();
+        self.native_outer_error_commitment();
+        self.native_query_commitment();
+        self.native_registry_xy_commitment();
+        self.native_eval_commitment();
+        self.native_hashes_1_commitment();
+        self.native_hashes_2_commitment();
+        self.native_inner_collapse_commitment();
+        self.native_outer_collapse_commitment();
+        self.native_compute_v_commitment();
 
         // Force lazy evaluation of cached bridge commitments.
         self.bridge_outer_error_commitment()?;
@@ -747,18 +736,8 @@ impl<'params, C: Cycle, R: Rank> ProofBuilder<'params, C, R> {
                 .into_iter()
                 .map(Cached)
                 .collect(),
-            nested_endoscalar_commitment: Cached(
-                *self
-                    .nested_endoscalar_commitment
-                    .get()
-                    .expect("nested_endoscalar_commitment not set"),
-            ),
-            nested_points_commitment: Cached(
-                *self
-                    .nested_points_commitment
-                    .get()
-                    .expect("nested_points_commitment not set"),
-            ),
+            nested_endoscalar_commitment: cached!(nested_endoscalar_commitment),
+            nested_points_commitment: cached!(nested_points_commitment),
 
             w: take!(w),
             y: take!(y),

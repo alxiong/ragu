@@ -41,7 +41,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
     where
         D: Driver<'dr, F = C::CircuitField>,
     {
-        let (registry_wy, inner_error_witness, claims_builder) =
+        let (inner_error_witness, claims_builder, registry_wy) =
             self.compute_native_inner_error(rng, native_registry, y, z, source, builder)?;
         self.compute_bridge_inner_error(rng, &registry_wy, builder)?;
         Ok((inner_error_witness, claims_builder, registry_wy))
@@ -74,9 +74,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         source: &FuseProofSource<'rx, C, R>,
         builder: &mut ProofBuilder<'_, C, R>,
     ) -> Result<(
-        RegistryWy<C, R>,
         native::stages::inner_error::Witness<C, native::RevdotParameters>,
         FuseBuilder<'_, 'rx, C::CircuitField, R>,
+        RegistryWy<C, R>,
     )>
     where
         D: Driver<'dr, F = C::CircuitField>,
@@ -103,17 +103,13 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
         builder.set_native_inner_error_rx(native_rx);
 
         let registry_wy_poly = native_registry.y(y);
+        let registry_wy_commitment =
+            registry_wy_poly.commit_to_affine(C::host_generators(self.params));
+        let registry_wy = RegistryWy {
+            poly: registry_wy_poly,
+            commitment: registry_wy_commitment,
+        };
 
-        let host_gen = C::host_generators(self.params);
-        let registry_wy_commitment = registry_wy_poly.commit_to_affine(host_gen);
-
-        Ok((
-            RegistryWy {
-                poly: registry_wy_poly,
-                commitment: registry_wy_commitment,
-            },
-            inner_error_witness,
-            claims_builder,
-        ))
+        Ok((inner_error_witness, claims_builder, registry_wy))
     }
 }

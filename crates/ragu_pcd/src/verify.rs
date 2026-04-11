@@ -80,9 +80,9 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> Application<'_, C, R, HEADER_S
 
         // Check all native revdot claims. The first claim is `raw_c`, which is
         // tautological in the verifier because $c$ is computed as
-        // $\text{revdot}(a, b)$ here; we skip it.(It remains meaningful inside
+        // $\text{revdot}(a, b)$ here; we skip it. (It remains meaningful inside
         // the recursive circuit, where $c$ is an independently allocated
-        // witness.
+        // witness.)
         let native_revdot_claims = {
             let ky_source = native::SingleProofKySource {
                 application_ky,
