@@ -300,6 +300,37 @@ impl Routine<Fp> for PureNesting {
     }
 }
 
+/// Calls [`SquareOnce`] twice on the same input. Used to check that two
+/// structurally identical sub-routine invocations within one parent
+/// receive identical fingerprints — the floor planner relies on this for
+/// memoization.
+#[derive(Clone)]
+struct DoubleSquare;
+
+impl Routine<Fp> for DoubleSquare {
+    type Input = Kind![Fp; Element<'_, _>];
+    type Output = Kind![Fp; Element<'_, _>];
+    type Aux<'dr> = ();
+
+    fn execute<'dr, D: Driver<'dr, F = Fp>>(
+        &self,
+        dr: &mut D,
+        input: Bound<'dr, D, Self::Input>,
+        _aux: DriverValue<D, Self::Aux<'dr>>,
+    ) -> Result<Bound<'dr, D, Self::Output>> {
+        let _ = dr.routine(SquareOnce, input.clone())?;
+        dr.routine(SquareOnce, input)
+    }
+
+    fn predict<'dr, D: Driver<'dr, F = Fp>>(
+        &self,
+        _dr: &mut D,
+        _input: &Bound<'dr, D, Self::Input>,
+    ) -> Result<Prediction<Bound<'dr, D, Self::Output>, DriverValue<D, Self::Aux<'dr>>>> {
+        Ok(Prediction::Unknown(D::just(|| ())))
+    }
+}
+
 /// Nested call plus an extra constraint — fingerprint must differ from SquareOnce.
 #[derive(Clone)]
 struct NestingWithExtra;
@@ -1358,6 +1389,32 @@ fn test_determinism() {
     assert_eq!(
         fingerprint_unit(&EmptyRoutine),
         fingerprint_unit(&EmptyRoutine)
+    );
+}
+
+/// Repeated invocations of the same routine within one circuit must
+/// produce identical fingerprints, so the floor planner can memoize
+/// structurally equivalent sub-routines. Pins the per-scope reset of
+/// the `Counter`'s remap counter — without it, the second
+/// `SquareOnce` call's input wires would receive different remap
+/// tokens than the first, producing a divergent Horner accumulator.
+#[test]
+fn test_repeated_invocation_fingerprint_stability() {
+    let metrics = metrics::eval(&SingleRoutineCircuit(DoubleSquare)).unwrap();
+    // segments[0] = root, [1] = DoubleSquare, [2] = first SquareOnce,
+    // [3] = second SquareOnce.
+    assert_eq!(metrics.segments.len(), 4);
+    let fp2 = match metrics.segments[2].identity() {
+        RoutineIdentity::Routine(fp) => *fp,
+        RoutineIdentity::Root => panic!("segment 2 should be Routine"),
+    };
+    let fp3 = match metrics.segments[3].identity() {
+        RoutineIdentity::Routine(fp) => *fp,
+        RoutineIdentity::Root => panic!("segment 3 should be Routine"),
+    };
+    assert_eq!(
+        fp2, fp3,
+        "two calls to SquareOnce within one parent must share a fingerprint",
     );
 }
 
