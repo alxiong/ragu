@@ -62,9 +62,8 @@ impl<'dr, D: Driver<'dr>> Allocator<'dr, D> for () {
 /// This is the standard paired-allocation strategy. Gadgets that perform
 /// many allocations should use `SimpleAllocator` to halve gate cost.
 ///
-/// Dropping a `SimpleAllocator` that still holds a stashed token leaves
-/// that gate's $D$ wire assigned to zero, which is always safe: the gate
-/// has $C = 0$, so $C \cdot D = 0$ holds regardless.
+/// Dropping a `SimpleAllocator` that still holds a stashed token is safe:
+/// the driver already assigned $D = 0$ for that gate.
 pub struct SimpleAllocator<E> {
     stash: Option<E>,
 }

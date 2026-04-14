@@ -116,26 +116,23 @@ pub trait DriverTypes {
     /// `enforce_zero` accepts a closure parameterized over it.
     type LCenforce: LinearExpression<Self::ImplWire, Self::ImplField>;
 
-    /// An opaque token representing the $D$ wire of a gate before its value
-    /// has been assigned. Returned by [`gate`](Self::gate) and consumed by
+    /// An opaque token for the $D$ wire of a gate. Returned by
+    /// [`gate`](Self::gate) and consumed by
     /// [`assign_extra`](Self::assign_extra).
     ///
-    /// Dropping an `Extra` without calling `assign_extra` is a promise from
-    /// the caller that $D = 0$ for that gate, which is always safe: $C \cdot
-    /// D = 0$ is satisfied for any $C$ when $D = 0$. Drivers may rely on this
-    /// promise without checking it.
+    /// Drivers assign $D = 0$ at gate time. Passing the token to
+    /// `assign_extra` overrides that default; dropping it keeps $D = 0$.
     type Extra;
 
     /// Allocates the wires $(A, B, C)$ with the constraint $A \cdot B = C$
     /// and returns an [`Extra`](Self::Extra) token for the auxiliary $D$ wire.
-    /// The gate also imposes the constraint $C \cdot D = 0$, which makes $D$
-    /// useless in the typical case: whenever $C$ is nonzero, $D$ is forced to
-    /// zero. But when $C$ is guaranteed to be zero, $D$ becomes unconstrained
-    /// and available for use.
+    /// The $D$ wire is assigned to zero by default. The gate also imposes the
+    /// constraint $C \cdot D = 0$, which makes $D$ useless in the typical
+    /// case: whenever $C$ is nonzero, $D$ is forced to zero. But when $C$ is
+    /// guaranteed to be zero, $D$ becomes unconstrained and available for use.
     ///
-    /// To obtain the $D$ wire, pass the returned `Extra` to
-    /// [`assign_extra`](Self::assign_extra). Dropping the `Extra` leaves $D$
-    /// assigned to zero.
+    /// To override the default $D = 0$ assignment, pass the returned `Extra`
+    /// to [`assign_extra`](Self::assign_extra).
     ///
     /// Circuit code should prefer [`Driver::mul`], which delegates to this
     /// method by default and discards the `Extra`. Only code that needs an
@@ -164,8 +161,9 @@ pub trait DriverTypes {
         )>,
     ) -> Result<(Self::ImplWire, Self::ImplWire, Self::ImplWire, Self::Extra)>;
 
-    /// Assigns the $D$ wire of a gate, consuming the [`Extra`](Self::Extra)
-    /// token returned by [`gate`](Self::gate) and returning the $D$ wire.
+    /// Overrides the default $D = 0$ assignment for a gate, consuming the
+    /// [`Extra`](Self::Extra) token returned by [`gate`](Self::gate) and
+    /// returning the $D$ wire.
     ///
     /// The provided closure follows the same purity contract as `gate`: it
     /// may be called zero or more times, should be side-effect-free, and

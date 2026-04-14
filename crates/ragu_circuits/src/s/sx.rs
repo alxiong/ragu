@@ -160,8 +160,8 @@ struct Evaluator<'fp, F: Field, R: Rank> {
     /// Correction factor $(x^{-2n})$ that converts a $b$-wire monomial
     /// $x^{2n+i}$ into the corresponding $d$-wire monomial $x^i$.
     ///
-    /// Only read by [`assign_extra`](DriverTypes::assign_extra), so the
-    /// multiplication is skipped when callers drop the [`Extra`](DriverTypes::Extra).
+    /// Only used by [`assign_extra`](DriverTypes::assign_extra), so the
+    /// multiplication is skipped when callers keep the default $D = 0$.
     b_to_d: F,
 
     /// Floor plan mapping DFS segment index to absolute offsets.
