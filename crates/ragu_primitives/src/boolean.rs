@@ -38,9 +38,7 @@ pub struct Boolean<'dr, D: Driver<'dr>> {
 impl<'dr, D: Driver<'dr>> Boolean<'dr, D> {
     /// Allocates a boolean with the provided witness value.
     ///
-    /// This costs one gate and two constraints. The gate layout is
-    /// $(a, b, 0, d)$ where $a \cdot b = c$, and the linear constraints
-    /// $c = 0$ and $1 - a - b = 0$ force $a$ to be zero or one.
+    /// This costs one gate and two constraints.
     pub fn alloc(dr: &mut D, value: DriverValue<D, bool>) -> Result<Self> {
         let complement = value.not();
         let (a, b, c) =
