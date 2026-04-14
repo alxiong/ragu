@@ -27,10 +27,10 @@ mod metrics;
 pub mod polynomials;
 mod raw;
 pub mod registry;
-mod wiring;
 pub mod staging;
 mod trace;
 mod trivial;
+mod wiring;
 
 pub use metrics::{RoutineFingerprint, RoutineIdentity, SegmentRecord};
 pub use trace::Trace;
@@ -271,14 +271,16 @@ where
             x: F,
             floor_plan: &[floor_planner::ConstraintSegment],
         ) -> sparse::Polynomial<F, R> {
-            wiring::sx::eval(&self.circuit, x, floor_plan).expect("should succeed if metrics succeeded")
+            wiring::sx::eval(&self.circuit, x, floor_plan)
+                .expect("should succeed if metrics succeeded")
         }
         fn sy(
             &self,
             y: F,
             floor_plan: &[floor_planner::ConstraintSegment],
         ) -> sparse::Polynomial<F, R> {
-            wiring::sy::eval(&self.circuit, y, floor_plan).expect("should succeed if metrics succeeded")
+            wiring::sy::eval(&self.circuit, y, floor_plan)
+                .expect("should succeed if metrics succeeded")
         }
         fn constraint_counts(&self) -> (usize, usize) {
             (self.metrics.num_gates, self.metrics.num_constraints)

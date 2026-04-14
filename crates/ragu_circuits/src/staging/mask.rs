@@ -257,8 +257,7 @@ mod tests {
         StageMask,
     };
     use crate::{
-        WiringObject, WithAux, floor_planner, into_wiring_object, into_raw_wiring_object,
-        metrics,
+        WiringObject, WithAux, floor_planner, into_raw_wiring_object, into_wiring_object, metrics,
         polynomials::{Rank, sparse},
         raw::GateWires,
         staging::StageBuilder,
