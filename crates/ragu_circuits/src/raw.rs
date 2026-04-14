@@ -50,7 +50,7 @@ use crate::WithAux;
 /// [`DriverTypes::gate`](ragu_core::drivers::DriverTypes::gate) together with
 /// the $D$ wire obtained via
 /// [`DriverTypes::assign_extra`](ragu_core::drivers::DriverTypes::assign_extra).
-#[allow(dead_code)]
+#[allow(dead_code)] // Fields read only in tests (via RawCircuit plumbing).
 pub(crate) struct GateWires<W> {
     /// The $a$ wire (left input).
     pub a: W,
