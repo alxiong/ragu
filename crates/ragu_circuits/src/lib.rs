@@ -27,7 +27,7 @@ mod metrics;
 pub mod polynomials;
 mod raw;
 pub mod registry;
-mod s;
+mod wiring;
 pub mod staging;
 mod trace;
 mod trivial;
@@ -263,7 +263,7 @@ where
 
     impl<F: Field, RC: raw::RawCircuit<F>, R: Rank> WiringObject<F, R> for Processed<RC> {
         fn sxy(&self, x: F, y: F, floor_plan: &[floor_planner::ConstraintSegment]) -> F {
-            s::sxy::eval::<_, _, R>(&self.circuit, x, y, floor_plan)
+            wiring::sxy::eval::<_, _, R>(&self.circuit, x, y, floor_plan)
                 .expect("should succeed if metrics succeeded")
         }
         fn sx(
@@ -271,14 +271,14 @@ where
             x: F,
             floor_plan: &[floor_planner::ConstraintSegment],
         ) -> sparse::Polynomial<F, R> {
-            s::sx::eval(&self.circuit, x, floor_plan).expect("should succeed if metrics succeeded")
+            wiring::sx::eval(&self.circuit, x, floor_plan).expect("should succeed if metrics succeeded")
         }
         fn sy(
             &self,
             y: F,
             floor_plan: &[floor_planner::ConstraintSegment],
         ) -> sparse::Polynomial<F, R> {
-            s::sy::eval(&self.circuit, y, floor_plan).expect("should succeed if metrics succeeded")
+            wiring::sy::eval(&self.circuit, y, floor_plan).expect("should succeed if metrics succeeded")
         }
         fn constraint_counts(&self) -> (usize, usize) {
             (self.metrics.num_gates, self.metrics.num_constraints)
