@@ -149,28 +149,6 @@ impl<F: Field, R: Rank> DriverScope<SxyScope<F>> for Evaluator<'_, F, R> {
     }
 }
 
-impl<F: Field, R: Rank> Evaluator<'_, F, R> {
-    /// Advances the gate counter and running monomials, returning the raw
-    /// $(a, b, c)$ monomial evaluations before advancement.
-    fn advance_gate(&mut self) -> Result<(F, F, F)> {
-        let index = self.scope.gates;
-        if index == R::n() {
-            return Err(Error::GateBoundExceeded { limit: R::n() });
-        }
-        self.scope.gates += 1;
-
-        let a = self.scope.current_a_x;
-        let b = self.scope.current_b_x;
-        let c = self.scope.current_c_x;
-
-        self.scope.current_a_x *= self.x_inv;
-        self.scope.current_b_x *= self.x;
-        self.scope.current_c_x *= self.x_inv;
-
-        Ok((a, b, c))
-    }
-}
-
 /// Configures associated types for the [`Evaluator`] driver.
 ///
 /// - `MaybeKind = Empty`: No witness values are needed; evaluation uses only
@@ -206,7 +184,19 @@ impl<F: Field, R: Rank> DriverTypes for Evaluator<'_, F, R> {
         &mut self,
         _: impl Fn() -> Result<(Coeff<F>, Coeff<F>, Coeff<F>)>,
     ) -> Result<(WireEval<F>, WireEval<F>, WireEval<F>, F)> {
-        let (a, b, c) = self.advance_gate()?;
+        let index = self.scope.gates;
+        if index == R::n() {
+            return Err(Error::GateBoundExceeded { limit: R::n() });
+        }
+        self.scope.gates += 1;
+
+        let a = self.scope.current_a_x;
+        let b = self.scope.current_b_x;
+        let c = self.scope.current_c_x;
+
+        self.scope.current_a_x *= self.x_inv;
+        self.scope.current_b_x *= self.x;
+        self.scope.current_c_x *= self.x_inv;
 
         Ok((
             WireEval::Value(a),
