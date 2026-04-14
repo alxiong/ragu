@@ -737,11 +737,11 @@ mod tests {
         fn verify<const M: usize, const N: usize>() -> Result<()> {
             let rng = rand::rngs::StdRng::from_rng(&mut rand::rng());
             let sim = Simulator::simulate(rng, |dr, mut rng| {
-                let mut allocator = SimpleAllocator::new();
-                let mu = Element::alloc(dr, &mut allocator, rng.as_mut().map(Fp::random))?;
-                let nu = Element::alloc(dr, &mut allocator, rng.as_mut().map(Fp::random))?;
-                let mu_prime = Element::alloc(dr, &mut allocator, rng.as_mut().map(Fp::random))?;
-                let nu_prime = Element::alloc(dr, &mut allocator, rng.as_mut().map(Fp::random))?;
+                let allocator = &mut SimpleAllocator::new();
+                let mu = Element::alloc(dr, allocator, rng.as_mut().map(Fp::random))?;
+                let nu = Element::alloc(dr, allocator, rng.as_mut().map(Fp::random))?;
+                let mu_prime = Element::alloc(dr, allocator, rng.as_mut().map(Fp::random))?;
+                let nu_prime = Element::alloc(dr, allocator, rng.as_mut().map(Fp::random))?;
 
                 // Layer 1: N instances of M-sized reductions (uses mu, nu).
                 let fold_products_layer1 = ClaimFolder::new(dr, &mu, &nu)?;
@@ -750,13 +750,13 @@ mod tests {
                     ConstLen<N>,
                 > = FixedVec::try_from_fn(|_| {
                     FixedVec::try_from_fn(|_| {
-                        Element::alloc(dr, &mut allocator, rng.as_mut().map(Fp::random))
+                        Element::alloc(dr, allocator, rng.as_mut().map(Fp::random))
                     })
                 })?;
                 let all_ky_values_m: FixedVec<FixedVec<_, ConstLen<M>>, ConstLen<N>> =
                     FixedVec::try_from_fn(|_| {
                         FixedVec::try_from_fn(|_| {
-                            Element::alloc(dr, &mut allocator, rng.as_mut().map(Fp::random))
+                            Element::alloc(dr, allocator, rng.as_mut().map(Fp::random))
                         })
                     })?;
 
@@ -772,7 +772,7 @@ mod tests {
                 let fold_products_layer2 = ClaimFolder::new(dr, &mu_prime, &nu_prime)?;
                 let error_terms_n: FixedVec<_, NumErrorTerms<ConstLen<N>>> =
                     FixedVec::try_from_fn(|_| {
-                        Element::alloc(dr, &mut allocator, rng.as_mut().map(Fp::random))
+                        Element::alloc(dr, allocator, rng.as_mut().map(Fp::random))
                     })?;
 
                 fold_products_layer2.fold_outer::<TestParams<N, M>>(

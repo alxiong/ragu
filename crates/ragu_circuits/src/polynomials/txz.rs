@@ -161,9 +161,9 @@ mod tests {
 
         Simulator::simulate((x, z), |dr, witness| {
             let (x, z) = witness.cast();
-            let mut allocator = SimpleAllocator::new();
-            let x = Element::alloc(dr, &mut allocator, x)?;
-            let z = Element::alloc(dr, &mut allocator, z)?;
+            let allocator = &mut SimpleAllocator::new();
+            let x = Element::alloc(dr, allocator, x)?;
+            let z = Element::alloc(dr, allocator, z)?;
 
             dr.reset();
             dr.routine(evaluator.clone(), (x, z))?;

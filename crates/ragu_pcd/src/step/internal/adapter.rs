@@ -173,10 +173,10 @@ mod tests {
             DriverValue<D, Fp>,
             DriverValue<D, ()>,
         )> {
-            let mut allocator = SimpleAllocator::new();
+            let allocator = &mut SimpleAllocator::new();
             // Allocate elements for left and right
-            let left_elem = Element::alloc(dr, &mut allocator, left)?;
-            let right_elem = Element::alloc(dr, &mut allocator, right)?;
+            let left_elem = Element::alloc(dr, allocator, left)?;
+            let right_elem = Element::alloc(dr, allocator, right)?;
 
             // Output is sum of left and right
             let output_elem = left_elem.add(dr, &right_elem);

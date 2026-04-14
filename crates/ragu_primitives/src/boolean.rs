@@ -286,10 +286,10 @@ fn test_conditional_select() -> Result<()> {
     // condition = true (returns b)
     Simulator::simulate((true, F::from(1u64), F::from(2u64)), |dr, witness| {
         let (cond, a, b) = witness.cast();
-        let mut allocator = SimpleAllocator::new();
+        let allocator = &mut SimpleAllocator::new();
         let cond = Boolean::alloc(dr, cond)?;
-        let a = Element::alloc(dr, &mut allocator, a)?;
-        let b = Element::alloc(dr, &mut allocator, b)?;
+        let a = Element::alloc(dr, allocator, a)?;
+        let b = Element::alloc(dr, allocator, b)?;
 
         let result = cond.conditional_select(dr, &a, &b)?;
         assert_eq!(*result.value().take(), F::from(2u64));
@@ -300,10 +300,10 @@ fn test_conditional_select() -> Result<()> {
     // condition = false (returns a)
     Simulator::simulate((false, F::from(1u64), F::from(2u64)), |dr, witness| {
         let (cond, a, b) = witness.cast();
-        let mut allocator = SimpleAllocator::new();
+        let allocator = &mut SimpleAllocator::new();
         let cond = Boolean::alloc(dr, cond)?;
-        let a = Element::alloc(dr, &mut allocator, a)?;
-        let b = Element::alloc(dr, &mut allocator, b)?;
+        let a = Element::alloc(dr, allocator, a)?;
+        let b = Element::alloc(dr, allocator, b)?;
 
         let result = cond.conditional_select(dr, &a, &b)?;
         assert_eq!(*result.value().take(), F::from(1u64));
@@ -322,10 +322,10 @@ fn test_conditional_enforce_equal() -> Result<()> {
     // When condition is true, a == b should be enforced (and satisfied)
     let sim = Simulator::simulate((true, F::from(42u64), F::from(42u64)), |dr, witness| {
         let (cond, a, b) = witness.cast();
-        let mut allocator = SimpleAllocator::new();
+        let allocator = &mut SimpleAllocator::new();
         let cond = Boolean::alloc(dr, cond)?;
-        let a = Element::alloc(dr, &mut allocator, a)?;
-        let b = Element::alloc(dr, &mut allocator, b)?;
+        let a = Element::alloc(dr, allocator, a)?;
+        let b = Element::alloc(dr, allocator, b)?;
 
         dr.reset();
         cond.conditional_enforce_equal(dr, &a, &b)?;
@@ -338,10 +338,10 @@ fn test_conditional_enforce_equal() -> Result<()> {
     // When condition is false, constraint is trivially satisfied even if a != b
     Simulator::simulate((false, F::from(1u64), F::from(2u64)), |dr, witness| {
         let (cond, a, b) = witness.cast();
-        let mut allocator = SimpleAllocator::new();
+        let allocator = &mut SimpleAllocator::new();
         let cond = Boolean::alloc(dr, cond)?;
-        let a = Element::alloc(dr, &mut allocator, a)?;
-        let b = Element::alloc(dr, &mut allocator, b)?;
+        let a = Element::alloc(dr, allocator, a)?;
+        let b = Element::alloc(dr, allocator, b)?;
 
         cond.conditional_enforce_equal(dr, &a, &b)?;
         Ok(())
@@ -390,9 +390,9 @@ mod tests {
     fn test_is_equal_same() -> Result<()> {
         let sim = Simulator::simulate((F::from(123u64), F::from(123u64)), |dr, witness| {
             let (a_val, b_val) = witness.cast();
-            let mut allocator = SimpleAllocator::new();
-            let a = Element::alloc(dr, &mut allocator, a_val)?;
-            let b = Element::alloc(dr, &mut allocator, b_val)?;
+            let allocator = &mut SimpleAllocator::new();
+            let a = Element::alloc(dr, allocator, a_val)?;
+            let b = Element::alloc(dr, allocator, b_val)?;
 
             dr.reset();
             let eq = a.is_equal(dr, &b)?;
@@ -411,9 +411,9 @@ mod tests {
     fn test_is_not_equal() -> Result<()> {
         Simulator::simulate((F::from(1u64), F::from(123u64)), |dr, witness| {
             let (a_val, b_val) = witness.cast();
-            let mut allocator = SimpleAllocator::new();
-            let a = Element::alloc(dr, &mut allocator, a_val)?;
-            let b = Element::alloc(dr, &mut allocator, b_val)?;
+            let allocator = &mut SimpleAllocator::new();
+            let a = Element::alloc(dr, allocator, a_val)?;
+            let b = Element::alloc(dr, allocator, b_val)?;
 
             dr.reset();
             let eq = a.is_equal(dr, &b)?;
@@ -479,10 +479,10 @@ mod proptests {
             let mut actual = None;
             Simulator::simulate((cond, a_fe, b_fe), |dr, witness| {
                 let (c, a, b) = witness.cast();
-                let mut allocator = SimpleAllocator::new();
+                let allocator = &mut SimpleAllocator::new();
                 let c = Boolean::alloc(dr, c)?;
-                let a = Element::alloc(dr, &mut allocator, a)?;
-                let b = Element::alloc(dr, &mut allocator, b)?;
+                let a = Element::alloc(dr, allocator, a)?;
+                let b = Element::alloc(dr, allocator, b)?;
                 let result = c.conditional_select(dr, &a, &b)?;
                 actual = Some(*result.value().take());
                 Ok(())

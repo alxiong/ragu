@@ -230,7 +230,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
             .circuit_id
             .enforce_root_of_unity(dr, self.log2_circuits)?;
 
-        let mut allocator = SimpleAllocator::new();
+        let allocator = &mut SimpleAllocator::new();
         let mut unified_output = OutputBuilder::new(witness.map(|w| w.unified));
 
         // Create a transcript for all challenge derivations
@@ -240,7 +240,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
         let w = {
             let bridge_preamble_commitment = unified_output
                 .bridge_preamble_commitment
-                .receive(dr, &mut allocator)?;
+                .receive(dr, allocator)?;
             bridge_preamble_commitment.write(dr, &mut transcript)?;
             transcript.challenge(dr)?
         };
@@ -250,7 +250,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
         let (y, z) = {
             let bridge_s_prime_commitment = unified_output
                 .bridge_s_prime_commitment
-                .receive(dr, &mut allocator)?;
+                .receive(dr, allocator)?;
             bridge_s_prime_commitment.write(dr, &mut transcript)?;
             let y = transcript.challenge(dr)?;
             let z = transcript.challenge(dr)?;
@@ -283,7 +283,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
         {
             let bridge_inner_error_commitment = unified_output
                 .bridge_inner_error_commitment
-                .receive(dr, &mut allocator)?;
+                .receive(dr, allocator)?;
             bridge_inner_error_commitment.write(dr, &mut transcript)?;
 
             // save_state() applies a permutation (since there's pending absorbed data)
@@ -297,7 +297,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize, FP: fold_revdot::Parameters>
         // Output headers from preamble + unified instance. Verification with
         // `unified_bridge_ky` ensures preamble headers match ApplicationProof
         // headers.
-        let (unified, updated) = unified_output.finish_no_suffix(dr, &mut allocator)?;
+        let (unified, updated) = unified_output.finish_no_suffix(dr, allocator)?;
         let output = Output {
             left_header: preamble.left.output_header,
             right_header: preamble.right.output_header,

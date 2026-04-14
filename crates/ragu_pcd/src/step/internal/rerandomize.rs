@@ -56,11 +56,11 @@ impl<C: Cycle, H: Header<C::CircuitField>> Step<C> for Rerandomize<H> {
         DriverValue<D, <Self::Output as Header<C::CircuitField>>::Data>,
         DriverValue<D, Self::Aux<'source>>,
     )> {
-        let mut allocator = SimpleAllocator::new();
+        let allocator = &mut SimpleAllocator::new();
         // Use uniform encoding for left to ensure circuit uniformity across header types
-        let left_encoded = Encoded::new_uniform(dr, &mut allocator, left.clone())?;
+        let left_encoded = Encoded::new_uniform(dr, allocator, left.clone())?;
         // Use standard encoding for right (trivial header)
-        let right = Encoded::new(dr, &mut allocator, right)?;
+        let right = Encoded::new(dr, allocator, right)?;
 
         // TODO(ebfull): It's possible that the witness for this step needs to
         // be populated with some random data, for actual re-randomization

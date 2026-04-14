@@ -552,7 +552,7 @@ mod tests {
             _: DriverValue<D, ()>,
         ) -> Result<WithAux<Bound<'dr, D, ()>, DriverValue<D, ()>>> {
             let dr = builder.finish();
-            let mut allocator = SimpleAllocator::new();
+            let allocator = &mut SimpleAllocator::new();
             allocator.alloc(dr, || Ok(Coeff::Zero))?;
             Ok(WithAux::new((), D::unit()))
         }

@@ -470,8 +470,8 @@ mod tests {
             dr: &mut D,
             instance: ragu_core::drivers::DriverValue<D, Self::Instance<'instance>>,
         ) -> Result<Bound<'dr, D, Self::Output>> {
-            let mut allocator = SimpleAllocator::new();
-            let element = Element::alloc(dr, &mut allocator, instance)?;
+            let allocator = &mut SimpleAllocator::new();
+            let element = Element::alloc(dr, allocator, instance)?;
             Ok(MulOnWrite { element })
         }
 
@@ -485,8 +485,8 @@ mod tests {
                 ragu_core::drivers::DriverValue<D, Self::Aux<'witness>>,
             >,
         > {
-            let mut allocator = SimpleAllocator::new();
-            let element = Element::alloc(dr, &mut allocator, witness)?;
+            let allocator = &mut SimpleAllocator::new();
+            let element = Element::alloc(dr, allocator, witness)?;
             Ok(WithAux::new(MulOnWrite { element }, D::unit()))
         }
     }

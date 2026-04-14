@@ -47,9 +47,9 @@ impl<C: Cycle> Step<C> for Trivial {
         DriverValue<D, <Self::Output as Header<C::CircuitField>>::Data>,
         DriverValue<D, Self::Aux<'source>>,
     )> {
-        let mut allocator = SimpleAllocator::new();
-        let left = Encoded::new(dr, &mut allocator, left)?;
-        let right = Encoded::new(dr, &mut allocator, right)?;
+        let allocator = &mut SimpleAllocator::new();
+        let left = Encoded::new(dr, allocator, left)?;
+        let right = Encoded::new(dr, allocator, right)?;
         let output = Encoded::from_gadget(());
 
         Ok(((left, right, output), D::unit(), D::unit()))

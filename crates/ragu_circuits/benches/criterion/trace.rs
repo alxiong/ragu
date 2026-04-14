@@ -75,8 +75,8 @@ impl Circuit<Fp> for HeavyRoutineCircuit {
         dr: &mut D,
         instance: DriverValue<D, Self::Instance<'instance>>,
     ) -> Result<Bound<'dr, D, Self::Output>> {
-        let mut allocator = SimpleAllocator::new();
-        Element::alloc(dr, &mut allocator, instance)
+        let allocator = &mut SimpleAllocator::new();
+        Element::alloc(dr, allocator, instance)
     }
 
     fn witness<'dr, 'witness: 'dr, D: Driver<'dr, F = Fp>>(
@@ -84,8 +84,8 @@ impl Circuit<Fp> for HeavyRoutineCircuit {
         dr: &mut D,
         witness: DriverValue<D, Self::Witness<'witness>>,
     ) -> Result<WithAux<Bound<'dr, D, Self::Output>, DriverValue<D, Self::Aux<'witness>>>> {
-        let mut allocator = SimpleAllocator::new();
-        let input = Element::alloc(dr, &mut allocator, witness)?;
+        let allocator = &mut SimpleAllocator::new();
+        let input = Element::alloc(dr, allocator, witness)?;
         let routine = HeavyKnownRoutine { depth: self.depth };
 
         let mut result = dr.routine(routine.clone(), input.clone())?;

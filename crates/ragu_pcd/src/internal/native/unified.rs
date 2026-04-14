@@ -621,11 +621,11 @@ mod tests {
     #[test]
     fn slot_read_allocates_without_coverage() {
         let (mut dr, mut a, mut b) = two_element_slots();
-        let mut allocator = ragu_primitives::allocator::SimpleAllocator::new();
-        a.read(&mut dr, &mut allocator).expect("read a");
-        b.read(&mut dr, &mut allocator).expect("read b");
-        let (_, a_set) = a.take(&mut dr, &mut allocator).expect("take a");
-        let (_, b_set) = b.take(&mut dr, &mut allocator).expect("take b");
+        let allocator = &mut ragu_primitives::allocator::SimpleAllocator::new();
+        a.read(&mut dr, allocator).expect("read a");
+        b.read(&mut dr, allocator).expect("read b");
+        let (_, a_set) = a.take(&mut dr, allocator).expect("take a");
+        let (_, b_set) = b.take(&mut dr, allocator).expect("take b");
         assert!(!a_set, "read() must not mark slot a as covered");
         assert!(!b_set, "read() must not mark slot b as covered");
     }
@@ -634,12 +634,12 @@ mod tests {
     #[test]
     fn slot_provide_stores_value_and_marks_covered() {
         let (mut dr, mut a, b) = two_element_slots();
-        let mut allocator = ragu_primitives::allocator::SimpleAllocator::new();
-        let val_a = Element::alloc(&mut dr, &mut allocator, Empty).expect("alloc a");
+        let allocator = &mut ragu_primitives::allocator::SimpleAllocator::new();
+        let val_a = Element::alloc(&mut dr, allocator, Empty).expect("alloc a");
         a.provide(val_a);
         // b left untouched — should remain uncovered.
-        let (_, a_set) = a.take(&mut dr, &mut allocator).expect("take a");
-        let (_, b_set) = b.take(&mut dr, &mut allocator).expect("take b");
+        let (_, a_set) = a.take(&mut dr, allocator).expect("take a");
+        let (_, b_set) = b.take(&mut dr, allocator).expect("take b");
         assert!(a_set, "provide() must mark slot a as covered");
         assert!(!b_set, "provide() on a must not affect slot b");
     }
@@ -648,12 +648,12 @@ mod tests {
     #[test]
     fn slot_receive_allocates_and_marks_covered() {
         let (mut dr, mut a, mut b) = two_element_slots();
-        let mut allocator = ragu_primitives::allocator::SimpleAllocator::new();
-        let _ = a.receive(&mut dr, &mut allocator).expect("receive a");
+        let allocator = &mut ragu_primitives::allocator::SimpleAllocator::new();
+        let _ = a.receive(&mut dr, allocator).expect("receive a");
         // b only gets `read` — should remain uncovered.
-        b.read(&mut dr, &mut allocator).expect("read b");
-        let (_, a_set) = a.take(&mut dr, &mut allocator).expect("take a");
-        let (_, b_set) = b.take(&mut dr, &mut allocator).expect("take b");
+        b.read(&mut dr, allocator).expect("read b");
+        let (_, a_set) = a.take(&mut dr, allocator).expect("take a");
+        let (_, b_set) = b.take(&mut dr, allocator).expect("take b");
         assert!(a_set, "receive() must mark slot a as covered");
         assert!(!b_set, "receive() on a must not affect slot b");
     }
@@ -662,11 +662,11 @@ mod tests {
     #[test]
     fn slot_take_untouched_allocates_without_coverage() {
         let (mut dr, a, mut b) = two_element_slots();
-        let mut allocator = ragu_primitives::allocator::SimpleAllocator::new();
+        let allocator = &mut ragu_primitives::allocator::SimpleAllocator::new();
         // a is never touched by the circuit — finish calls take directly.
-        b.receive(&mut dr, &mut allocator).expect("receive b");
-        let (_, a_set) = a.take(&mut dr, &mut allocator).expect("take a");
-        let (_, b_set) = b.take(&mut dr, &mut allocator).expect("take b");
+        b.receive(&mut dr, allocator).expect("receive b");
+        let (_, a_set) = a.take(&mut dr, allocator).expect("take a");
+        let (_, b_set) = b.take(&mut dr, allocator).expect("take b");
         assert!(!a_set, "untouched slot a must not be marked as covered");
         assert!(b_set, "received slot b must be marked as covered");
     }

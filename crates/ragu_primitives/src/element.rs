@@ -498,8 +498,8 @@ mod root_of_unity_tests {
     fn test_enforce_root_of_unity() -> Result<()> {
         for (i, (omega, k, should_pass)) in test_cases().into_iter().enumerate() {
             let result = Simulator::simulate(omega, |dr, witness| {
-                let mut allocator = SimpleAllocator::new();
-                let omega = Element::alloc(dr, &mut allocator, witness)?;
+                let allocator = &mut SimpleAllocator::new();
+                let omega = Element::alloc(dr, allocator, witness)?;
                 omega.enforce_root_of_unity(dr, k)?;
                 Ok(())
             });
@@ -540,9 +540,9 @@ mod proptests {
             let mut actual = None;
             Simulator::simulate((a_fe, b_fe), |dr, witness| {
                 let (a, b) = witness.cast();
-                let mut allocator = SimpleAllocator::new();
-                let a = Element::alloc(dr, &mut allocator, a)?;
-                let b = Element::alloc(dr, &mut allocator, b)?;
+                let allocator = &mut SimpleAllocator::new();
+                let a = Element::alloc(dr, allocator, a)?;
+                let b = Element::alloc(dr, allocator, b)?;
                 let sum = a.add(dr, &b);
                 let result = sum.sub(dr, &b);
                 actual = Some(*result.value().take());
@@ -556,9 +556,9 @@ mod proptests {
             let mut actual = None;
             Simulator::simulate((a_fe, b_fe), |dr, witness| {
                 let (a, b) = witness.cast();
-                let mut allocator = SimpleAllocator::new();
-                let a = Element::alloc(dr, &mut allocator, a)?;
-                let b = Element::alloc(dr, &mut allocator, b)?;
+                let allocator = &mut SimpleAllocator::new();
+                let a = Element::alloc(dr, allocator, a)?;
+                let b = Element::alloc(dr, allocator, b)?;
                 let ab = a.mul(dr, &b)?;
                 let ba = b.mul(dr, &a)?;
                 actual = Some((*ab.value().take(), *ba.value().take()));
@@ -586,9 +586,9 @@ mod tests {
         let alloc = |a: F, b: F| {
             let sim = Simulator::simulate((a, b), |dr, witness| {
                 let (a, b) = witness.cast();
-                let mut allocator = SimpleAllocator::new();
-                let a = Element::alloc(dr, &mut allocator, a.clone())?;
-                let b = Element::alloc(dr, &mut allocator, b.clone())?;
+                let allocator = &mut SimpleAllocator::new();
+                let a = Element::alloc(dr, allocator, a.clone())?;
+                let b = Element::alloc(dr, allocator, b.clone())?;
 
                 let quotient = a.div_nonzero(dr, &b)?;
 
@@ -618,8 +618,8 @@ mod tests {
 
         let inv = |a: F| {
             let sim = Simulator::simulate(a, |dr, witness| {
-                let mut allocator = SimpleAllocator::new();
-                let a = Element::alloc(dr, &mut allocator, witness.clone())?;
+                let allocator = &mut SimpleAllocator::new();
+                let a = Element::alloc(dr, allocator, witness.clone())?;
                 dr.reset();
                 let ainv = a.invert(dr)?;
 

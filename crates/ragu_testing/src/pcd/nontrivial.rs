@@ -80,9 +80,9 @@ impl<C: Cycle> Step<C> for Hash2<'_, C> {
     where
         Self: 'dr,
     {
-        let mut allocator = SimpleAllocator::new();
-        let left = Encoded::new(dr, &mut allocator, left)?;
-        let right = Encoded::new(dr, &mut allocator, right)?;
+        let allocator = &mut SimpleAllocator::new();
+        let left = Encoded::new(dr, allocator, left)?;
+        let right = Encoded::new(dr, allocator, right)?;
 
         let mut sponge = Sponge::new(dr, self.poseidon_params);
         sponge.absorb(dr, left.as_gadget())?;
@@ -125,8 +125,8 @@ impl<C: Cycle> Step<C> for WitnessLeaf<'_, C> {
     where
         Self: 'dr,
     {
-        let mut allocator = SimpleAllocator::new();
-        let leaf = Element::alloc(dr, &mut allocator, witness)?;
+        let allocator = &mut SimpleAllocator::new();
+        let leaf = Element::alloc(dr, allocator, witness)?;
         let mut sponge = Sponge::new(dr, self.poseidon_params);
         sponge.absorb(dr, &leaf)?;
         let leaf = sponge.squeeze(dr)?;

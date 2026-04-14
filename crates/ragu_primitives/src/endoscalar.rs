@@ -316,8 +316,8 @@ mod tests {
         Simulator::<Fp>::simulate((r, extracted, p), |dr, witness| {
             let (r, extracted, p) = witness.cast();
             let p = Point::alloc(dr, p)?;
-            let mut allocator = SimpleAllocator::new();
-            let r = Element::alloc(dr, &mut allocator, r)?;
+            let allocator = &mut SimpleAllocator::new();
+            let r = Element::alloc(dr, allocator, r)?;
             let my_extracted = Endoscalar::extract(dr, r)?;
             let allocated = Endoscalar::alloc(dr, extracted)?;
 

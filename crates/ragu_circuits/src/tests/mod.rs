@@ -35,8 +35,8 @@ impl Circuit<Fp> for SquareCircuit {
         dr: &mut D,
         instance: DriverValue<D, Self::Instance<'instance>>,
     ) -> Result<Bound<'dr, D, Self::Output>> {
-        let mut allocator = SimpleAllocator::new();
-        Element::alloc(dr, &mut allocator, instance)
+        let allocator = &mut SimpleAllocator::new();
+        Element::alloc(dr, allocator, instance)
     }
 
     fn witness<'dr, 'witness: 'dr, D: Driver<'dr, F = Fp>>(
@@ -44,8 +44,8 @@ impl Circuit<Fp> for SquareCircuit {
         dr: &mut D,
         witness: DriverValue<D, Self::Witness<'witness>>,
     ) -> Result<WithAux<Bound<'dr, D, Self::Output>, DriverValue<D, Self::Aux<'witness>>>> {
-        let mut allocator = SimpleAllocator::new();
-        let mut a = Element::alloc(dr, &mut allocator, witness)?;
+        let allocator = &mut SimpleAllocator::new();
+        let mut a = Element::alloc(dr, allocator, witness)?;
 
         for _ in 0..self.times {
             a = a.square(dr)?;
@@ -97,9 +97,9 @@ fn test_simple_circuit() {
             dr: &mut D,
             instance: DriverValue<D, Self::Instance<'instance>>,
         ) -> Result<Bound<'dr, D, Self::Output>> {
-            let mut allocator = SimpleAllocator::new();
-            let c = Element::alloc(dr, &mut allocator, instance.as_ref().map(|v| v.0))?;
-            let d = Element::alloc(dr, &mut allocator, instance.as_ref().map(|v| v.1))?;
+            let allocator = &mut SimpleAllocator::new();
+            let c = Element::alloc(dr, allocator, instance.as_ref().map(|v| v.0))?;
+            let d = Element::alloc(dr, allocator, instance.as_ref().map(|v| v.1))?;
 
             Ok((c, d))
         }
@@ -110,9 +110,9 @@ fn test_simple_circuit() {
             witness: DriverValue<D, Self::Witness<'witness>>,
         ) -> Result<WithAux<Bound<'dr, D, Self::Output>, DriverValue<D, Self::Aux<'witness>>>>
         {
-            let mut allocator = SimpleAllocator::new();
-            let a = Element::alloc(dr, &mut allocator, witness.as_ref().map(|w| w.0))?;
-            let b = Element::alloc(dr, &mut allocator, witness.as_ref().map(|w| w.1))?;
+            let allocator = &mut SimpleAllocator::new();
+            let a = Element::alloc(dr, allocator, witness.as_ref().map(|w| w.0))?;
+            let b = Element::alloc(dr, allocator, witness.as_ref().map(|w| w.1))?;
 
             let a2 = a.square(dr)?;
             let a4 = a2.square(dr)?;
@@ -202,9 +202,9 @@ impl Routine<Fp> for TestRoutine {
         aux: DriverValue<D, Self::Aux<'dr>>,
     ) -> Result<Bound<'dr, D, Self::Output>> {
         let precomputed_value = aux.take();
-        let mut allocator = SimpleAllocator::new();
-        let element_from_aux = Element::alloc(dr, &mut allocator, D::just(|| precomputed_value))?;
-        let other = Element::alloc(dr, &mut allocator, D::just(|| Fp::from(5u64)))?;
+        let allocator = &mut SimpleAllocator::new();
+        let element_from_aux = Element::alloc(dr, allocator, D::just(|| precomputed_value))?;
+        let other = Element::alloc(dr, allocator, D::just(|| Fp::from(5u64)))?;
         let result = element_from_aux.add(dr, &other);
         Ok(result)
     }
@@ -221,10 +221,10 @@ impl Routine<Fp> for TestRoutine {
 #[test]
 fn test_element() {
     let mut simulator = Simulator::<Fp>::new();
-    let mut allocator = SimpleAllocator::new();
+    let allocator = &mut SimpleAllocator::new();
     let input = Element::alloc(
         &mut simulator,
-        &mut allocator,
+        allocator,
         Always::<Fp>::just(|| Fp::from(5u64)),
     )
     .unwrap();

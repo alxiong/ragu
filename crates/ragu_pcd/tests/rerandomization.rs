@@ -75,10 +75,10 @@ impl Step<Pasta> for StepWithData {
         DriverValue<D, <Self::Output as Header<Fp>>::Data>,
         DriverValue<D, Self::Aux<'source>>,
     )> {
-        let mut allocator = SimpleAllocator::new();
-        let left = Encoded::new(dr, &mut allocator, left)?;
-        let right = Encoded::new(dr, &mut allocator, right)?;
-        let output = Encoded::new(dr, &mut allocator, witness.clone())?;
+        let allocator = &mut SimpleAllocator::new();
+        let left = Encoded::new(dr, allocator, left)?;
+        let right = Encoded::new(dr, allocator, right)?;
+        let output = Encoded::new(dr, allocator, witness.clone())?;
         Ok(((left, right, output), witness, D::unit()))
     }
 }
@@ -107,9 +107,9 @@ impl<C: Cycle> Step<C> for Step0 {
         DriverValue<D, <Self::Output as Header<C::CircuitField>>::Data>,
         DriverValue<D, Self::Aux<'source>>,
     )> {
-        let mut allocator = SimpleAllocator::new();
-        let left = Encoded::new(dr, &mut allocator, left)?;
-        let right = Encoded::new(dr, &mut allocator, right)?;
+        let allocator = &mut SimpleAllocator::new();
+        let left = Encoded::new(dr, allocator, left)?;
+        let right = Encoded::new(dr, allocator, right)?;
         let output = Encoded::from_gadget(());
         Ok(((left, right, output), D::unit(), D::unit()))
     }
@@ -138,9 +138,9 @@ impl<C: Cycle> Step<C> for Step1 {
         DriverValue<D, <Self::Output as Header<C::CircuitField>>::Data>,
         DriverValue<D, Self::Aux<'source>>,
     )> {
-        let mut allocator = SimpleAllocator::new();
-        let left = Encoded::new(dr, &mut allocator, left)?;
-        let right = Encoded::new(dr, &mut allocator, right)?;
+        let allocator = &mut SimpleAllocator::new();
+        let left = Encoded::new(dr, allocator, left)?;
+        let right = Encoded::new(dr, allocator, right)?;
         let output = Encoded::from_gadget(());
         Ok(((left, right, output), D::unit(), D::unit()))
     }

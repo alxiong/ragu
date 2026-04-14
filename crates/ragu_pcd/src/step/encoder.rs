@@ -257,28 +257,25 @@ mod tests {
     fn encoded_uniform_different_headers_same_size() {
         let mut dr = Emulator::execute();
         let dr = &mut dr;
-        let mut allocator = ();
+        let allocator = &mut ();
 
         let single = Encoded::<_, SingleHeader, HEADER_SIZE>::new_uniform(
             dr,
-            &mut allocator,
+            allocator,
             Always::maybe_just(|| Fp::from(1u64)),
         )
         .expect("single encoding should succeed");
 
         let pair = Encoded::<_, PairHeader, HEADER_SIZE>::new_uniform(
             dr,
-            &mut allocator,
+            allocator,
             Always::maybe_just(|| (Fp::from(2u64), Fp::from(3u64))),
         )
         .expect("pair encoding should succeed");
 
-        let trivial = Encoded::<_, (), HEADER_SIZE>::new_uniform(
-            dr,
-            &mut allocator,
-            Always::maybe_just(|| ()),
-        )
-        .expect("trivial encoding should succeed");
+        let trivial =
+            Encoded::<_, (), HEADER_SIZE>::new_uniform(dr, allocator, Always::maybe_just(|| ()))
+                .expect("trivial encoding should succeed");
 
         let mut buf_single = vec![];
         let mut buf_pair = vec![];
