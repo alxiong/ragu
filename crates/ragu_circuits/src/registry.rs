@@ -329,6 +329,7 @@ enum LagrangeCache<F> {
 pub struct RegistryAt<'a, F: PrimeField, R: Rank> {
     registry: &'a Registry<'a, F, R>,
     cache: LagrangeCache<F>,
+    mask_coeff_sum: F,
 }
 
 /// Represents a key for identifying a unique $\omega^j$ value where $\omega$ is
@@ -412,10 +413,19 @@ impl<F: PrimeField, R: Rank> Registry<'_, F, R> {
     pub fn xy(&self, x: F, y: F) -> sparse::Polynomial<F, R> {
         let key_scalar = self.key_sxy(x, y);
         let mut coeffs = alloc::vec![F::ZERO; R::num_coeffs()];
+
+        // Masking polynomials return only -notch from sxy(); add the shared
+        // global term to each mask slot inline.
+        let global_xy = crate::staging::mask::global_mask::<F, R>(x, y);
         for (i, circuit) in self.circuits.iter().enumerate() {
             let j = bitreverse(i as u32, self.domain.log2_n()) as usize;
-            coeffs[j] = circuit.sxy(x, y, &self.floor_plans[i]);
+            let mut v = circuit.sxy(x, y, &self.floor_plans[i]);
+            if circuit.is_mask() {
+                v += global_xy;
+            }
+            coeffs[j] = v;
         }
+
         // Convert from the Lagrange basis.
         let domain = &self.domain;
         domain.ifft(&mut coeffs[..domain.n()]);
@@ -505,6 +515,34 @@ impl<F: PrimeField, R: Rank> Registry<'_, F, R> {
         result
     }
 
+    /// Sums Lagrange coefficients for masking polynomials at the given $W$ point.
+    ///
+    /// Only circuits where [`CircuitObject::is_mask`] returns `true` contribute.
+    fn mask_coeff_sum(&self, cache: &LagrangeCache<F>) -> F {
+        match cache {
+            LagrangeCache::Interpolate(coeffs) => {
+                let mut sum = F::ZERO;
+                for (i, circuit) in self.circuits.iter().enumerate() {
+                    if circuit.is_mask() {
+                        let j = bitreverse(i as u32, self.domain.log2_n()) as usize;
+                        sum += coeffs[j];
+                    }
+                }
+                sum
+            }
+            LagrangeCache::Direct(i) => {
+                // W is exactly omega^bitreverse(i), so the Lagrange
+                // coefficient for circuit i is ONE and all others are ZERO.
+                if self.circuits[*i].is_mask() {
+                    F::ONE
+                } else {
+                    F::ZERO
+                }
+            }
+            LagrangeCache::Empty => F::ZERO,
+        }
+    }
+
     /// Bind the registry to a specific $W$ point, caching Lagrange coefficients.
     ///
     /// Returns a [`RegistryAt`] that can be used to evaluate the registry
@@ -520,15 +558,17 @@ impl<F: PrimeField, R: Rank> Registry<'_, F, R> {
             // w is in the domain but no circuit registered at that index.
             LagrangeCache::Empty
         };
+        let mask_coeff_sum = self.mask_coeff_sum(&cache);
         RegistryAt {
             registry: self,
             cache,
+            mask_coeff_sum,
         }
     }
 }
 
 impl<F: PrimeField, R: Rank> RegistryAt<'_, F, R> {
-    /// Evaluate the registry polynomial restricted at $W$, unrestricted at $Y$.
+    /// Evaluate the registry polynomial restricted at $W$ and $Y$, unrestricted at $X$.
     pub fn y(&self, y: F) -> sparse::Polynomial<F, R> {
         let mut poly = self.registry.w_cached(
             &self.cache,
@@ -539,6 +579,12 @@ impl<F: PrimeField, R: Rank> RegistryAt<'_, F, R> {
                 poly.add_assign(&tmp);
             },
         );
+
+        // Masking polynomials return only -notch; add the shared global once,
+        // weighted by the sum of Lagrange coefficients for all mask circuits at W.
+        let mut global = crate::staging::mask::global_project::<F, R>(y);
+        global.scale(self.mask_coeff_sum);
+        poly.add_assign(&global);
 
         // Add the registry key contribution k * (XY)^{4n-1}.  Restricted
         // at Y, this is k * y^{4n-1} at X^{4n-1} (c-wire of the SYSTEM gate in
@@ -553,7 +599,7 @@ impl<F: PrimeField, R: Rank> RegistryAt<'_, F, R> {
         poly
     }
 
-    /// Evaluate the registry polynomial restricted at $W$, unrestricted at $X$.
+    /// Evaluate the registry polynomial restricted at $W$ and $X$, unrestricted at $Y$.
     pub fn x(&self, x: F) -> sparse::Polynomial<F, R> {
         let mut poly = self.registry.w_cached(
             &self.cache,
@@ -564,6 +610,12 @@ impl<F: PrimeField, R: Rank> RegistryAt<'_, F, R> {
                 poly.add_assign(&tmp);
             },
         );
+
+        // Masking polynomials return only -notch; add the shared global once,
+        // weighted by the sum of Lagrange coefficients for all mask circuits at W.
+        let mut global = crate::staging::mask::global_project::<F, R>(x);
+        global.scale(self.mask_coeff_sum);
+        poly.add_assign(&global);
 
         // Add the registry key contribution k * (XY)^{4n-1}.  Restricted
         // at X, this is k * x^{4n-1} at Y^{4n-1}.
@@ -582,13 +634,17 @@ impl<F: PrimeField, R: Rank> RegistryAt<'_, F, R> {
 
     /// Evaluate the registry polynomial at the point ($W$, $X$, $Y$).
     pub fn xy(&self, x: F, y: F) -> F {
-        let result: F = self.registry.w_cached(
+        let mut result: F = self.registry.w_cached(
             &self.cache,
             || F::ZERO,
             |circuit, floor_plan, coeff, result| {
                 *result += circuit.sxy(x, y, floor_plan) * coeff;
             },
         );
+
+        // Masking polynomials return only -notch; apply the shared global
+        // scalar once.
+        result += self.mask_coeff_sum * crate::staging::mask::global_mask::<F, R>(x, y);
 
         // Add the registry key contribution.
         result + self.registry.key_sxy(x, y)
