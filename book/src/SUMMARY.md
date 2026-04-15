@@ -14,6 +14,7 @@
     - [Concrete Drivers](guide/drivers/concrete.md)
   - [Gadgets](guide/gadgets/index.md)
     - [Simple Gadgets](guide/gadgets/simple.md)
+    - [Allocation](guide/gadgets/allocation.md)
     - [The GadgetKind Trait](guide/gadgets/gadgetkind.md)
     - [The Kind! Macro](guide/gadgets/kind.md)
     - [Conversion](guide/gadgets/conversion.md)
