@@ -38,10 +38,10 @@ consistency and accessibility.
 
 ### Wire variable case inconsistency between allocation and drivers pages
 
-`guide/gadgets/allocation.md` uses uppercase $(A, B, C, D)$ for gate wires
-while `guide/drivers/index.md` uses lowercase $(a, b, c, d)$. The rustdoc
-source uses uppercase. Align both pages to one convention (preferably
-uppercase to match the source).
+`guide/primitives/allocation.md` uses uppercase $(A, B, C, D)$ for gate
+wires while `guide/drivers/index.md` uses lowercase $(a, b, c, d)$. The
+rustdoc source uses uppercase. Align both pages to one convention
+(preferably uppercase to match the source).
 
 ### Empty category heading for `implementation/drivers/`
 

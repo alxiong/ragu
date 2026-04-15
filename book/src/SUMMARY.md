@@ -14,12 +14,12 @@
     - [Concrete Drivers](guide/drivers/concrete.md)
   - [Gadgets](guide/gadgets/index.md)
     - [Simple Gadgets](guide/gadgets/simple.md)
-    - [Allocation](guide/gadgets/allocation.md)
     - [The GadgetKind Trait](guide/gadgets/gadgetkind.md)
     - [The Kind! Macro](guide/gadgets/kind.md)
     - [Conversion](guide/gadgets/conversion.md)
   - [Routines](guide/routines.md)
-  - [The Primitives Standard Library](guide/standard_library.md) <!-- todo -->
+  - [The Primitives Standard Library](guide/primitives/index.md)
+    - [Allocation](guide/primitives/allocation.md)
   - [Writing Circuits](guide/writing_circuits.md) <!-- todo -->
   - [Configuration](guide/configuration.md) <!-- todo -->
 - [Part II: Protocol Design]()
