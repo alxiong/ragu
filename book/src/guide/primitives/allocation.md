@@ -4,53 +4,48 @@ All wires are created in groups whenever new gates are created via
 [`mul()`] (or, more generally, with [`gate()`]). In some rare cases,
 gadgets need _standalone_ wires that cannot be easily represented as
 linear combinations of existing wires. The [`Allocator`] trait
-generalizes over (possibly stateful) strategies for obtaining free
-wires to witness arbitrary data.
+generalizes over (possibly stateful) strategies for assigning
+arbitrary data to free wires.
 
 ## The [`Allocator`] Trait {#allocator-trait}
 
-```rust,ignore
+```rust
 pub trait Allocator<'dr, D: Driver<'dr>> {
     fn alloc(
         &mut self,
         dr: &mut D,
         value: impl Fn() -> Result<Coeff<D::F>>,
     ) -> Result<D::Wire>;
-
-    fn donate(&mut self, _extra: D::Extra) {}
 }
 ```
 
 `Allocator::alloc` takes a mutable reference to the driver and a
 witness-producing closure, and returns a single wire. The closure
-follows the same purity contract as [`Driver::mul`]: it may be called
-zero or more times and must be side-effect-free. Where `Driver::mul`
-produces three wires from a multiplication relationship, `alloc`
-produces one wire carrying an arbitrary value.
+follows the same purity contract as [`Driver::mul`]: it may be
+called zero or more times and must be side-effect-free.
+`Driver::mul` produces three wires from a multiplication
+relationship; `alloc` produces one wire carrying an arbitrary value.
 
-The `donate` method accepts a spare
-[`Extra`](ragu_core::drivers::DriverTypes::Extra) token from an
-external gate whose $D$ wire is unconstrained. By default it drops
-the token; advanced allocators override it to pool spare wires for
-reuse.
+Gadgets that need standalone wires should prefer to accept a generic
+`&mut A` where `A: Allocator`, though it is not always necessary
+when threading an allocator through the call site is difficult. For
+example, [`Element::alloc`] delegates to whichever allocator the
+caller provides:
 
-Gadgets that need standalone wires accept a generic `&mut A` where
-`A: Allocator`. For example, [`Element::alloc`] delegates to
-whichever allocator the caller provides:
-
-```rust,ignore
+```rust
 let x = Element::alloc(dr, &mut allocator, witness)?;
 ```
 
-This lets the same gadget code work with any allocation strategy
-the caller chooses.
+This allows the caller to determine the optimal allocation strategy
+for gadgets that do not otherwise care or lack the context to make
+the best decision themselves.
 
 ## The Unit Allocator {#unit-allocator}
 
 The simplest allocator is `()`. Each call invokes [`mul()`] with
 $A = C = 0$ and returns the $B$ wire:
 
-```rust,ignore
+```rust
 impl<'dr, D: Driver<'dr>> Allocator<'dr, D> for () {
     fn alloc(
         &mut self,
@@ -65,137 +60,83 @@ impl<'dr, D: Driver<'dr>> Allocator<'dr, D> for () {
 }
 ```
 
-Call site:
-
-```rust,ignore
-let x = Element::alloc(dr, &mut (), witness)?;
-```
-
-One gate per wire, stateless, but wasteful when allocations come in
-pairs.
+In exchange for being stateless, this allocator creates a gate for
+every free wire, which is not optimal.
 
 ## [`SimpleAllocator`] {#simple-allocator}
 
-The unit allocator wastes capacity because each gate allocates four
-wire slots, but [`gate()`] returns three wires plus a spare `Extra`
-token representing the $D$ wire. The gate is subject to
-$A \cdot B = C$ and $C \cdot D = 0$. When $A = C = 0$, both
-constraints are trivially satisfied and both $B$ and $D$ are
-unconstrained. A single gate therefore contains **two free slots**.
+Theoretically, an allocator could offer two wires per gate by
+distributing the $A$ and $B$ wires of each [`mul()`], allowing $C$
+to be a meaningless product that is discarded. This is slightly
+suboptimal because the trace contains the useless discarded product
+and is more expensive to manipulate. Instead, the more general
+[`gate()`] (which creates four wires) can be used, where the $B$
+and $D$ wires are distributed and the $A$ and $C$ wires are
+assigned to zero.
 
-[`SimpleAllocator`] exploits this by pairing consecutive allocations
-into one gate:
-
-1. **First call:** allocates a gate with $A = C = 0$, returns $B$,
-   and stashes the `Extra` token for $D$.
-2. **Second call:** redeems the stashed token via
-   [`assign_extra`][assign-extra], returning $D$ without allocating
-   a new gate.
-
-```rust,ignore
-impl<'dr, D: Driver<'dr>> Allocator<'dr, D>
-    for SimpleAllocator<D::Extra>
-{
-    fn alloc(
-        &mut self,
-        dr: &mut D,
-        value: impl Fn() -> Result<Coeff<D::F>>,
-    ) -> Result<D::Wire> {
-        if let Some(extra) = self.stash.take() {
-            dr.assign_extra(extra, value)
-        } else {
-            let (_, b, _, extra) = dr.gate(
-                || Ok((Coeff::Zero, value()?, Coeff::Zero)),
-            )?;
-            self.stash = Some(extra);
-            Ok(b)
-        }
-    }
-}
-```
+[`SimpleAllocator`] exploits this by creating gates, assigning the
+$B$ wire, and then stashing the $D$ wire's token for future
+allocation with the [driver's assistance][assign-extra]. In exchange
+for being stateful, it is less wasteful.
 
 Typical usage:
 
-```rust,ignore
+```rust
 let allocator = &mut SimpleAllocator::new();
 let a = Element::alloc(dr, allocator, witness_a)?;
 let b = Element::alloc(dr, allocator, witness_b)?;
 // Both a and b share one gate.
 ```
 
-```admonish info
-Dropping a `SimpleAllocator` that still holds a stashed token is
-safe. The driver already assigned $D = 0$ for that gate, so no
-constraint is violated.
-```
-
 ## [`PoolAllocator`] {#pool-allocator}
 
 Some gadgets allocate a gate whose $D$ wire is unconstrained because
-$C = 0$. Rather than waste that wire, they can _donate_ the `Extra`
-token to the allocator. [`PoolAllocator`] collects these donated
-tokens and hands them out on future `alloc` calls before falling
-back to new gates.
+$C$ is constrained to be zero. Rather than waste that wire, they
+can _donate_ the `Extra` token to the allocator. [`PoolAllocator`]
+collects these donated tokens and hands them out on future `alloc`
+calls before falling back to new gates.
 
-[`Boolean::alloc`] is the canonical example. The boolean constraint
-$a \cdot (1 - a) = 0$ produces a gate where $C = 0$, leaving $D$
+As an example, [`Boolean::alloc`] constrains $a \cdot (1 - a) = 0$
+which produces a gate where $C$ is constrained to zero, leaving $D$
 unconstrained. `Boolean::alloc` donates that spare `Extra` token
 back to the allocator:
 
-```rust,ignore
-pub fn alloc<A: Allocator<'dr, D>>(
-    dr: &mut D,
-    allocator: &mut A,
-    value: DriverValue<D, bool>,
-) -> Result<Boolean<'dr, D>> {
-    // ... constrains a * (1 - a) = 0 ...
+```rust
+let (a, b, c, extra) = dr.gate(|| /* ... */)?;
+dr.enforce_zero(|lc| lc.add(&c)); // c = 0
 
-    // The gate's spare D wire is donated to the allocator.
-    allocator.donate(extra);
-
-    Ok(Boolean { value, wire: a })
-}
+// The gate's spare D wire is donated to the allocator.
+allocator.donate(extra);
 ```
 
 When using `PoolAllocator`, subsequent allocations redeem these
 donated tokens at zero gate cost:
 
-```rust,ignore
+```rust
 let allocator = &mut PoolAllocator::new();
 let flag = Boolean::alloc(dr, allocator, bit)?;   // 1 gate
-let x = Element::alloc(dr, allocator, witness)?;  // 0 gates (reuses donated D)
-```
-
-Like `SimpleAllocator`, `PoolAllocator` also pairs its own gate
-allocations internally. When the pool is empty and a fresh gate is
-needed, the spare `Extra` from that gate enters the pool for the
-next call.
-
-```admonish info
-Dropping a `PoolAllocator` with tokens still in the pool is safe.
-The driver already assigned $D = 0$ for those gates.
+let x = Element::alloc(dr, allocator, witness)?;  // 0 gates
 ```
 
 ## Choosing an Allocator {#choosing}
 
+The choice of allocator is both a decision a gadget makes (if it
+asks to receive one from the caller) and one the circuit developer
+makes (if asked to provide one). The trade-offs depend on context,
+but a rough guide:
+
 | Situation | Allocator |
 |-----------|-----------|
 | Two or more consecutive allocations | [`SimpleAllocator`] |
-| Allocations interleaved with boolean or other donating gadgets | [`PoolAllocator`] |
+| Allocations interleaved with donating gadgets | [`PoolAllocator`] |
 | Single isolated allocation | `()` |
-
-[`SimpleAllocator`] is the right default whenever you allocate more
-than one wire in sequence. Use [`PoolAllocator`] when your circuit
-mixes allocations with gadgets that donate spare wires (like
-[`Boolean::alloc`]). Use `()` when a single allocation is truly
-standalone and introducing state would add unnecessary complexity.
 
 ## Cost Accounting {#cost-accounting}
 
 The [`Simulator`] makes allocation costs visible. Compare two unit
 allocations against one paired allocation:
 
-```rust,ignore
+```rust
 // Two unit allocations: 2 gates
 let sim = Simulator::simulate((a, b), |dr, witness| {
     let (a, b) = witness.cast();
