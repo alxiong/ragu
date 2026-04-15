@@ -17,7 +17,7 @@
 //! - [`Allocator`] for `()` — stateless; allocates a full gate per wire.
 //!   Simple but wasteful.
 //!
-//! - [`PoolAllocator`] — the standard allocator. Pairs consecutive
+//! - [`Standard`] — the standard allocator. Pairs consecutive
 //!   allocations into one gate (halving gate cost) and also pools spare
 //!   `Extra` tokens [`donate`](Allocator::donate)d by external gadgets
 //!   (e.g. [`Boolean::alloc`](crate::Boolean::alloc)) whose $D$ wire is
@@ -35,7 +35,7 @@ use ragu_core::{Result, drivers::Driver};
 /// Implementations decide how to turn a witness-producing closure into a
 /// driver wire. The simplest implementation (see the impl for `()`)
 /// allocates a full multiplication gate with zeroed $a$ and $c$ wires.
-/// [`PoolAllocator`] pairs consecutive allocations into a single gate by
+/// [`Standard`] pairs consecutive allocations into a single gate by
 /// stashing the [`Extra`](ragu_core::drivers::DriverTypes::Extra) token
 /// that the `()` allocator discards, and also accepts donated tokens.
 pub trait Allocator<'dr, D: Driver<'dr>> {
@@ -49,7 +49,7 @@ pub trait Allocator<'dr, D: Driver<'dr>> {
     /// Accepts a spare [`Extra`](ragu_core::drivers::DriverTypes::Extra)
     /// token from an external gate whose $D$ wire is unconstrained.
     ///
-    /// Allocators that can pool tokens (like [`PoolAllocator`]) store them
+    /// Allocators that can pool tokens (like [`Standard`]) store them
     /// for future [`alloc`](Self::alloc) calls. The default implementation
     /// drops the token, keeping the driver's default $D = 0$.
     fn donate(&mut self, _extra: D::Extra) {}
@@ -81,26 +81,26 @@ impl<'dr, D: Driver<'dr>> Allocator<'dr, D> for () {
 /// when the pool is empty and a fresh gate is needed, the spare `Extra`
 /// from that gate enters the pool for the next call.
 ///
-/// Dropping a `PoolAllocator` with tokens still in the pool is safe:
+/// Dropping a `Standard` with tokens still in the pool is safe:
 /// the driver already assigned $D = 0$ for those gates.
-pub struct PoolAllocator<E> {
+pub struct Standard<E> {
     pool: Vec<E>,
 }
 
-impl<E> Default for PoolAllocator<E> {
+impl<E> Default for Standard<E> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<E> PoolAllocator<E> {
-    /// Creates a new `PoolAllocator` with an empty pool.
+impl<E> Standard<E> {
+    /// Creates a new `Standard` with an empty pool.
     pub const fn new() -> Self {
         Self { pool: Vec::new() }
     }
 }
 
-impl<'dr, D: Driver<'dr>> Allocator<'dr, D> for PoolAllocator<D::Extra> {
+impl<'dr, D: Driver<'dr>> Allocator<'dr, D> for Standard<D::Extra> {
     fn alloc(&mut self, dr: &mut D, value: impl Fn() -> Result<Coeff<D::F>>) -> Result<D::Wire> {
         if let Some(extra) = self.pool.pop() {
             dr.assign_extra(extra, value)
