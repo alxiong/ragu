@@ -20,6 +20,13 @@
 //! - [`SimpleAllocator`] — pairs consecutive allocations into one gate,
 //!   stashing the spare wire from the first call for the second. Halves
 //!   gate cost for sequences of allocations.
+//!
+//! - [`PoolAllocator`] — pools spare `Extra` tokens
+//!   [`donate`](Allocator::donate)d by external gadgets (e.g.
+//!   [`Boolean::alloc`](crate::Boolean::alloc)) whose $D$ wire is
+//!   unconstrained. Subsequent allocations redeem pooled tokens before
+//!   falling back to new gates, and self-produced spares enter the pool
+//!   too.
 
 use alloc::vec::Vec;
 
@@ -137,7 +144,7 @@ impl<E> Default for PoolAllocator<E> {
 
 impl<E> PoolAllocator<E> {
     /// Creates a new `PoolAllocator` with an empty pool.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { pool: Vec::new() }
     }
 }
