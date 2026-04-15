@@ -15,7 +15,7 @@ use ragu_core::{
 };
 
 #[cfg(test)]
-use crate::allocator::{PoolAllocator, SimpleAllocator};
+use crate::allocator::Standard;
 use crate::{
     Element, GadgetExt,
     consistent::Consistent,
@@ -285,7 +285,7 @@ fn test_boolean_alloc() -> Result<()> {
     Ok(())
 }
 
-/// PoolAllocator reuses the Boolean gate's spare D wire for the Element.
+/// Standard reuses the Boolean gate's spare D wire for the Element.
 #[test]
 fn test_boolean_alloc_reclaim() -> Result<()> {
     type F = ragu_pasta::Fp;
@@ -297,7 +297,7 @@ fn test_boolean_alloc_reclaim() -> Result<()> {
         Ok(())
     })?;
     let sim_with = Simulator::simulate(true, |dr, bit| {
-        let allocator = &mut PoolAllocator::new();
+        let allocator = &mut Standard::new();
         let _b = Boolean::alloc(dr, allocator, bit)?;
         Element::alloc(dr, allocator, Simulator::just(|| F::from(42u64)))?;
         Ok(())
@@ -317,7 +317,7 @@ fn test_pool_allocator_multiple_donations() -> Result<()> {
 
     let sim = Simulator::simulate((true, false, true), |dr, witness| {
         let (b0, b1, b2) = witness.cast();
-        let allocator = &mut PoolAllocator::new();
+        let allocator = &mut Standard::new();
 
         let _b0 = Boolean::alloc(dr, allocator, b0)?;
         let _b1 = Boolean::alloc(dr, allocator, b1)?;
@@ -343,7 +343,7 @@ fn test_conditional_select() -> Result<()> {
     // condition = true (returns b)
     Simulator::simulate((true, F::from(1u64), F::from(2u64)), |dr, witness| {
         let (cond, a, b) = witness.cast();
-        let allocator = &mut SimpleAllocator::new();
+        let allocator = &mut Standard::new();
         let cond = Boolean::alloc(dr, &mut (), cond)?;
         let a = Element::alloc(dr, allocator, a)?;
         let b = Element::alloc(dr, allocator, b)?;
@@ -357,7 +357,7 @@ fn test_conditional_select() -> Result<()> {
     // condition = false (returns a)
     Simulator::simulate((false, F::from(1u64), F::from(2u64)), |dr, witness| {
         let (cond, a, b) = witness.cast();
-        let allocator = &mut SimpleAllocator::new();
+        let allocator = &mut Standard::new();
         let cond = Boolean::alloc(dr, &mut (), cond)?;
         let a = Element::alloc(dr, allocator, a)?;
         let b = Element::alloc(dr, allocator, b)?;
@@ -379,7 +379,7 @@ fn test_conditional_enforce_equal() -> Result<()> {
     // When condition is true, a == b should be enforced (and satisfied)
     let sim = Simulator::simulate((true, F::from(42u64), F::from(42u64)), |dr, witness| {
         let (cond, a, b) = witness.cast();
-        let allocator = &mut SimpleAllocator::new();
+        let allocator = &mut Standard::new();
         let cond = Boolean::alloc(dr, &mut (), cond)?;
         let a = Element::alloc(dr, allocator, a)?;
         let b = Element::alloc(dr, allocator, b)?;
@@ -395,7 +395,7 @@ fn test_conditional_enforce_equal() -> Result<()> {
     // When condition is false, constraint is trivially satisfied even if a != b
     Simulator::simulate((false, F::from(1u64), F::from(2u64)), |dr, witness| {
         let (cond, a, b) = witness.cast();
-        let allocator = &mut SimpleAllocator::new();
+        let allocator = &mut Standard::new();
         let cond = Boolean::alloc(dr, &mut (), cond)?;
         let a = Element::alloc(dr, allocator, a)?;
         let b = Element::alloc(dr, allocator, b)?;
@@ -447,7 +447,7 @@ mod tests {
     fn test_is_equal_same() -> Result<()> {
         let sim = Simulator::simulate((F::from(123u64), F::from(123u64)), |dr, witness| {
             let (a_val, b_val) = witness.cast();
-            let allocator = &mut SimpleAllocator::new();
+            let allocator = &mut Standard::new();
             let a = Element::alloc(dr, allocator, a_val)?;
             let b = Element::alloc(dr, allocator, b_val)?;
 
@@ -468,7 +468,7 @@ mod tests {
     fn test_is_not_equal() -> Result<()> {
         Simulator::simulate((F::from(1u64), F::from(123u64)), |dr, witness| {
             let (a_val, b_val) = witness.cast();
-            let allocator = &mut SimpleAllocator::new();
+            let allocator = &mut Standard::new();
             let a = Element::alloc(dr, allocator, a_val)?;
             let b = Element::alloc(dr, allocator, b_val)?;
 
@@ -536,7 +536,7 @@ mod proptests {
             let mut actual = None;
             Simulator::simulate((cond, a_fe, b_fe), |dr, witness| {
                 let (c, a, b) = witness.cast();
-                let allocator = &mut SimpleAllocator::new();
+                let allocator = &mut Standard::new();
                 let c = Boolean::alloc(dr, &mut (), c)?;
                 let a = Element::alloc(dr, allocator, a)?;
                 let b = Element::alloc(dr, allocator, b)?;
