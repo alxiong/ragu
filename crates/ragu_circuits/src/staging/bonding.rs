@@ -31,7 +31,7 @@ use ragu_core::{
 
 use super::{MultiStage, MultiStageCircuit, StageBuilder};
 use crate::{
-    BondingObject, WiringObject, SegmentRecord,
+    BondingObject, SegmentRecord, WiringObject,
     floor_planner::ConstraintSegment,
     into_wiring_object,
     polynomials::{Rank, sparse},
