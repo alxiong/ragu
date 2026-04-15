@@ -24,7 +24,7 @@
 //! accidentally including it in equivalence maps.
 //!
 //! The scalar is the routine's $s(X,Y)$ contribution (see
-//! [`sxy::eval`](super::s::sxy::eval)) evaluated at deterministic
+//! [`sxy::eval`](super::wiring::sxy::eval)) evaluated at deterministic
 //! pseudorandom points derived from a domain-separated BLAKE2b hash: four
 //! independent geometric sequences are assigned to the $a$, $b$, $c$, $d$
 //! wires and constraint values are accumulated via Horner's rule. If two routines produce
@@ -50,7 +50,7 @@ use ragu_core::{
 use super::{
     Circuit,
     raw::RawCircuit,
-    s::common::{WireEval, WireEvalSum},
+    wiring::common::{WireEval, WireEvalSum},
 };
 
 /// The structural identity of a routine record.

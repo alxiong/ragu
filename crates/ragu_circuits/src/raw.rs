@@ -2,8 +2,8 @@
 //!
 //! External circuits implement [`Circuit`](crate::Circuit), which hides
 //! the SYSTEM gate (gate 0) behind the framework. Internally, the evaluation
-//! drivers ([`sx`](crate::s::sx), [`sy`](crate::s::sy),
-//! [`sxy`](crate::s::sxy), [`metrics`](crate::metrics),
+//! drivers ([`sx`](crate::wiring::sx), [`sy`](crate::wiring::sy),
+//! [`sxy`](crate::wiring::sxy), [`metrics`](crate::metrics),
 //! [`trace`](crate::trace)) need to allocate the SYSTEM gate and then run
 //! the circuit body. This module provides:
 //!
@@ -94,8 +94,8 @@ pub(crate) trait RawCircuit<F: Field>: Sized + Send + Sync {
 /// Adapts a [`Circuit`](crate::Circuit) into a [`RawCircuit`] by discarding
 /// the SYSTEM gate wires.
 ///
-/// Owns the circuit. Used by [`into_circuit_object`](crate::into_circuit_object)
-/// to store the circuit inside a [`CircuitObject`](crate::CircuitObject).
+/// Owns the circuit. Used by [`into_wiring_object`](crate::into_wiring_object)
+/// to store the circuit inside a [`WiringObject`](crate::WiringObject).
 pub(crate) struct CircuitAdapter<C>(pub C);
 
 impl<F: Field, C: crate::Circuit<F>> RawCircuit<F> for CircuitAdapter<C> {
