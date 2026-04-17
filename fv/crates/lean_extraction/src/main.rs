@@ -13,7 +13,7 @@ use clap::{Parser, Subcommand};
 use instance::CircuitInstance;
 
 use crate::instances::{
-    point_add::PointAddInstance, point_alloc::PointAllocInstanceFp,
+    point_add_incomplete::PointAddIncompleteInstance, point_alloc::PointAllocInstanceFp,
     point_alloc::PointAllocInstanceFq, point_double::PointDoubleInstance,
     point_negate::PointNegateInstance,
 };
@@ -43,8 +43,8 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
     },
     ExportTarget {
         name: "Ragu.Instances.Autogen.Point.AddIncomplete",
-        export: export_instance::<PointAddInstance>,
-        generated_file: generated_file_instance::<PointAddInstance>,
+        export: export_instance::<PointAddIncompleteInstance>,
+        generated_file: generated_file_instance::<PointAddIncompleteInstance>,
     },
     ExportTarget {
         name: "Ragu.Instances.Autogen.Point.Negate",
