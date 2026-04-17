@@ -12,9 +12,10 @@ use ragu_arithmetic::Coeff;
 ///   | mul   : Expression F → Expression F → Expression F
 /// ```
 ///
-/// Physical wires (allocated by [`super::driver::ExtractionDriver::mul`] and
-/// [`super::driver::ExtractionDriver::alloc`]) are represented as [`Expr::Var`].
-/// Virtual wires (returned by [`super::driver::ExtractionDriver::add`]) are
+/// Physical wires (allocated by [`ragu_core::drivers::Driver::mul`] and
+/// [`ragu_core::drivers::Driver::alloc`] on
+/// [`super::driver::ExtractionDriver`]) are represented as [`Expr::Var`].
+/// Virtual wires (returned by [`ragu_core::drivers::Driver::add`]) are
 /// expression trees built by composing [`Expr::Add`] and [`Expr::Mul`] nodes.
 #[derive(Clone)]
 pub enum Expr<F: Field> {
