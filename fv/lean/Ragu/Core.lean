@@ -36,8 +36,9 @@ namespace Ragu.Core.Statements
     replacing them with `default`. This allows comparing circuit
     structure (constraints) while ignoring witness generation,
     which is not faithfully reproduced in the circuit export. -/
-def FlatOperation.eraseCompute {F : Type} [Field F] : FlatOperation F → FlatOperation F
-  | .witness m _ => .witness m (fun _ => default)
+def FlatOperation.eraseCompute {F : Type} [Field F] {ProverHint : Type} :
+    FlatOperation F ProverHint → FlatOperation F ProverHint
+  | .witness m _ => .witness m (fun _ _ => default)
   | op => op
 
 structure GeneralFormalInstance where
@@ -47,7 +48,9 @@ structure GeneralFormalInstance where
   inputLen : ℕ
   outputLen : ℕ
 
-  exportedOperations : Var (ProvableVector field inputLen) (F p) → Operations (F p)
+  ProverHint : Type
+
+  exportedOperations : Var (ProvableVector field inputLen) (F p) → Operations (F p) ProverHint
   exportedOutput : Var (ProvableVector field inputLen) (F p) → Vector (Expression (F p)) outputLen
 
   Input : TypeMap
@@ -61,7 +64,7 @@ structure GeneralFormalInstance where
 
   Spec : Input (F p) → Output (F p) → Prop
 
-  reimplementation : GeneralFormalCircuit (F p) Input Output
+  reimplementation : GeneralFormalCircuit (F p) ProverHint Input Output
 
   -- Compare circuit constraints, ignoring witness generation
   same_constraints : ∀ (input : Var (ProvableVector field inputLen) (F p)),

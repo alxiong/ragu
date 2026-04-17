@@ -3,6 +3,8 @@ import Ragu.Core
 namespace Ragu.Instances.Autogen.Point.AllocFp
 open Core.Primes
 
+variable {ProverHint : Type}
+
 @[reducible]
 def p := Core.Primes.p
 
@@ -13,15 +15,15 @@ def inputLen := 0
 def outputLen := 2
 
 set_option linter.unusedVariables false in
-def exportedOperations (input_var : Var (ProvableVector field inputLen) (F p)) : Operations (F p) := [
-  Operation.witness 3 (fun _env => default),
+def exportedOperations (input_var : Var (ProvableVector field inputLen) (F p)) : Operations (F p) ProverHint := [
+  Operation.witness 3 (fun _env _hint => default),
   Operation.assert ((((var 0) * (var 1)) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression (F p)) * (var 2)))),
   Operation.assert (((var 0) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression (F p)) * (var 1)))),
-  Operation.witness 3 (fun _env => default),
+  Operation.witness 3 (fun _env _hint => default),
   Operation.assert ((((var 3) * (var 4)) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression (F p)) * (var 5)))),
   Operation.assert (((var 3) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression (F p)) * (var 0)))),
   Operation.assert (((var 4) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression (F p)) * (var 2)))),
-  Operation.witness 3 (fun _env => default),
+  Operation.witness 3 (fun _env _hint => default),
   Operation.assert ((((var 6) * (var 7)) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression (F p)) * (var 8)))),
   Operation.assert (((var 6) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression (F p)) * (var 7)))),
   Operation.assert ((((var 5) + ((0x0000000000000000000000000000000000000000000000000000000000000005 : Expression (F p)) * 1)) + ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression (F p)) * (var 8)))),
