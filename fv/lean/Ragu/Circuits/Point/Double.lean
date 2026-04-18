@@ -9,15 +9,15 @@ import Ragu.Circuits.Point.Spec
 namespace Ragu.Circuits.Point.Double
 variable {p : ℕ} [Fact p.Prime] [NeZero (2 : F p)]
 
-def main (input : Var Spec.Point (F p))
-    : Circuit (F p) (Core.AllocMul.Row (F p)) (Var Spec.Point (F p)) := do
+def main (idx : ℕ) (input : Var Spec.Point (F p))
+    : Circuit (F p) (Var Spec.Point (F p)) := do
   let ⟨x, y⟩ := input
 
   -- delta = 3x^2 / 2y
   let double_y := y + y
   let ⟨x2⟩ ← subcircuit Element.Square.circuit ⟨x⟩
   let x2_scaled := (3 : F p) * x2
-  let delta ← Element.DivNonzero.generalCircuit ⟨x2_scaled, double_y⟩
+  let delta ← Element.DivNonzero.generalCircuit idx ⟨x2_scaled, double_y⟩
 
   -- x3 = delta^2 - 2x
   let double_x := x + x
@@ -31,11 +31,11 @@ def main (input : Var Spec.Point (F p))
 
   return ⟨x3, y3⟩
 
-def Assumptions (curveParams : Spec.CurveParams p)
-    (input : Spec.Point (F p)) (data : ProverData (F p)) (hint : Core.AllocMul.Row (F p)) :=
+def Assumptions (curveParams : Spec.CurveParams p) (idx : ℕ)
+    (input : Spec.Point (F p)) (data : ProverData (F p)) (hint : ProverHint (F p)) :=
   input.isOnCurve curveParams ∧
   curveParams.noOrderTwoPoints ∧
-  Element.DivNonzero.GeneralAssumptions ⟨(3 : F p) * input.x^2, input.y + input.y⟩ data hint
+  Element.DivNonzero.GeneralAssumptions idx ⟨(3 : F p) * input.x^2, input.y + input.y⟩ data hint
 
 def Spec (curveParams : Spec.CurveParams p) (input : Spec.Point (F p)) (output : Spec.Point (F p)) (_data : ProverData (F p)) :=
   input.isOnCurve curveParams →
@@ -46,12 +46,12 @@ def Spec (curveParams : Spec.CurveParams p) (input : Spec.Point (F p)) (output :
   ∧
   output.isOnCurve curveParams
 
-instance elaborated : ElaboratedCircuit (F p) (Core.AllocMul.Row (F p)) Spec.Point Spec.Point where
-  main
+instance elaborated (idx : ℕ) : ElaboratedCircuit (F p) Spec.Point Spec.Point where
+  main := main idx
   localLength _ := 12
 
-theorem soundness (curveParams : Spec.CurveParams p) :
-    GeneralFormalCircuit.Soundness (F p) (Core.AllocMul.Row (F p)) elaborated (Spec curveParams) := by
+theorem soundness (curveParams : Spec.CurveParams p) (idx : ℕ) :
+    GeneralFormalCircuit.Soundness (F p) (elaborated idx) (Spec curveParams) := by
   circuit_proof_start
   simp [circuit_norm,
     Element.Square.circuit, Element.Square.Assumptions, Element.Square.Spec,
@@ -65,14 +65,12 @@ theorem soundness (curveParams : Spec.CurveParams p) :
   have h2y_ne : input_y + input_y ≠ 0 := by
     rw [← two_mul]; exact mul_ne_zero (NeZero.ne 2) hy
 
-  -- Chain subcircuit specs through hypotheses (like AddIncomplete soundness)
   have h_delta := c2 (by simp [h2y_ne])
   rw [c1] at h_delta
   rw [h_delta] at c3 c4
   rw [c3] at c4
   simp only [Spec.Point.double, if_neg hy]
 
-  -- Substitute simplified subcircuit outputs into goal
   constructor
   · simp only [Spec.Point.mk.injEq]
     rw [c3, c4]
@@ -85,8 +83,8 @@ theorem soundness (curveParams : Spec.CurveParams p) :
     exact h_d
 
 omit [NeZero (2 : F p)] in
-theorem completeness (curveParams : Spec.CurveParams p) :
-    GeneralFormalCircuit.Completeness (F p) (Core.AllocMul.Row (F p)) elaborated (Assumptions curveParams) := by
+theorem completeness (curveParams : Spec.CurveParams p) (idx : ℕ) :
+    GeneralFormalCircuit.Completeness (F p) (elaborated idx) (Assumptions curveParams idx) := by
   circuit_proof_start [
     Element.Square.circuit, Element.Square.Assumptions,
     Element.DivNonzero.generalCircuit, Element.DivNonzero.GeneralAssumptions,
@@ -97,14 +95,14 @@ theorem completeness (curveParams : Spec.CurveParams p) :
   rw [h_sq]
   exact h_assumptions.2.2
 
-def circuit (curveParams : Spec.CurveParams p) :
-    GeneralFormalCircuit (F p) (Core.AllocMul.Row (F p)) Spec.Point Spec.Point :=
+def circuit (curveParams : Spec.CurveParams p) (idx : ℕ) :
+    GeneralFormalCircuit (F p) Spec.Point Spec.Point :=
   {
-    elaborated with
-    Assumptions := Assumptions curveParams,
+    elaborated idx with
+    Assumptions := Assumptions curveParams idx,
     Spec := Spec curveParams,
-    soundness := soundness curveParams,
-    completeness := completeness curveParams
+    soundness := soundness curveParams idx,
+    completeness := completeness curveParams idx
   }
 
 end Ragu.Circuits.Point.Double

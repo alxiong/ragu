@@ -9,32 +9,41 @@ structure Row (F : Type) where
   z : F
 deriving ProvableStruct
 
-def main (_input : Unit) : Circuit (F p) (Row (F p)) (Var Row (F p)) := do
+/-- Read the `(x, y)` pair the honest prover has allocated at index `idx`
+    of the `"alloc_mul_w"` witness table. `z` is computed as `x * y`. -/
+def readRow (hint : ProverHint (F p)) (idx : ℕ) : Row (F p) :=
+  let v := (hint "alloc_mul_w" 2).getD idx default
+  ⟨v[0], v[1], v[0] * v[1]⟩
+
+def main (idx : ℕ) (_input : Unit) : Circuit (F p) (Var Row (F p)) := do
   let ⟨x, y, z⟩ ← (witness fun _env hint =>
-    (⟨hint.x, hint.y, hint.x * hint.y⟩ : Row (F p))
-    : Circuit (F p) (Row (F p)) (Var Row (F p)))
+    let r := readRow hint idx
+    (⟨r.x, r.y, r.x * r.y⟩ : Row (F p))
+    : Circuit (F p) (Var Row (F p)))
   assertZero (x * y - z)
   return ⟨x, y, z⟩
 
-def Assumptions (_input : Unit) (_data : ProverData (F p)) (_hint : Row (F p)) := True
+def Assumptions (_idx : ℕ) (_input : Unit) (_data : ProverData (F p)) (_hint : ProverHint (F p)) := True
 
 def Spec (_input : Unit) (out : Row (F p)) (_data : ProverData (F p)) :=
   out.x * out.y = out.z
 
-/-- The output row matches the hint on `x`/`y`; `z` is always wired to `x * y`. -/
-def CompletenessSpec (_input : Unit) (out : Row (F p)) (hint : Row (F p)) :=
-  out.x = hint.x ∧ out.y = hint.y ∧ out.z = hint.x * hint.y
+/-- The output row equals the `readRow` of the hint at `idx`. -/
+def CompletenessSpec (idx : ℕ) (_input : Unit) (out : Row (F p)) (hint : ProverHint (F p)) :=
+  let r := readRow hint idx
+  out.x = r.x ∧ out.y = r.y ∧ out.z = r.x * r.y
 
-instance elaborated : ElaboratedCircuit (F p) (Row (F p)) unit Row where
-  main
+instance elaborated (idx : ℕ) : ElaboratedCircuit (F p) unit Row where
+  main := main idx
   localLength _ := 3
 
-theorem soundness : GeneralFormalCircuit.Soundness (F p) (Row (F p)) elaborated Spec := by
+theorem soundness (idx : ℕ) : GeneralFormalCircuit.Soundness (F p) (elaborated idx) Spec := by
   circuit_proof_start
   rw [add_neg_eq_zero] at h_holds
   exact h_holds
 
-theorem completeness : GeneralFormalCircuit.Completeness (F p) (Row (F p)) elaborated Assumptions := by
+theorem completeness (idx : ℕ) :
+    GeneralFormalCircuit.Completeness (F p) (elaborated idx) (Assumptions idx) := by
   circuit_proof_start
   have h0 := h_env (0 : Fin 3)
   have h1 := h_env (1 : Fin 3)
@@ -46,7 +55,9 @@ theorem completeness : GeneralFormalCircuit.Completeness (F p) (Row (F p)) elabo
   rw [h0, h1, h2]
   ring
 
-theorem completenessSpec : GeneralFormalCircuit.CompletenessSpecProof (F p) (Row (F p)) elaborated Assumptions CompletenessSpec := by
+theorem completenessSpec (idx : ℕ) :
+    GeneralFormalCircuit.CompletenessSpecProof (F p) (elaborated idx)
+      (Assumptions idx) (CompletenessSpec idx) := by
   circuit_proof_start [CompletenessSpec]
   have h0 := h_env (0 : Fin 3)
   have h1 := h_env (1 : Fin 3)
@@ -57,13 +68,13 @@ theorem completenessSpec : GeneralFormalCircuit.CompletenessSpecProof (F p) (Row
   rw [show i₀ + 1 + 1 = i₀ + 2 from by omega]
   exact ⟨h0, h1, h2⟩
 
-def circuit : GeneralFormalCircuit (F p) (Row (F p)) unit Row :=
-  { elaborated with
-    Assumptions,
+def circuit (idx : ℕ) : GeneralFormalCircuit (F p) unit Row :=
+  { elaborated idx with
+    Assumptions := Assumptions idx,
     Spec,
-    CompletenessSpec,
-    soundness,
-    completeness,
-    completenessSpec }
+    CompletenessSpec := CompletenessSpec idx,
+    soundness := soundness idx,
+    completeness := completeness idx,
+    completenessSpec := completenessSpec idx }
 
 end Ragu.Circuits.Core.AllocMul

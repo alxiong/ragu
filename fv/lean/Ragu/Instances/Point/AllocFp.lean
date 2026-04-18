@@ -18,7 +18,6 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
   p
   inputLen
   outputLen
-  ProverHint := Circuits.Point.Alloc.Hint (F p)
   exportedOperations
   exportedOutput
 
@@ -30,7 +29,8 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
 
   Spec input output := output.isOnCurve Circuits.Point.Spec.EpAffineParams
 
-  reimplementation := Circuits.Point.Alloc.circuit Circuits.Point.Spec.EpAffineParams
+  -- xIdx = 0 picks the first row in "alloc_square_w", yIdx = 2 picks the third.
+  reimplementation := Circuits.Point.Alloc.circuit Circuits.Point.Spec.EpAffineParams 0 2
 
   same_constraints := by
     intro input

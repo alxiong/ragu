@@ -21,7 +21,6 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
   p
   inputLen
   outputLen
-  ProverHint := Circuits.Core.AllocMul.Row (F p)
   exportedOperations
   exportedOutput
 
@@ -40,8 +39,9 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
     ∧
     output.isOnCurve Circuits.Point.Spec.EpAffineParams
 
+  -- idx = 0 picks the first row from the "alloc_mul_w" witness table.
   reimplementation :=
-    Circuits.Point.Double.circuit Circuits.Point.Spec.EpAffineParams
+    Circuits.Point.Double.circuit Circuits.Point.Spec.EpAffineParams 0
 
   same_constraints := by
     intro input

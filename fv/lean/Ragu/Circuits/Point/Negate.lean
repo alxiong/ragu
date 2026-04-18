@@ -8,9 +8,8 @@ import Ragu.Circuits.Point.Spec
 
 namespace Ragu.Circuits.Point.Negate
 variable {p : ℕ} [Fact p.Prime]
-variable {ProverHint : Type}
 
-def main (input : Var Spec.Point (F p)) : Circuit (F p) ProverHint (Var Spec.Point (F p)) := do
+def main (input : Var Spec.Point (F p)) : Circuit (F p) (Var Spec.Point (F p)) := do
   let ⟨x, y⟩ := input
   return ⟨x, -y⟩
 
@@ -20,19 +19,19 @@ def Assumptions (curveParams : Spec.CurveParams p) (input : Spec.Point (F p)) :=
 def Spec (curveParams : Spec.CurveParams p) (input : Spec.Point (F p)) (output : Spec.Point (F p)) :=
   output = Spec.Point.negate input ∧ output.isOnCurve curveParams
 
-instance elaborated : ElaboratedCircuit (F p) ProverHint Spec.Point Spec.Point where
+instance elaborated : ElaboratedCircuit (F p) Spec.Point Spec.Point where
   main
   localLength _ := 0
 
-theorem soundness (curveParams : Spec.CurveParams p) : Soundness (F p) ProverHint elaborated (Assumptions curveParams) (Spec curveParams) := by
+theorem soundness (curveParams : Spec.CurveParams p) : Soundness (F p) elaborated (Assumptions curveParams) (Spec curveParams) := by
   circuit_proof_start
   simp_all only [Spec.Point.isOnCurve, id_eq, Spec.Point.negate, even_two, Even.neg_pow, and_self]
 
 
-theorem completeness (curveParams : Spec.CurveParams p) : Completeness (F p) ProverHint elaborated (Assumptions curveParams) := by
+theorem completeness (curveParams : Spec.CurveParams p) : Completeness (F p) elaborated (Assumptions curveParams) := by
   circuit_proof_start
 
-def circuit (curveParams : Spec.CurveParams p) : FormalCircuit (F p) ProverHint Spec.Point Spec.Point :=
+def circuit (curveParams : Spec.CurveParams p) : FormalCircuit (F p) Spec.Point Spec.Point :=
   {
     elaborated with
     Assumptions := Assumptions curveParams,

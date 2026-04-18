@@ -18,7 +18,6 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
   p
   inputLen
   outputLen
-  ProverHint := Circuits.Point.Alloc.Hint (F p)
   exportedOperations
   exportedOutput
 
@@ -30,7 +29,7 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
 
   Spec input output := output.isOnCurve Circuits.Point.Spec.EqAffineParams
 
-  reimplementation := Circuits.Point.Alloc.circuit Circuits.Point.Spec.EqAffineParams
+  reimplementation := Circuits.Point.Alloc.circuit Circuits.Point.Spec.EqAffineParams 0 2
 
   same_constraints := by
     intro input

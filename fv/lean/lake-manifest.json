@@ -5,7 +5,7 @@
    "type": "git",
    "subDir": null,
    "scope": "",
-   "rev": "682d100216f0a6b830d041816c0ad5bf140ef8e2",
+   "rev": "22391eabb88f3d70f3bc92b1e8b5e5de6fe011d7",
    "name": "clean",
    "manifestFile": "lake-manifest.json",
    "inputRev": "proverhint",

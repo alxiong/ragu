@@ -3,8 +3,6 @@ import Ragu.Core
 namespace Ragu.Instances.Autogen.Point.AllocFq
 open Core.Primes
 
-variable {ProverHint : Type}
-
 @[reducible]
 def p := Core.Primes.q
 
@@ -15,7 +13,7 @@ def inputLen := 0
 def outputLen := 2
 
 set_option linter.unusedVariables false in
-def exportedOperations (input_var : Var (ProvableVector field inputLen) (F p)) : Operations (F p) ProverHint := [
+def exportedOperations (input_var : Var (ProvableVector field inputLen) (F p)) : Operations (F p) := [
   Operation.witness 3 (fun _env _hint => default),
   Operation.assert ((((var 0) * (var 1)) + ((0x40000000000000000000000000000000224698fc0994a8dd8c46eb2100000000 : Expression (F p)) * (var 2)))),
   Operation.assert (((var 0) + ((0x40000000000000000000000000000000224698fc0994a8dd8c46eb2100000000 : Expression (F p)) * (var 1)))),
