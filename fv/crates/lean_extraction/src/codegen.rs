@@ -64,7 +64,7 @@ pub fn render_output_len(output_len: usize) -> String {
 pub fn render_exported_operations<F: Field + std::fmt::Debug>(ops: &[Op<F>]) -> String {
     let mut output = String::from(
         "set_option linter.unusedVariables false in\n\
-def exportedOperations (input_var : Var (ProvableVector field inputLen) (F p)) : Operations (F p) := [\n",
+def exportedOperations (input_var : Vector (Expression (F p)) inputLen) : Operations (F p) := [\n",
     );
 
     for op in ops {
@@ -89,7 +89,7 @@ pub fn render_exported_output<F: Field + std::fmt::Debug>(wires: &[Expr<F>]) -> 
     let mut output = String::from(
         "set_option linter.unusedVariables false in\n\
 @[reducible]\n\
-def exportedOutput (input_var : Var (ProvableVector field inputLen) (F p)) : Vector (Expression (F p)) outputLen := #v[\n",
+def exportedOutput (input_var : Vector (Expression (F p)) inputLen) : Vector (Expression (F p)) outputLen := #v[\n",
     );
 
     for (index, expr) in wires.iter().enumerate() {

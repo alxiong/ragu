@@ -6,7 +6,7 @@ namespace Ragu.Instances.Point.AllocFp
 open Ragu.Instances.Autogen.Point.AllocFp
 
 set_option linter.unusedVariables false in
-def deserializeInput (input : Var (ProvableVector field inputLen) (F p)) : Var unit (F p) := ()
+def deserializeInput (input : Vector (Expression (F p)) inputLen) : Var unit (F p) := ()
 
 def serializeOutput (output : Var Circuits.Point.Spec.Point (F p)) : Vector (Expression (F p)) outputLen :=
   #v[ output.x, output.y ]

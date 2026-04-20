@@ -6,7 +6,7 @@ import Ragu.Core
 namespace Ragu.Instances.Point.Double
 open Ragu.Instances.Autogen.Point.Double
 
-def deserializeInput (input : Var (ProvableVector field inputLen) (F p)) : Var Circuits.Point.Spec.Point (F p) :=
+def deserializeInput (input : Vector (Expression (F p)) inputLen) : Var Circuits.Point.Spec.Point (F p) :=
   { x := input[0], y := input[1] }
 
 def serializeOutput (output : Var Circuits.Point.Spec.Point (F p)) : Vector (Expression (F p)) 2 :=

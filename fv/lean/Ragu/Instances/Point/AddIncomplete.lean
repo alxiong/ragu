@@ -6,7 +6,7 @@ import Ragu.Core
 namespace Ragu.Instances.Point.AddIncomplete
 open Ragu.Instances.Autogen.Point.AddIncomplete
 
-def deserializeInput (input : Var (ProvableVector field inputLen) (F p)) : Var Circuits.Point.AddIncomplete.Inputs (F p) :=
+def deserializeInput (input : Vector (Expression (F p)) inputLen) : Var Circuits.Point.AddIncomplete.Inputs (F p) :=
   {
     P1 := ⟨input[0], input[1]⟩,
     P2 := ⟨input[2], input[3]⟩,

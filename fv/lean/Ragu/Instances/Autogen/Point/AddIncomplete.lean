@@ -13,7 +13,7 @@ def inputLen := 5
 def outputLen := 3
 
 set_option linter.unusedVariables false in
-def exportedOperations (input_var : Var (ProvableVector field inputLen) (F p)) : Operations (F p) := [
+def exportedOperations (input_var : Vector (Expression (F p)) inputLen) : Operations (F p) := [
   Operation.witness 3 (fun _env => default),
   Operation.assert ((((var ⟨0⟩) * (var ⟨1⟩)) + (((-1 : F p) : Expression (F p)) * (var ⟨2⟩)))),
   Operation.assert (((var ⟨0⟩) + (((-1 : F p) : Expression (F p)) * (input_var[4])))),
@@ -34,7 +34,7 @@ def exportedOperations (input_var : Var (ProvableVector field inputLen) (F p)) :
 
 set_option linter.unusedVariables false in
 @[reducible]
-def exportedOutput (input_var : Var (ProvableVector field inputLen) (F p)) : Vector (Expression (F p)) outputLen := #v[
+def exportedOutput (input_var : Vector (Expression (F p)) inputLen) : Vector (Expression (F p)) outputLen := #v[
   (((var ⟨8⟩) + (((-1 : F p) : Expression (F p)) * (input_var[0]))) + (((-1 : F p) : Expression (F p)) * (input_var[2]))),
   ((var ⟨11⟩) + (((-1 : F p) : Expression (F p)) * (input_var[1]))),
   (var ⟨2⟩)

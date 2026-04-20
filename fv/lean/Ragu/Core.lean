@@ -47,8 +47,8 @@ structure GeneralFormalInstance where
   inputLen : ℕ
   outputLen : ℕ
 
-  exportedOperations : Var (ProvableVector field inputLen) (F p) → Operations (F p)
-  exportedOutput : Var (ProvableVector field inputLen) (F p) → Vector (Expression (F p)) outputLen
+  exportedOperations : Vector (Expression (F p)) inputLen → Operations (F p)
+  exportedOutput : Vector (Expression (F p)) inputLen → Vector (Expression (F p)) outputLen
 
   Input : TypeMap
   InputProvable : ProvableType Input := by infer_instance
@@ -56,19 +56,19 @@ structure GeneralFormalInstance where
   Output : TypeMap
   OutputProvable : ProvableType Output := by infer_instance
 
-  deserializeInput : Var (ProvableVector field inputLen) (F p) → Var Input (F p)
-  serializeOutput : Var Output (F p) → Var (ProvableVector field outputLen) (F p)
+  deserializeInput : Vector (Expression (F p)) inputLen → Var Input (F p)
+  serializeOutput : Var Output (F p) → Vector (Expression (F p)) outputLen
 
   Spec : Input (F p) → Output (F p) → Prop
 
   reimplementation : GeneralFormalCircuit (F p) Input Output
 
   -- Compare circuit constraints, ignoring witness generation
-  same_constraints : ∀ (input : Var (ProvableVector field inputLen) (F p)),
+  same_constraints : ∀ (input : Vector (Expression (F p)) inputLen),
     (input |> deserializeInput |> reimplementation |>.operations 0).toFlat.map FlatOperation.eraseCompute
     = (exportedOperations input).toFlat.map FlatOperation.eraseCompute
 
-  same_output : ∀ (input : Var (ProvableVector field inputLen) (F p)),
+  same_output : ∀ (input : Vector (Expression (F p)) inputLen),
     (input |> deserializeInput |> reimplementation |>.output 0 |> serializeOutput) = exportedOutput input
 
   -- NOTE: this can be relaxed by proving that the reimplementation spec implies the instance spec instead
