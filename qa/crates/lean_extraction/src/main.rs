@@ -23,6 +23,7 @@ use crate::instances::{
     point_add_incomplete::PointAddIncompleteInstance,
     point_alloc::{PointAllocInstanceFp, PointAllocInstanceFq},
     point_double::PointDoubleInstance,
+    point_endo::PointEndoInstance,
     point_negate::PointNegateInstance,
 };
 
@@ -58,6 +59,11 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
         name: "Ragu.Instances.Autogen.Point.Negate",
         export: export_instance::<PointNegateInstance>,
         generated_file: generated_file_instance::<PointNegateInstance>,
+    },
+    ExportTarget {
+        name: "Ragu.Instances.Autogen.Point.Endo",
+        export: export_instance::<PointEndoInstance>,
+        generated_file: generated_file_instance::<PointEndoInstance>,
     },
     ExportTarget {
         name: "Ragu.Instances.Autogen.Element.Mul",
