@@ -33,8 +33,8 @@ fn display_coeff<F: Field + std::fmt::Debug>(c: &Coeff<F>) -> String {
 
 fn display_expr<F: Field + std::fmt::Debug>(expr: &Expr<F>) -> String {
     match expr {
-        Expr::Var(i) => format!("(var ⟨{}⟩)", i),
-        Expr::InputVar(i) => format!("(input_var.get {i})"),
+        Expr::Var(i) => format!("(var ⟨{i}⟩)"),
+        Expr::InputVar(i) => format!("(input_var[{i}])"),
         Expr::Const(c) => display_coeff(c),
         Expr::Add(l, r) => format!("({} + {})", display_expr(l), display_expr(r)),
         Expr::Mul(l, r) => format!("({} * {})", display_expr(l), display_expr(r)),
