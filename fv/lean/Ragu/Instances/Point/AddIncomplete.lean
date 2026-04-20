@@ -8,9 +8,9 @@ open Ragu.Instances.Autogen.Point.AddIncomplete
 
 def deserializeInput (input : Var (ProvableVector field inputLen) (F p)) : Var Circuits.Point.AddIncomplete.Inputs (F p) :=
   {
-    P1 := ⟨input.get 0, input.get 1⟩,
-    P2 := ⟨input.get 2, input.get 3⟩,
-    nonzero := input.get 4
+    P1 := ⟨input[0], input[1]⟩,
+    P2 := ⟨input[2], input[3]⟩,
+    nonzero := input[4]
   }
 
 def serializeOutput (outputs : Var Circuits.Point.AddIncomplete.Outputs (F p)) : Vector (Expression (F p)) 3 :=

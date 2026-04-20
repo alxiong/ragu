@@ -7,16 +7,10 @@ namespace Ragu.Instances.Point.Double
 open Ragu.Instances.Autogen.Point.Double
 
 def deserializeInput (input : Var (ProvableVector field inputLen) (F p)) : Var Circuits.Point.Spec.Point (F p) :=
-  {
-    x := input.get 0,
-    y := input.get 1
-  }
+  { x := input[0], y := input[1] }
 
 def serializeOutput (output : Var Circuits.Point.Spec.Point (F p)) : Vector (Expression (F p)) 2 :=
-  #v[
-    output.x,
-    output.y
-  ]
+  #v[ output.x, output.y ]
 
 def formal_instance : Core.Statements.GeneralFormalInstance where
   p

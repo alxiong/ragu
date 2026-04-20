@@ -19,8 +19,8 @@ def exportedOperations (input_var : Var (ProvableVector field inputLen) (F p)) :
 set_option linter.unusedVariables false in
 @[reducible]
 def exportedOutput (input_var : Var (ProvableVector field inputLen) (F p)) : Vector (Expression (F p)) outputLen := #v[
-  (input_var.get 0),
-  ((0x40000000000000000000000000000000224698fc094cf91b992d30ed00000000 : Expression (F p)) * (input_var.get 1))
+  (input_var[0]),
+  (((-1 : F p) : Expression (F p)) * (input_var[1]))
 ]
 
 end Ragu.Instances.Autogen.Point.Negate
