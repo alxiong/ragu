@@ -38,7 +38,7 @@ namespace Ragu.Core.Statements
     which is not faithfully reproduced in the circuit export. -/
 def FlatOperation.eraseCompute {F : Type} [Field F] :
     FlatOperation F → FlatOperation F
-  | .witness m _ => .witness m (fun _ _ => default)
+  | .witness m _ => .witness m (fun _ => default)
   | op => op
 
 structure GeneralFormalInstance where

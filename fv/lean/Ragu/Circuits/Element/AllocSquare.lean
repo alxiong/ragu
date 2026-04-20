@@ -17,8 +17,8 @@ def readElem (hint : ProverHint (F p)) (table : String) (cols : ℕ) (idx slot :
 
 def main (table : String) (cols : ℕ) (idx slot : ℕ) (_input : Unit) :
     Circuit (F p) (Var Square (F p)) := do
-  let ⟨x, y, z⟩ ← (witness fun _env hint =>
-    let a := readElem hint table cols idx slot
+  let ⟨x, y, z⟩ ← (witness fun env =>
+    let a := readElem env.hint table cols idx slot
     (⟨a, a, a * a⟩ : Core.AllocMul.Row (F p))
     : Circuit (F p) (Var Core.AllocMul.Row (F p)))
   assertZero (x * y - z)

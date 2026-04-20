@@ -16,8 +16,8 @@ def readRow (hint : ProverHint (F p)) (idx : ℕ) : Row (F p) :=
   ⟨v[0], v[1], v[0] * v[1]⟩
 
 def main (idx : ℕ) (_input : Unit) : Circuit (F p) (Var Row (F p)) := do
-  let ⟨x, y, z⟩ ← (witness fun _env hint =>
-    let r := readRow hint idx
+  let ⟨x, y, z⟩ ← (witness fun env =>
+    let r := readRow env.hint idx
     (⟨r.x, r.y, r.x * r.y⟩ : Row (F p))
     : Circuit (F p) (Var Row (F p)))
   assertZero (x * y - z)

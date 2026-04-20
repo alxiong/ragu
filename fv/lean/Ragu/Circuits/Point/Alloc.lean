@@ -54,8 +54,8 @@ theorem completeness (curveParams : Spec.CurveParams p) (xIdx yIdx : ℕ) :
   ]
   obtain ⟨⟨_, h_x, h_xsq⟩, h_mul, ⟨_, _, h_ysq⟩⟩ := h_env
   rw [h_mul, h_x, h_xsq, h_ysq, mul_one, add_neg_eq_zero]
-  set hx := Element.AllocSquare.readElem hint "alloc_square_w" 1 xIdx 0
-  set hy := Element.AllocSquare.readElem hint "alloc_square_w" 1 yIdx 0
+  set hx := Element.AllocSquare.readElem env.hint "alloc_square_w" 1 xIdx 0
+  set hy := Element.AllocSquare.readElem env.hint "alloc_square_w" 1 yIdx 0
   rw [show hx * hx ^ 2 = hx ^ 3 from by ring]
   exact h_assumptions
 

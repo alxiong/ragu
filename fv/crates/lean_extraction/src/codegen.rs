@@ -76,7 +76,7 @@ def exportedOperations (input_var : Var (ProvableVector field inputLen) (F p)) :
         match op {
             Op::Witness { count } => {
                 output.push_str(&format!(
-                    "  Operation.witness {count} (fun _env _hint => default),\n"
+                    "  Operation.witness {count} (fun _env => default),\n"
                 ));
             }
             Op::Assert(expr) => {
