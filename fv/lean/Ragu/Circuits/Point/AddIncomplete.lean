@@ -31,7 +31,7 @@ def main (hint : ProverData (F p) → Core.AllocMul.Row (F p))
   let delta ← Element.DivNonzero.generalCircuit hint ⟨y2 - y1, tmp⟩
 
   -- x3 = delta^2 - x1 - x2
-  let ⟨delta2⟩ ← subcircuit Element.Square.circuit ⟨delta⟩
+  let delta2 ← subcircuit Element.Square.circuit delta
   let x3 := delta2 - x1 - x2
 
   -- y3 = delta * (x1 - x3) - y1

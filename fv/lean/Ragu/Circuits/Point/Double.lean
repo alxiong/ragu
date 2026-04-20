@@ -15,13 +15,13 @@ def main (hint : ProverData (F p) → Core.AllocMul.Row (F p))
 
   -- delta = 3x^2 / 2y
   let double_y := y + y
-  let ⟨x2⟩ ← subcircuit Element.Square.circuit ⟨x⟩
+  let x2 ← subcircuit Element.Square.circuit x
   let x2_scaled := (3 : F p) * x2
   let delta ← Element.DivNonzero.generalCircuit hint ⟨x2_scaled, double_y⟩
 
   -- x3 = delta^2 - 2x
   let double_x := x + x
-  let ⟨delta2⟩ ← subcircuit Element.Square.circuit ⟨delta⟩
+  let delta2 ← subcircuit Element.Square.circuit delta
   let x3 := delta2 - double_x
 
   -- y3 = delta * (x - x3) - y
