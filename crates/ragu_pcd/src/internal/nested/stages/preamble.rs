@@ -14,7 +14,10 @@ use ragu_core::{
 };
 use ragu_primitives::{Point, io::Write};
 
-use crate::Proof;
+use crate::{
+    Proof,
+    internal::{endoscalar::PointsStage, nested::NUM_ENDOSCALING_POINTS},
+};
 
 /// Number of curve points in this stage.
 pub const NUM_POINTS: usize = 13;
@@ -120,7 +123,7 @@ pub struct Stage<C: CurveAffine, R> {
 }
 
 impl<C: CurveAffine, R: Rank> ragu_circuits::staging::Stage<C::Base, R> for Stage<C, R> {
-    type Parent = ();
+    type Parent = PointsStage<C, NUM_ENDOSCALING_POINTS>;
     type Witness<'source> = &'source Witness<C>;
     type OutputKind = Kind![C::Base; Output<'_, _, C>];
 
