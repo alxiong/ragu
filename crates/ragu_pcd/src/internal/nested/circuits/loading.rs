@@ -47,6 +47,15 @@ impl<'pts, 'dr, D: Driver<'dr>, C: CurveAffine<Base = D::F>> Walker<'pts, 'dr, D
         self.index += 1;
         Ok(())
     }
+
+    /// Assert that every [`PointsStage`] input has been enforced.
+    fn finish(self) {
+        assert_eq!(
+            self.index,
+            self.points.inputs.len(),
+            "walker did not exhaust all PointsStage inputs"
+        );
+    }
 }
 
 /// Loading circuit that loads the entire nested stage hierarchy.
@@ -86,10 +95,10 @@ impl<C: CurveAffine, R: Rank> MultiStageCircuit<C::Base, R> for Circuit<C, R> {
         let (points_guard, dr) = dr.add_stage::<PointsStage<C, NUM_ENDOSCALING_POINTS>>()?;
         let (preamble_guard, dr) = dr.add_stage::<stages::preamble::Stage<C, R>>()?;
         let (s_prime_guard, dr) = dr.add_stage::<stages::s_prime::Stage<C, R>>()?;
-        let dr = dr.skip_stage::<stages::inner_error::Stage<C, R>>()?;
+        let (inner_error_guard, dr) = dr.add_stage::<stages::inner_error::Stage<C, R>>()?;
         let dr = dr.skip_stage::<stages::outer_error::Stage<C, R>>()?;
-        let dr = dr.skip_stage::<stages::ab::Stage<C, R>>()?;
-        let dr = dr.skip_stage::<stages::query::Stage<C, R>>()?;
+        let (ab_guard, dr) = dr.add_stage::<stages::ab::Stage<C, R>>()?;
+        let (query_guard, dr) = dr.add_stage::<stages::query::Stage<C, R>>()?;
         let (f_guard, dr) = dr.add_stage::<stages::f::Stage<C, R>>()?;
         let dr = dr.skip_stage::<stages::eval::Stage<C, R>>()?;
         let dr = dr.finish();
@@ -104,6 +113,9 @@ impl<C: CurveAffine, R: Rank> MultiStageCircuit<C::Base, R> for Circuit<C, R> {
         let points = points_guard.unenforced(dr, w!())?;
         let preamble = preamble_guard.unenforced(dr, w!())?;
         let s_prime = s_prime_guard.unenforced(dr, w!())?;
+        let inner_error = inner_error_guard.unenforced(dr, w!())?;
+        let ab = ab_guard.unenforced(dr, w!())?;
+        let query = query_guard.unenforced(dr, w!())?;
         let f_stage = f_guard.unenforced(dr, w!())?;
 
         // Walk through PointsStage inputs, mirroring the accumulation
@@ -119,6 +131,15 @@ impl<C: CurveAffine, R: Rank> MultiStageCircuit<C::Base, R> for Circuit<C, R> {
             walker.enforce_equal(dr, &child.stashed_registry_xy)?;
             walker.enforce_equal(dr, &child.stashed_p)?;
         }
+
+        walker.enforce_equal(dr, &s_prime.registry_wx0)?;
+        walker.enforce_equal(dr, &s_prime.registry_wx1)?;
+        walker.enforce_equal(dr, &inner_error.registry_wy)?;
+        walker.enforce_equal(dr, &ab.a)?;
+        walker.enforce_equal(dr, &ab.b)?;
+        walker.enforce_equal(dr, &query.registry_xy)?;
+
+        walker.finish();
 
         // Relay: the current step's native_preamble is stashed in
         // BridgeSPrime so that a future copying circuit can verify it

@@ -447,17 +447,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
             view.d.push(C::CircuitField::ONE);
             view.build()
         };
-        let ones_nested = {
-            let mut view = sparse::View::<_, R, _>::trace();
-            view.a.push(C::ScalarField::ONE);
-            view.b.push(C::ScalarField::ONE);
-            view.c.push(C::ScalarField::ONE);
-            view.d.push(C::ScalarField::ONE);
-            view.build()
-        };
-
         let host_commitment = ones_host.commit_to_affine(C::host_generators(self.params));
-        let bridge_commitment = ones_nested.commit_to_affine(C::nested_generators(self.params));
 
         // registry_xy must be the actual registry evaluation (fuse cross-checks it).
         let registry_xy_poly = self
@@ -488,13 +478,14 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
         builder.set_native_outer_collapse_rx(ones_host.clone());
         builder.set_native_compute_v_rx(ones_host.clone());
 
-        // Non-cached bridge polynomials: real traces for stages that
-        // Loading enforces against (s_prime, f); placeholder for stages
-        // that no circuit constrains yet (inner_error). Cached bridges
-        // (outer_error, ab, query, eval) are computed lazily by the
-        // builder via cached_bridge! using their real Stage::rx call.
-        builder.set_bridge_inner_error_rx(ones_nested.clone(), bridge_commitment);
-
+        // Non-cached bridge polynomials: all computed via Stage::rx so
+        // that traces are valid for their witnesses (not just ones).
+        // Cached bridges (outer_error, ab, query, eval) are computed
+        // lazily by the builder via cached_bridge! using Stage::rx.
+        //
+        // Order: s_prime, inner_error, f first (independent of
+        // p_commitment), then endoscaling (computes p_commitment),
+        // then preamble (needs p_commitment for ChildWitness.p).
         let nested_gen = C::nested_generators(self.params);
         {
             let rx = nested::stages::s_prime::Stage::<C::HostCurve, R>::rx(
@@ -508,6 +499,18 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
             .expect("trivial s_prime rx");
             let commitment = rx.commit_to_affine(nested_gen);
             builder.set_bridge_s_prime_rx(rx, commitment);
+        }
+        {
+            let rx = nested::stages::inner_error::Stage::<C::HostCurve, R>::rx(
+                C::ScalarField::ONE,
+                &nested::stages::inner_error::Witness {
+                    native_inner_error: host_commitment,
+                    registry_wy: host_commitment,
+                },
+            )
+            .expect("trivial inner_error rx");
+            let commitment = rx.commit_to_affine(nested_gen);
+            builder.set_bridge_inner_error_rx(rx, commitment);
         }
         {
             let rx = nested::stages::f::Stage::<C::HostCurve, R>::rx(
