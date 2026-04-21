@@ -22,7 +22,7 @@ def exportedOperations (input_var : Vector (Expression (F p)) inputLen) : Operat
   Operation.assert ((((var ⟨3⟩) * (var ⟨4⟩)) + (((-1 : F p) : Expression (F p)) * (var ⟨5⟩)))),
   Operation.assert (((var ⟨3⟩) + (((-1 : F p) : Expression (F p)) * (var ⟨2⟩)))),
   Operation.assert (((var ⟨4⟩) + (((-1 : F p) : Expression (F p)) * (var ⟨2⟩)))),
-  Operation.assert (((var ⟨5⟩) + (((-1 : F p) : Expression (F p)) * 1))),
+  Operation.assert (((var ⟨5⟩) + (((-1 : F p) : Expression (F p)) * ((1 : F p) : Expression (F p))))),
 ]
 
 set_option linter.unusedVariables false in
