@@ -6,6 +6,7 @@ import Ragu.Instances.Point.Negate
 import Ragu.Instances.Point.Endo
 import Ragu.Instances.Element.Mul
 import Ragu.Instances.Element.Square
+import Ragu.Instances.Element.Alloc
 import Ragu.Instances.Element.AllocSquare
 import Ragu.Instances.Element.DivNonzero
 import Ragu.Instances.Element.Negate
