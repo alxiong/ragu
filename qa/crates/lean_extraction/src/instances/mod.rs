@@ -5,6 +5,7 @@ pub mod element_div_nonzero;
 pub mod element_mul;
 pub mod element_negate;
 pub mod element_square;
+pub mod element_sub;
 pub mod point_add_incomplete;
 pub mod point_alloc;
 pub mod point_double;
