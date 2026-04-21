@@ -70,12 +70,12 @@ impl<C: CurveAffine, R: Rank> MultiStageCircuit<C::Base, R> for Circuit<C, R> {
         let (_points_guard, dr) = dr.add_stage::<PointsStage<C, NUM_ENDOSCALING_POINTS>>()?;
         let (preamble_guard, dr) = dr.add_stage::<stages::preamble::Stage<C, R>>()?;
         let (s_prime_guard, dr) = dr.add_stage::<stages::s_prime::Stage<C, R>>()?;
-        let dr = dr.skip_stage::<stages::inner_error::Stage<C, R>>()?;
-        let dr = dr.skip_stage::<stages::outer_error::Stage<C, R>>()?;
-        let dr = dr.skip_stage::<stages::ab::Stage<C, R>>()?;
-        let dr = dr.skip_stage::<stages::query::Stage<C, R>>()?;
+        let (inner_error_guard, dr) = dr.add_stage::<stages::inner_error::Stage<C, R>>()?;
+        let (outer_error_guard, dr) = dr.add_stage::<stages::outer_error::Stage<C, R>>()?;
+        let (ab_guard, dr) = dr.add_stage::<stages::ab::Stage<C, R>>()?;
+        let (query_guard, dr) = dr.add_stage::<stages::query::Stage<C, R>>()?;
         let dr = dr.skip_stage::<stages::f::Stage<C, R>>()?;
-        let dr = dr.skip_stage::<stages::eval::Stage<C, R>>()?;
+        let (eval_guard, dr) = dr.add_stage::<stages::eval::Stage<C, R>>()?;
         let dr = dr.finish();
 
         macro_rules! w {
@@ -85,6 +85,11 @@ impl<C: CurveAffine, R: Rank> MultiStageCircuit<C::Base, R> for Circuit<C, R> {
         }
         let preamble = preamble_guard.unenforced(dr, w!())?;
         let s_prime = s_prime_guard.unenforced(dr, w!())?;
+        let inner_error = inner_error_guard.unenforced(dr, w!())?;
+        let outer_error = outer_error_guard.unenforced(dr, w!())?;
+        let ab = ab_guard.unenforced(dr, w!())?;
+        let query = query_guard.unenforced(dr, w!())?;
+        let eval = eval_guard.unenforced(dr, w!())?;
 
         let child = match self.side {
             Side::Left => &preamble.left,
@@ -97,6 +102,19 @@ impl<C: CurveAffine, R: Rank> MultiStageCircuit<C::Base, R> for Circuit<C, R> {
         child
             .stashed_preamble
             .enforce_equal(dr, &s_prime.stashed_preamble)?;
+        child
+            .stashed_inner_error
+            .enforce_equal(dr, &inner_error.native_inner_error)?;
+        child
+            .stashed_outer_error
+            .enforce_equal(dr, &outer_error.native_outer_error)?;
+        child.stashed_ab_a.enforce_equal(dr, &ab.a)?;
+        child.stashed_ab_b.enforce_equal(dr, &ab.b)?;
+        child.stashed_query.enforce_equal(dr, &query.native_query)?;
+        child
+            .stashed_registry_xy
+            .enforce_equal(dr, &query.registry_xy)?;
+        child.stashed_eval.enforce_equal(dr, &eval.native_eval)?;
 
         Ok(WithAux::new((), D::unit()))
     }
