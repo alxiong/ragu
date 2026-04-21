@@ -20,7 +20,7 @@ impl CircuitInstance for ElementInvertWithInstance {
         let input = WireDeserializer::new(input_wires).into_gadget(&element_template)?;
 
         // MaybeKind = Empty: the inverse closure is never called.
-        let inverse = ExtractionDriver::<Fp>::just(|| Fp::zero());
+        let inverse = ExtractionDriver::<Fp>::just(Fp::zero);
         let result = input.invert_with(dr, inverse)?;
 
         WireCollector::collect_from(&result)

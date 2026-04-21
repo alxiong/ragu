@@ -22,6 +22,7 @@ use crate::instances::{
     element_alloc_square::ElementAllocSquareInstance,
     element_div_nonzero::ElementDivNonzeroInstance,
     element_double::ElementDoubleInstance,
+    element_enforce_root_of_unity::ElementEnforceRootOfUnityInstance,
     element_enforce_zero::ElementEnforceZeroInstance,
     element_fold::ElementFoldInstance,
     element_invert::ElementInvertInstance,
@@ -35,6 +36,7 @@ use crate::instances::{
     element_sum::ElementSumInstance,
     point_add_incomplete::PointAddIncompleteInstance,
     point_alloc::{PointAllocInstanceFp, PointAllocInstanceFq},
+    point_constant::PointConstantInstance,
     point_double::PointDoubleInstance,
     point_endo::PointEndoInstance,
     point_negate::PointNegateInstance,
@@ -77,6 +79,11 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
         name: "Ragu.Instances.Autogen.Point.Endo",
         export: export_instance::<PointEndoInstance>,
         generated_file: generated_file_instance::<PointEndoInstance>,
+    },
+    ExportTarget {
+        name: "Ragu.Instances.Autogen.Point.Constant",
+        export: export_instance::<PointConstantInstance>,
+        generated_file: generated_file_instance::<PointConstantInstance>,
     },
     ExportTarget {
         name: "Ragu.Instances.Autogen.Element.Mul",
@@ -137,6 +144,11 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
         name: "Ragu.Instances.Autogen.Element.Fold",
         export: export_instance::<ElementFoldInstance>,
         generated_file: generated_file_instance::<ElementFoldInstance>,
+    },
+    ExportTarget {
+        name: "Ragu.Instances.Autogen.Element.EnforceRootOfUnity",
+        export: export_instance::<ElementEnforceRootOfUnityInstance>,
+        generated_file: generated_file_instance::<ElementEnforceRootOfUnityInstance>,
     },
     ExportTarget {
         name: "Ragu.Instances.Autogen.Element.Scale",
