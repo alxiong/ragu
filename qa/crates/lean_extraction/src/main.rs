@@ -16,6 +16,7 @@ use instance::CircuitInstance;
 
 use crate::instances::{
     boolean_alloc::BooleanAllocInstance,
+    boolean_not::BooleanNotInstance,
     core_alloc_mul::CoreAllocMulInstance,
     element_alloc::ElementAllocInstance,
     element_alloc_square::ElementAllocSquareInstance,
@@ -119,6 +120,11 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
         name: "Ragu.Instances.Autogen.Boolean.Alloc",
         export: export_instance::<BooleanAllocInstance>,
         generated_file: generated_file_instance::<BooleanAllocInstance>,
+    },
+    ExportTarget {
+        name: "Ragu.Instances.Autogen.Boolean.Not",
+        export: export_instance::<BooleanNotInstance>,
+        generated_file: generated_file_instance::<BooleanNotInstance>,
     },
 ];
 
