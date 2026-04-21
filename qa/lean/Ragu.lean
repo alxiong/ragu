@@ -15,5 +15,6 @@ import Ragu.Instances.Element.Double
 import Ragu.Instances.Element.Scale
 import Ragu.Instances.Element.AddCoeff
 import Ragu.Instances.Element.EnforceZero
+import Ragu.Instances.Element.Invert
 import Ragu.Instances.Element.InvertWith
 import Ragu.Instances.Core.AllocMul

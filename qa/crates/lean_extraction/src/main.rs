@@ -22,6 +22,7 @@ use crate::instances::{
     element_div_nonzero::ElementDivNonzeroInstance,
     element_double::ElementDoubleInstance,
     element_enforce_zero::ElementEnforceZeroInstance,
+    element_invert::ElementInvertInstance,
     element_invert_with::ElementInvertWithInstance,
     element_mul::ElementMulInstance,
     element_negate::ElementNegateInstance,
@@ -127,6 +128,11 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
         name: "Ragu.Instances.Autogen.Element.EnforceZero",
         export: export_instance::<ElementEnforceZeroInstance>,
         generated_file: generated_file_instance::<ElementEnforceZeroInstance>,
+    },
+    ExportTarget {
+        name: "Ragu.Instances.Autogen.Element.Invert",
+        export: export_instance::<ElementInvertInstance>,
+        generated_file: generated_file_instance::<ElementInvertInstance>,
     },
     ExportTarget {
         name: "Ragu.Instances.Autogen.Element.InvertWith",
