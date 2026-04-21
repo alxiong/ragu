@@ -21,6 +21,7 @@ use crate::instances::{
     element_alloc_square::ElementAllocSquareInstance,
     element_div_nonzero::ElementDivNonzeroInstance,
     element_double::ElementDoubleInstance,
+    element_enforce_zero::ElementEnforceZeroInstance,
     element_mul::ElementMulInstance,
     element_negate::ElementNegateInstance,
     element_scale::ElementScaleInstance,
@@ -120,6 +121,11 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
         name: "Ragu.Instances.Autogen.Element.AddCoeff",
         export: export_instance::<ElementAddCoeffInstance>,
         generated_file: generated_file_instance::<ElementAddCoeffInstance>,
+    },
+    ExportTarget {
+        name: "Ragu.Instances.Autogen.Element.EnforceZero",
+        export: export_instance::<ElementEnforceZeroInstance>,
+        generated_file: generated_file_instance::<ElementEnforceZeroInstance>,
     },
     ExportTarget {
         name: "Ragu.Instances.Autogen.Core.AllocMul",
