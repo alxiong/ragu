@@ -9,14 +9,6 @@ structure Row (F : Type) where
   z : F
 deriving ProvableStruct
 
-/-- Read the `(x, y)` pair the honest prover has allocated at index `idx`
-    of the `"alloc_mul_w"` witness table. `z` is computed as `x * y`.
-    One convenient `hintReader` a caller can pass into `circuit`; callers
-    are free to build other `ProverHint → Row` readers. -/
-def readRow (hint : ProverHint (F p)) (idx : ℕ) : Row (F p) :=
-  let v := (hint "alloc_mul_w" 2).getD idx default
-  ⟨v[0], v[1], v[0] * v[1]⟩
-
 def main (hintReader : ProverHint (F p) → Row (F p)) (_input : Unit) : Circuit (F p) (Var Row (F p)) := do
   let ⟨x, y, z⟩ ← (witness fun env =>
     let r := hintReader env.hint

@@ -1,5 +1,6 @@
 import Ragu.Circuits.Point.AddIncomplete
 import Ragu.Instances.Autogen.Point.AddIncomplete
+import Ragu.Instances.Point.Hints
 import Ragu.Core
 
 namespace Ragu.Instances.Point.AddIncomplete
@@ -55,7 +56,7 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
 
   reimplementation :=
     Circuits.Point.AddIncomplete.circuit Circuits.Point.Spec.EpAffineParams
-      (fun h => Circuits.Core.AllocMul.readRow h 0)
+      (fun h => Hints.readRow h 0)
 
   same_constraints := by
     intro input

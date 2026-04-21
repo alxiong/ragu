@@ -1,5 +1,6 @@
 import Ragu.Circuits.Point.Alloc
 import Ragu.Instances.Autogen.Point.AllocFp
+import Ragu.Instances.Point.Hints
 import Ragu.Core
 
 namespace Ragu.Instances.Point.AllocFp
@@ -28,8 +29,8 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
 
   -- x reads row 0 from "alloc_square_w", y reads row 2.
   reimplementation := Circuits.Point.Alloc.circuit Circuits.Point.Spec.EpAffineParams
-    (fun h => Circuits.Element.AllocSquare.readElem h "alloc_square_w" 1 0 0)
-    (fun h => Circuits.Element.AllocSquare.readElem h "alloc_square_w" 1 2 0)
+    (fun h => Hints.readSquareElem h 0 0)
+    (fun h => Hints.readSquareElem h 2 0)
 
   same_constraints := by
     intro input

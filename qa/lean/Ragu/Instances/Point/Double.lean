@@ -1,5 +1,6 @@
 import Ragu.Circuits.Point.Double
 import Ragu.Instances.Autogen.Point.Double
+import Ragu.Instances.Point.Hints
 import Ragu.Core
 
 namespace Ragu.Instances.Point.Double
@@ -36,7 +37,7 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
   -- Read the DivNonzero witness row from index 0 of `"alloc_mul_w"`.
   reimplementation :=
     Circuits.Point.Double.circuit Circuits.Point.Spec.EpAffineParams
-      (fun h => Circuits.Core.AllocMul.readRow h 0)
+      (fun h => Hints.readRow h 0)
 
   same_constraints := by
     intro input

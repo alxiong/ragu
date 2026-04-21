@@ -9,13 +9,6 @@ structure Square (F : Type) where
   a_sq : F
 deriving ProvableStruct
 
-/-- Read a field element from `hint table cols` at `(idx, slot)`.
-    One convenient way to build a `ProverHint → F p` reader; callers
-    are free to build others. -/
-def readElem (hint : ProverHint (F p)) (table : String) (cols : ℕ) (idx slot : ℕ) : F p :=
-  let v := (hint table cols).getD idx default
-  v[slot]!
-
 def main (hintReader : ProverHint (F p) → F p) (_input : Unit) :
     Circuit (F p) (Var Square (F p)) := do
   let ⟨x, y, z⟩ ← (witness fun env =>
