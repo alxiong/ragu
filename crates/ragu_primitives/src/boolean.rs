@@ -64,6 +64,15 @@ impl<'dr, D: Driver<'dr>> Boolean<'dr, D> {
         Ok(Boolean { value, wire: a })
     }
 
+    /// Constructs a new boolean from a wire and a witness value. **It is the
+    /// caller's responsibility to ensure that the provided wire is already
+    /// constrained to be `0` or `1`, and that the provided witness value is
+    /// consistent with the wire's value.** If either invariant is violated,
+    /// downstream constraints may silently produce incorrect witnesses.
+    pub fn promote(wire: D::Wire, value: DriverValue<D, bool>) -> Self {
+        Boolean { wire, value }
+    }
+
     /// Computes the NOT of this boolean. This is "free" in the circuit model.
     pub fn not(&self, dr: &mut D) -> Self {
         // The wire w is transformed into 1 - w, its logical NOT.
