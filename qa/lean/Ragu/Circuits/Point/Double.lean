@@ -68,12 +68,14 @@ theorem soundness (curveParams : Spec.CurveParams p)
   have h2y_ne : input_y + input_y ≠ 0 := by
     rw [← two_mul]; exact mul_ne_zero (NeZero.ne 2) hy
 
+  -- Chain subcircuit specs through hypotheses (like AddIncomplete soundness)
   have h_delta := c2 (by simp [h2y_ne])
   rw [c1] at h_delta
   rw [h_delta] at c3 c4
   rw [c3] at c4
   simp only [Spec.Point.double, if_neg hy]
 
+  -- Substitute simplified subcircuit outputs into goal
   constructor
   · simp only [Spec.Point.mk.injEq]
     rw [c3, c4]
