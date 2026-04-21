@@ -21,11 +21,33 @@ use ragu_core::{
     gadgets::{Bound, Gadget},
     maybe::Maybe,
 };
+use ragu_primitives::Point;
 
 use crate::internal::{
-    endoscalar::{EndoscalarStage, PointsStage},
+    endoscalar::{EndoscalarStage, Points, PointsStage},
+    native::RxIndex,
     nested::{NUM_ENDOSCALING_POINTS, stages},
 };
+
+/// A cursor over [`PointsStage`] inputs that enforces equality against
+/// corresponding bridge stage elements.
+struct Walker<'pts, 'dr, D: Driver<'dr>, C: CurveAffine<Base = D::F>> {
+    points: &'pts Points<'dr, D, C, NUM_ENDOSCALING_POINTS>,
+    index: usize,
+}
+
+impl<'pts, 'dr, D: Driver<'dr>, C: CurveAffine<Base = D::F>> Walker<'pts, 'dr, D, C> {
+    fn new(points: &'pts Points<'dr, D, C, NUM_ENDOSCALING_POINTS>) -> Self {
+        Self { points, index: 0 }
+    }
+
+    /// Enforce that the current [`PointsStage`] input equals `point`.
+    fn enforce_equal(&mut self, dr: &mut D, point: &Point<'dr, D, C>) -> Result<()> {
+        self.points.inputs[self.index].enforce_equal(dr, point)?;
+        self.index += 1;
+        Ok(())
+    }
+}
 
 /// Loading circuit that loads the entire nested stage hierarchy.
 pub struct Circuit<C: CurveAffine, R: Rank> {
@@ -83,6 +105,20 @@ impl<C: CurveAffine, R: Rank> MultiStageCircuit<C::Base, R> for Circuit<C, R> {
         let preamble = preamble_guard.unenforced(dr, w!())?;
         let s_prime = s_prime_guard.unenforced(dr, w!())?;
         let f_stage = f_guard.unenforced(dr, w!())?;
+
+        // Walk through PointsStage inputs, mirroring the accumulation
+        // order in `compute_p` (_10_p.rs).
+        let mut walker = Walker::new(&points);
+
+        for child in [&preamble.left, &preamble.right] {
+            for &id in &RxIndex::ALL {
+                walker.enforce_equal(dr, &child[id])?;
+            }
+            walker.enforce_equal(dr, &child.stashed_ab_a)?;
+            walker.enforce_equal(dr, &child.stashed_ab_b)?;
+            walker.enforce_equal(dr, &child.stashed_registry_xy)?;
+            walker.enforce_equal(dr, &child.stashed_p)?;
+        }
 
         // Relay: the current step's native_preamble is stashed in
         // BridgeSPrime so that a future copying circuit can verify it
