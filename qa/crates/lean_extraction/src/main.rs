@@ -19,6 +19,7 @@ use crate::instances::{
     element_alloc_square::ElementAllocSquareInstance,
     element_div_nonzero::ElementDivNonzeroInstance,
     element_mul::ElementMulInstance,
+    element_negate::ElementNegateInstance,
     element_square::ElementSquareInstance,
     point_add_incomplete::PointAddIncompleteInstance,
     point_alloc::{PointAllocInstanceFp, PointAllocInstanceFq},
@@ -84,6 +85,11 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
         name: "Ragu.Instances.Autogen.Element.DivNonzero",
         export: export_instance::<ElementDivNonzeroInstance>,
         generated_file: generated_file_instance::<ElementDivNonzeroInstance>,
+    },
+    ExportTarget {
+        name: "Ragu.Instances.Autogen.Element.Negate",
+        export: export_instance::<ElementNegateInstance>,
+        generated_file: generated_file_instance::<ElementNegateInstance>,
     },
     ExportTarget {
         name: "Ragu.Instances.Autogen.Core.AllocMul",
