@@ -13,6 +13,7 @@ pub mod element_enforce_zero;
 pub mod element_fold;
 pub mod element_invert;
 pub mod element_invert_with;
+pub mod element_is_equal;
 pub mod element_mul;
 pub mod element_square;
 pub mod point_add_incomplete;

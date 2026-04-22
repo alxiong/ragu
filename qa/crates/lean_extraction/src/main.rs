@@ -30,6 +30,7 @@ use crate::instances::{
     element_fold::ElementFoldInstance,
     element_invert::ElementInvertInstance,
     element_invert_with::ElementInvertWithInstance,
+    element_is_equal::ElementIsEqualInstance,
     element_mul::ElementMulInstance,
     element_square::ElementSquareInstance,
     point_add_incomplete::PointAddIncompleteInstance,
@@ -114,6 +115,11 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
         name: "Ragu.Instances.Autogen.Element.InvertWith",
         export: export_instance::<ElementInvertWithInstance>,
         generated_file: generated_file_instance::<ElementInvertWithInstance>,
+    },
+    ExportTarget {
+        name: "Ragu.Instances.Autogen.Element.IsEqual",
+        export: export_instance::<ElementIsEqualInstance>,
+        generated_file: generated_file_instance::<ElementIsEqualInstance>,
     },
     ExportTarget {
         name: "Ragu.Instances.Autogen.Core.AllocMul",

@@ -12,6 +12,7 @@ import Ragu.Instances.Element.EnforceRootOfUnity
 import Ragu.Instances.Element.EnforceZero
 import Ragu.Instances.Element.Invert
 import Ragu.Instances.Element.InvertWith
+import Ragu.Instances.Element.IsEqual
 import Ragu.Instances.Core.AllocMul
 import Ragu.Instances.Boolean.Alloc
 import Ragu.Instances.Boolean.Not
