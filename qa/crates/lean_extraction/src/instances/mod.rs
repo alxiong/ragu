@@ -22,3 +22,4 @@ pub mod point_alloc;
 pub mod point_conditional_endo;
 pub mod point_conditional_negate;
 pub mod point_double;
+pub mod point_double_and_add_incomplete;

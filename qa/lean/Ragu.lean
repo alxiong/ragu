@@ -1,6 +1,7 @@
 import Ragu.Instances.Point.AllocFp
 import Ragu.Instances.Point.AllocFq
 import Ragu.Instances.Point.Double
+import Ragu.Instances.Point.DoubleAndAddIncomplete
 import Ragu.Instances.Point.AddIncomplete
 import Ragu.Instances.Point.ConditionalEndo
 import Ragu.Instances.Point.ConditionalNegate

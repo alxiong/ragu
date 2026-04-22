@@ -39,6 +39,7 @@ use crate::instances::{
     point_conditional_endo::PointConditionalEndoInstance,
     point_conditional_negate::PointConditionalNegateInstance,
     point_double::PointDoubleInstance,
+    point_double_and_add_incomplete::PointDoubleAndAddIncompleteInstance,
 };
 
 struct ExportTarget {
@@ -63,6 +64,11 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
         name: "Ragu.Instances.Autogen.Point.Double",
         export: export_instance::<PointDoubleInstance>,
         generated_file: generated_file_instance::<PointDoubleInstance>,
+    },
+    ExportTarget {
+        name: "Ragu.Instances.Autogen.Point.DoubleAndAddIncomplete",
+        export: export_instance::<PointDoubleAndAddIncompleteInstance>,
+        generated_file: generated_file_instance::<PointDoubleAndAddIncompleteInstance>,
     },
     ExportTarget {
         name: "Ragu.Instances.Autogen.Point.AddIncomplete",
