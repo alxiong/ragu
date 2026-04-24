@@ -64,11 +64,11 @@ pub(crate) fn global_project<F: Field, R: Rank>(p: F) -> sparse::Polynomial<F, R
         cur *= p;
     }
     for j in (0..n).rev() {
-        view.a[j] = cur;
+        view.b[j] = cur;
         cur *= p;
     }
     for j in 0..n {
-        view.b[j] = cur;
+        view.a[j] = cur;
         cur *= p;
     }
     for j in (0..n).rev() {
@@ -154,8 +154,8 @@ impl<R: Rank> StageMask<R> {
 
         let p_inv = p.invert().expect("p is not zero");
         let mut d = -p.pow_vartime([g as u64]);
-        let mut a = -p.pow_vartime([(2 * n - 1 - g) as u64]);
-        let mut b = -p.pow_vartime([(2 * n + g) as u64]);
+        let mut a = -p.pow_vartime([(2 * n + g) as u64]);
+        let mut b = -p.pow_vartime([(2 * n - 1 - g) as u64]);
         let mut c = -p.pow_vartime([(4 * n - 1 - g) as u64]);
 
         for j in g..g + m {
@@ -164,8 +164,8 @@ impl<R: Rank> StageMask<R> {
             view.b[j] = b;
             view.c[j] = c;
             d *= p;
-            a *= p_inv;
-            b *= p;
+            a *= p;
+            b *= p_inv;
             c *= p_inv;
         }
 
@@ -298,8 +298,8 @@ mod tests {
             // LC) constraints fill gaps for active gates. SYSTEM gate wires
             // are directly accessible via gates[0].
             //
-            // c[j] at degree 4n-1-j (j=1..n-1), b[j] at degree 2n+j (j=n-1..0),
-            // a[j] at degree 2n-1-j (j=0..n-1), d[j] at degree j (j=n-1..1).
+            // c[j] at degree 4n-1-j (j=1..n-1), a[j] at degree 2n+j (j=n-1 down to 0),
+            // b[j] at degree 2n-1-j (j=0..n-1), d[j] at degree j (j=n-1 down to 1).
             // d[0] at degree 0 is the ONE wire slot, not issued here (handled
             // by orchestrate + Stripped for bonding polynomials).
             // c[0] is the registry key slot at degree 4n-1 — not emitted here.
@@ -313,13 +313,13 @@ mod tests {
                         .iter()
                         .enumerate()
                         .rev()
-                        .map(|(j, g)| (!is_active(j)).then_some(&g.b)),
+                        .map(|(j, g)| (!is_active(j)).then_some(&g.a)),
                 )
                 .chain(
                     gates
                         .iter()
                         .enumerate()
-                        .map(|(j, g)| (!is_active(j)).then_some(&g.a)),
+                        .map(|(j, g)| (!is_active(j)).then_some(&g.b)),
                 )
                 .chain(
                     gates
@@ -354,10 +354,10 @@ mod tests {
         /// Returns the generator point for the `coefficient_index`-th $a$-wire
         /// coefficient of this stage.
         ///
-        /// The $a$-wire at gate $j$ occupies degree $2n + j$ in the
+        /// The $a$-wire at gate $j$ occupies degree $2n - 1 - j$ in the
         /// witness polynomial. The SYSTEM gate is included in `skip_gates`, so the
         /// first active gate is at index `skip_gates` and the formula
-        /// becomes $2n + \text{skip\_gates} + \text{coefficient\_index}$.
+        /// becomes $2n - 1 - \text{skip\_gates} - \text{coefficient\_index}$.
         fn generator_for_a_coefficient<C: CurveAffine>(
             &self,
             generators: &impl FixedGenerators<C>,
@@ -370,7 +370,7 @@ mod tests {
                 self.num_gates
             );
 
-            let idx = 2 * R::n() + self.skip_gates + coefficient_index;
+            let idx = 2 * R::n() - 1 - self.skip_gates - coefficient_index;
             generators.g()[idx]
         }
     }
@@ -972,25 +972,25 @@ mod tests {
         }
     }
 
-    /// Tests the generator index formula `2n + skip + i` for both a root
+    /// Tests the generator index formula `2n - 1 - skip - i` for both a root
     /// stage and a child stage with non-zero skip.
     #[test]
     fn test_generator_index_edge_cases() {
         assert_eq!(
             <ParentAOnlyStage as StageExt<Fp, R>>::generator_index_for_a(0),
-            2 * R::n() + 1
+            2 * R::n() - 2
         );
         assert_eq!(
             <ParentAOnlyStage as StageExt<Fp, R>>::generator_index_for_a(2),
-            2 * R::n() + 3
+            2 * R::n() - 4
         );
         assert_eq!(
             <ChildOfParentAOnlyStage as StageExt<Fp, R>>::generator_index_for_a(0),
-            2 * R::n() + 4
+            2 * R::n() - 5
         );
         assert_eq!(
             <ChildOfParentAOnlyStage as StageExt<Fp, R>>::generator_index_for_a(2),
-            2 * R::n() + 6
+            2 * R::n() - 7
         );
     }
 

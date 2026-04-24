@@ -63,9 +63,9 @@ use crate::{DriverScope, floor_planner::ConstraintSegment, polynomials::Rank, ra
 
 /// Per-routine state saved and restored across routine boundaries.
 struct SxyScope<F> {
-    /// Running monomial for $a$ wires: $x^{2n - 1 - i}$ at gate $i$.
+    /// Running monomial for $a$ wires: $x^{2n + i}$ at gate $i$.
     current_a_x: F,
-    /// Running monomial for $b$ wires: $x^{2n + i}$ at gate $i$.
+    /// Running monomial for $b$ wires: $x^{2n - 1 - i}$ at gate $i$.
     current_b_x: F,
     /// Running monomial for $c$ wires: $x^{4n - 1 - i}$ at gate $i$.
     current_c_x: F,
@@ -116,22 +116,22 @@ struct Evaluator<'fp, F, R> {
     /// resolved during linear combination accumulation.
     one: F,
 
-    /// Base monomial $x^{2n-1}$, used to compute routine starting monomials.
+    /// Base monomial $x^{2n}$, used to compute routine starting monomials.
     base_a_x: F,
 
-    /// Base monomial $x^{2n}$, used to compute routine starting monomials.
+    /// Base monomial $x^{2n-1}$, used to compute routine starting monomials.
     base_b_x: F,
 
     /// Base monomial $x^{4n-1}$, used to compute routine starting monomials
     /// for the $c$ wire.
     base_c_x: F,
 
-    /// Correction factor $(x^{-2n})$ that converts a $b$-wire monomial
+    /// Correction factor $(x^{-2n})$ that converts an $a$-wire monomial
     /// $x^{2n+i}$ into the corresponding $d$-wire monomial $x^i$.
     ///
     /// Only used by [`assign_extra`](DriverTypes::assign_extra), so the
     /// multiplication is skipped when callers keep the default $D = 0$.
-    b_to_d: F,
+    a_to_d: F,
 
     /// Floor plan mapping DFS segment index to absolute offsets.
     floor_plan: &'fp [ConstraintSegment],
@@ -165,16 +165,16 @@ impl<F: Field, R: Rank> DriverTypes for Evaluator<'_, F, R> {
     type Extra = F;
 
     /// Consumes a gate, returning evaluated monomials for $(a, b, c)$ and the
-    /// raw $b$-wire monomial as [`Extra`](DriverTypes::Extra).
+    /// raw $a$-wire monomial as [`Extra`](DriverTypes::Extra).
     ///
     /// Returns the current values of the running monomials as [`WireEval::Value`]
     /// wires, then advances the monomials for the next gate:
-    /// - $a$: multiplied by $x^{-1}$ (decreasing exponent)
-    /// - $b$: multiplied by $x$ (increasing exponent)
+    /// - $a$: multiplied by $x$ (increasing exponent)
+    /// - $b$: multiplied by $x^{-1}$ (decreasing exponent)
     /// - $c$: multiplied by $x^{-1}$ (decreasing exponent)
     ///
-    /// The $d$-wire monomial $x^i$ is derived from $b = x^{2n+i}$ via
-    /// `b_to_d` in [`assign_extra`](DriverTypes::assign_extra).
+    /// The $d$-wire monomial $x^i$ is derived from $a = x^{2n+i}$ via
+    /// `a_to_d` in [`assign_extra`](DriverTypes::assign_extra).
     ///
     /// # Errors
     ///
@@ -194,26 +194,26 @@ impl<F: Field, R: Rank> DriverTypes for Evaluator<'_, F, R> {
         let b = self.scope.current_b_x;
         let c = self.scope.current_c_x;
 
-        self.scope.current_a_x *= self.x_inv;
-        self.scope.current_b_x *= self.x;
+        self.scope.current_a_x *= self.x;
+        self.scope.current_b_x *= self.x_inv;
         self.scope.current_c_x *= self.x_inv;
 
         Ok((
             WireEval::Value(a),
             WireEval::Value(b),
             WireEval::Value(c),
-            b,
+            a,
         ))
     }
 
-    /// Converts the raw $b$-wire monomial carried by [`Extra`](DriverTypes::Extra)
-    /// into the corresponding $d$-wire monomial by multiplying by `b_to_d`.
+    /// Converts the raw $a$-wire monomial carried by [`Extra`](DriverTypes::Extra)
+    /// into the corresponding $d$-wire monomial by multiplying by `a_to_d`.
     fn assign_extra(
         &mut self,
-        b: Self::Extra,
+        a: Self::Extra,
         _: impl Fn() -> Result<Coeff<F>>,
     ) -> Result<WireEval<F>> {
-        Ok(WireEval::Value(b * self.b_to_d))
+        Ok(WireEval::Value(a * self.a_to_d))
     }
 }
 
@@ -270,8 +270,8 @@ impl<'dr, F: Field, R: Rank> Driver<'dr> for Evaluator<'_, F, R> {
         // Jump to this routine's absolute position in the polynomial;
         // see "Polynomial Encoding and Scope Jumps" in the `s` module doc.
         let init_scope = SxyScope {
-            current_a_x: self.base_a_x * self.x_inv.pow_vartime([gate_start as u64]),
-            current_b_x: self.base_b_x * self.x.pow_vartime([gate_start as u64]),
+            current_a_x: self.base_a_x * self.x.pow_vartime([gate_start as u64]),
+            current_b_x: self.base_b_x * self.x_inv.pow_vartime([gate_start as u64]),
             current_c_x: self.base_c_x * self.x_inv.pow_vartime([gate_start as u64]),
             gates: gate_start,
             constraints: constraint_start,
@@ -338,12 +338,12 @@ pub fn eval<F: Field, RC: RawCircuit<F>, R: Rank>(
     };
     let xn = x.pow_vartime([R::n() as u64]); // xn = x^n
     let xn2 = xn.square(); // xn2 = x^(2n)
-    let base_a_x = xn2 * x_inv; // x^(2n - 1)
-    let base_b_x = xn2; // x^(2n)
+    let base_a_x = xn2; // x^(2n)
+    let base_b_x = xn2 * x_inv; // x^(2n - 1)
     let xn4 = xn2.square(); // x^(4n)
     let base_c_x = xn4 * x_inv; // x^(4n - 1)
     let xn_inv = x_inv.pow_vartime([R::n() as u64]); // x^(-n), or 0 if x = 0
-    let base_b_x_inv = xn_inv.square(); // x^(-2n), or 0 if x = 0
+    let base_a_x_inv = xn_inv.square(); // x^(-2n), or 0 if x = 0
 
     if y == F::ZERO {
         // If y is zero, all terms y^j for j > 0 vanish, leaving only the ONE
@@ -368,7 +368,7 @@ pub fn eval<F: Field, RC: RawCircuit<F>, R: Rank>(
         base_a_x,
         base_b_x,
         base_c_x,
-        b_to_d: base_b_x_inv,
+        a_to_d: base_a_x_inv,
         floor_plan,
         current_routine: 0,
         _marker: core::marker::PhantomData,
