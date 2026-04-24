@@ -26,14 +26,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          PR_NUMBER=$(gh pr list \
-              --repo ${{ github.repository }} \
-              --state open \
-              --json number,headRefName,headRefOid,headRepositoryOwner \
+          PR_NUMBER=$(
+            (
+              gh pr list \
+                --repo ${{ github.repository }} \
+                --state open \
+                --json number,headRefName,headRefOid,headRepositoryOwner \
+              || echo '[]'
+            ) \
             | jq --raw-output --from-file .github/scripts/find-pr.jq \
               --arg pr_owner '${{ github.event.workflow_run.head_repository.owner.login }}' \
               --arg pr_branch '${{ github.event.workflow_run.head_branch }}' \
-              --arg pr_sha '${{ github.event.workflow_run.head_sha }}')
+              --arg pr_sha '${{ github.event.workflow_run.head_sha }}'
+          )
           echo "pr_number=${PR_NUMBER}" | tee $GITHUB_OUTPUT
 
       - name: Download benchmark results artifact
