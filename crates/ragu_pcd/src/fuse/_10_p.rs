@@ -19,11 +19,7 @@ use ragu_core::{Result, drivers::Driver, maybe::Maybe};
 use ragu_primitives::{Element, extract_endoscalar, lift_endoscalar};
 
 use super::{NativeF, NativeSPrime, RegistryWy};
-use crate::{
-    Application, Proof,
-    internal::nested::NUM_ENDOSCALING_POINTS,
-    proof::ProofBuilder,
-};
+use crate::{Application, Proof, internal::nested::NUM_ENDOSCALING_POINTS, proof::ProofBuilder};
 
 /// Accumulates polynomials with their commitments.
 struct Accumulator<'a, C: Cycle, R: Rank> {

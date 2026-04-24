@@ -502,13 +502,10 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
     ) -> Result<C::HostCurve> {
         assert_eq!(points.len(), NUM_ENDOSCALING_POINTS);
 
-        let witness =
-            PointsWitness::<C::HostCurve, NUM_ENDOSCALING_POINTS>::new(beta_endo, points);
+        let witness = PointsWitness::<C::HostCurve, NUM_ENDOSCALING_POINTS>::new(beta_endo, points);
 
-        let endoscalar_rx = <EndoscalarStage as StageExt<C::ScalarField, R>>::rx(
-            endoscalar_alpha,
-            beta_endo,
-        )?;
+        let endoscalar_rx =
+            <EndoscalarStage as StageExt<C::ScalarField, R>>::rx(endoscalar_alpha, beta_endo)?;
         let points_rx = <PointsStage<C::HostCurve, NUM_ENDOSCALING_POINTS> as StageExt<
             C::ScalarField,
             R,
@@ -667,8 +664,7 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
             points.push(host_commitment); // b
             points.push(registry_xy_commitment); // native_registry_xy
 
-            let mut trivial_rng =
-                <rand::rngs::StdRng as rand::SeedableRng>::from_seed([0u8; 32]);
+            let mut trivial_rng = <rand::rngs::StdRng as rand::SeedableRng>::from_seed([0u8; 32]);
             self.compute_endoscaling(
                 &mut trivial_rng,
                 beta_endo,
