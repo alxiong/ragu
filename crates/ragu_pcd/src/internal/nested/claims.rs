@@ -15,7 +15,7 @@ use ff::PrimeField;
 use ragu_circuits::polynomials::{Rank, sparse};
 use ragu_core::Result;
 
-use super::{InternalCircuitIndex, RxIndex};
+use super::{ChildBridgeKind, InternalCircuitIndex, RxIndex};
 use crate::internal::claims::{Builder, Source, sum_polynomials};
 
 /// Trait for processing nested claim values into accumulated outputs.
@@ -157,12 +157,12 @@ where
                 let groups = source
                     .rx(RxIndex::ChildPointsStage(side))
                     .zip(source.rx(RxIndex::BridgePreamble))
-                    .zip(source.rx(RxIndex::ChildBridgeSPrime(side)))
-                    .zip(source.rx(RxIndex::ChildBridgeInnerError(side)))
-                    .zip(source.rx(RxIndex::ChildBridgeOuterError(side)))
-                    .zip(source.rx(RxIndex::ChildBridgeAB(side)))
-                    .zip(source.rx(RxIndex::ChildBridgeQuery(side)))
-                    .zip(source.rx(RxIndex::ChildBridgeEval(side)))
+                    .zip(source.rx(RxIndex::ChildBridge(ChildBridgeKind::SPrime, side)))
+                    .zip(source.rx(RxIndex::ChildBridge(ChildBridgeKind::InnerError, side)))
+                    .zip(source.rx(RxIndex::ChildBridge(ChildBridgeKind::OuterError, side)))
+                    .zip(source.rx(RxIndex::ChildBridge(ChildBridgeKind::AB, side)))
+                    .zip(source.rx(RxIndex::ChildBridge(ChildBridgeKind::Query, side)))
+                    .zip(source.rx(RxIndex::ChildBridge(ChildBridgeKind::Eval, side)))
                     .map(|(((((((cp, bp), cs), ci), co), ca), cq), ce)| {
                         [cp, bp, cs, ci, co, ca, cq, ce].into_iter()
                     });

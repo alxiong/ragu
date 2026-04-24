@@ -139,6 +139,40 @@ impl InternalCircuitIndex {
 /// Analogous to [`native::RxIndex`](super::native::RxIndex) for the scalar
 /// field. Each variant maps to a polynomial in
 /// the proof's nested-field polynomial storage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChildBridgeKind {
+    /// Child proof's `BridgeSPrime` rx polynomial.
+    SPrime,
+    /// Child proof's `BridgeInnerError` rx polynomial.
+    InnerError,
+    /// Child proof's `BridgeOuterError` rx polynomial.
+    OuterError,
+    /// Child proof's `BridgeAB` rx polynomial.
+    AB,
+    /// Child proof's `BridgeQuery` rx polynomial.
+    Query,
+    /// Child proof's `BridgeEval` rx polynomial.
+    Eval,
+}
+
+impl ChildBridgeKind {
+    /// All kinds in the canonical slot order.
+    ///
+    /// This constant is the source of truth for the relative order of
+    /// `RxIndex::ChildBridge(kind, side)` entries in [`RxIndex::ALL`]
+    /// (see [`RxIndex::all_slots`]), and is therefore pinned by
+    /// `test_nested_registry_digest` — re-ordering these variants
+    /// changes the nested registry digest.
+    pub const ALL: [Self; 6] = [
+        Self::SPrime,
+        Self::InnerError,
+        Self::OuterError,
+        Self::AB,
+        Self::Query,
+        Self::Eval,
+    ];
+}
+
 #[derive(Clone, Copy, Debug)]
 pub enum RxIndex {
     /// EndoscalingStep circuit rx polynomial (indexed by step number).
@@ -165,18 +199,9 @@ pub enum RxIndex {
     BridgeEval,
     /// Child proof's `PointsStage` rx polynomial (per-side, for copying).
     ChildPointsStage(Side),
-    /// Child proof's `BridgeSPrime` rx polynomial (per-side, for copying).
-    ChildBridgeSPrime(Side),
-    /// Child proof's `BridgeInnerError` rx polynomial (per-side, for copying).
-    ChildBridgeInnerError(Side),
-    /// Child proof's `BridgeOuterError` rx polynomial (per-side, for copying).
-    ChildBridgeOuterError(Side),
-    /// Child proof's `BridgeAB` rx polynomial (per-side, for copying).
-    ChildBridgeAB(Side),
-    /// Child proof's `BridgeQuery` rx polynomial (per-side, for copying).
-    ChildBridgeQuery(Side),
-    /// Child proof's `BridgeEval` rx polynomial (per-side, for copying).
-    ChildBridgeEval(Side),
+    /// Child proof's bridge rx polynomial (per-side, for copying),
+    /// keyed by which bridge stage it comes from.
+    ChildBridge(ChildBridgeKind, Side),
 }
 
 impl RxIndex {
@@ -214,18 +239,15 @@ impl RxIndex {
         push(&mut slots, &mut c, Self::BridgeEval);
         push(&mut slots, &mut c, Self::ChildPointsStage(Side::Left));
         push(&mut slots, &mut c, Self::ChildPointsStage(Side::Right));
-        push(&mut slots, &mut c, Self::ChildBridgeSPrime(Side::Left));
-        push(&mut slots, &mut c, Self::ChildBridgeSPrime(Side::Right));
-        push(&mut slots, &mut c, Self::ChildBridgeInnerError(Side::Left));
-        push(&mut slots, &mut c, Self::ChildBridgeInnerError(Side::Right));
-        push(&mut slots, &mut c, Self::ChildBridgeOuterError(Side::Left));
-        push(&mut slots, &mut c, Self::ChildBridgeOuterError(Side::Right));
-        push(&mut slots, &mut c, Self::ChildBridgeAB(Side::Left));
-        push(&mut slots, &mut c, Self::ChildBridgeAB(Side::Right));
-        push(&mut slots, &mut c, Self::ChildBridgeQuery(Side::Left));
-        push(&mut slots, &mut c, Self::ChildBridgeQuery(Side::Right));
-        push(&mut slots, &mut c, Self::ChildBridgeEval(Side::Left));
-        push(&mut slots, &mut c, Self::ChildBridgeEval(Side::Right));
+        {
+            let mut i = 0;
+            while i < ChildBridgeKind::ALL.len() {
+                let kind = ChildBridgeKind::ALL[i];
+                push(&mut slots, &mut c, Self::ChildBridge(kind, Side::Left));
+                push(&mut slots, &mut c, Self::ChildBridge(kind, Side::Right));
+                i += 1;
+            }
+        }
         assert!(c == Self::NUM);
         slots
     }

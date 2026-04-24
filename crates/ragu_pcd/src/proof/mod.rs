@@ -31,7 +31,7 @@ use crate::{
         },
         native::{RxComponent, RxIndex},
         nested,
-        nested::NUM_ENDOSCALING_POINTS,
+        nested::{ChildBridgeKind, NUM_ENDOSCALING_POINTS},
     },
 };
 
@@ -88,6 +88,20 @@ pub(crate) struct ChildStageRx<F: ff::PrimeField, R: Rank> {
     pub bridge_ab: sparse::Polynomial<F, R>,
     pub bridge_query: sparse::Polynomial<F, R>,
     pub bridge_eval: sparse::Polynomial<F, R>,
+}
+
+impl<F: ff::PrimeField, R: Rank> ChildStageRx<F, R> {
+    /// Dispatch to the bridge-stage rx polynomial named by `kind`.
+    pub(crate) fn bridge_at(&self, kind: ChildBridgeKind) -> &sparse::Polynomial<F, R> {
+        match kind {
+            ChildBridgeKind::SPrime => &self.bridge_s_prime,
+            ChildBridgeKind::InnerError => &self.bridge_inner_error,
+            ChildBridgeKind::OuterError => &self.bridge_outer_error,
+            ChildBridgeKind::AB => &self.bridge_ab,
+            ChildBridgeKind::Query => &self.bridge_query,
+            ChildBridgeKind::Eval => &self.bridge_eval,
+        }
+    }
 }
 
 impl<C: Cycle, R: Rank> Proof<C, R> {
@@ -260,12 +274,7 @@ impl<C: Cycle, R: Rank> core::ops::Index<nested::RxIndex> for Proof<C, R> {
             BridgeF => &self.bridge_f_rx,
             BridgeEval => &self.bridge_eval_rx.0,
             ChildPointsStage(side) => &self.child_stage_rx(side).points_stage,
-            ChildBridgeSPrime(side) => &self.child_stage_rx(side).bridge_s_prime,
-            ChildBridgeInnerError(side) => &self.child_stage_rx(side).bridge_inner_error,
-            ChildBridgeOuterError(side) => &self.child_stage_rx(side).bridge_outer_error,
-            ChildBridgeAB(side) => &self.child_stage_rx(side).bridge_ab,
-            ChildBridgeQuery(side) => &self.child_stage_rx(side).bridge_query,
-            ChildBridgeEval(side) => &self.child_stage_rx(side).bridge_eval,
+            ChildBridge(kind, side) => self.child_stage_rx(side).bridge_at(kind),
         }
     }
 }
