@@ -12,13 +12,14 @@ use alloc::{vec, vec::Vec};
 
 pub(crate) use builder::ProofBuilder;
 use ff::Field;
-use ragu_arithmetic::Cycle;
+use ragu_arithmetic::{Cycle, Uendo};
 use ragu_circuits::{
     CircuitExt,
     polynomials::{Rank, sparse},
     registry::CircuitIndex,
     staging::{MultiStage, StageExt},
 };
+use ragu_core::Result;
 use ragu_primitives::{extract_endoscalar, vec::Len};
 
 use crate::{
@@ -471,6 +472,69 @@ impl<C: Cycle, R: Rank> Proof<C, R> {
 }
 
 impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, HEADER_SIZE> {
+    /// Runs endoscaling over the host-curve commitments that feed
+    /// `PointsStage`, in the order `compute_p` (`_10_p.rs`)
+    /// accumulates them. Writes `nested_endoscalar_rx`,
+    /// `nested_points_rx`, and `nested_endoscaling_step_rxs` onto
+    /// `builder`, and returns the accumulated `p` commitment (last
+    /// `PointsStage` interstitial).
+    ///
+    /// Shared by `compute_p` (in `fuse/_10_p.rs`) and by
+    /// [`trivial_proof`](Self::trivial_proof), so the nested
+    /// endoscaling setup lives in one place.
+    pub(crate) fn compute_endoscaling<RNG: rand::CryptoRng>(
+        &self,
+        rng: &mut RNG,
+        beta_endo: Uendo,
+        points: &[C::HostCurve],
+        endoscalar_alpha: C::ScalarField,
+        points_alpha: C::ScalarField,
+        builder: &mut ProofBuilder<'_, C, R>,
+    ) -> Result<C::HostCurve> {
+        assert_eq!(points.len(), NUM_ENDOSCALING_POINTS);
+
+        let witness =
+            PointsWitness::<C::HostCurve, NUM_ENDOSCALING_POINTS>::new(beta_endo, points);
+
+        let endoscalar_rx = <EndoscalarStage as StageExt<C::ScalarField, R>>::rx(
+            endoscalar_alpha,
+            beta_endo,
+        )?;
+        let points_rx = <PointsStage<C::HostCurve, NUM_ENDOSCALING_POINTS> as StageExt<
+            C::ScalarField,
+            R,
+        >>::rx(points_alpha, &witness)?;
+
+        let num_steps = NumStepsLen::<NUM_ENDOSCALING_POINTS>::len();
+        let mut step_rxs = Vec::with_capacity(num_steps);
+        for step in 0..num_steps {
+            let step_circuit =
+                EndoscalingStep::<C::HostCurve, R, NUM_ENDOSCALING_POINTS>::new(step);
+            let staged = MultiStage::new(step_circuit);
+            let step_trace = staged
+                .trace(EndoscalingStepWitness {
+                    endoscalar: beta_endo,
+                    points: &witness,
+                })?
+                .into_output();
+            let step_rx = self.nested_registry.assemble(
+                &step_trace,
+                nested::InternalCircuitIndex::EndoscalingStep(step as u32).circuit_index(),
+                rng,
+            )?;
+            step_rxs.push(step_rx);
+        }
+
+        builder.set_nested_endoscaling_step_rxs(step_rxs);
+        builder.set_nested_endoscalar_rx(endoscalar_rx);
+        builder.set_nested_points_rx(points_rx);
+
+        Ok(*witness
+            .interstitials
+            .last()
+            .expect("NUM_ENDOSCALING_POINTS guarantees at least one interstitial"))
+    }
+
     pub(crate) fn trivial_pcd(&self) -> Pcd<C, R, ()> {
         self.trivial_proof().carry(())
     }
@@ -561,21 +625,21 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
             builder.set_bridge_f_rx(rx, commitment);
         }
 
-        // Nested endoscaling: compute properly from dummy commitments so
-        // that PointsStage traces are valid (required for copying circuit).
-        // Mirrors the accumulation order in `compute_p` (_10_p.rs).
+        // Build dummy PointsStage inputs in `_10_p` accumulation order
+        // and delegate to `compute_endoscaling` so this trivial setup
+        // cannot silently drift from the real prover path.
         let beta_endo = extract_endoscalar(C::CircuitField::ONE);
         let p_commitment = {
-            let mut points = alloc::vec::Vec::with_capacity(NUM_ENDOSCALING_POINTS);
+            let mut points = Vec::with_capacity(NUM_ENDOSCALING_POINTS);
 
             // Initial: native_f commitment.
             points.push(host_commitment);
 
             let registry_xy_commitment = builder.native_registry_xy_commitment();
 
-            // Per child × 2: 15 commitments each.
-            // All native rx commitments are host_commitment (ones_host),
-            // except registry_xy which has its own commitment.
+            // Per-child block: all per-child commitments are
+            // `host_commitment` (ones_host), except registry_xy which
+            // has its own commitment.
             for _ in 0..2 {
                 for _ in &RxIndex::ALL {
                     points.push(host_commitment);
@@ -586,62 +650,25 @@ impl<C: Cycle, R: Rank, const HEADER_SIZE: usize> crate::Application<'_, C, R, H
                 points.push(host_commitment); // P placeholder
             }
 
-            // 6 current-step stage proof components.
+            // Current-step bridge inputs.
             points.push(host_commitment); // registry_wx0
             points.push(host_commitment); // registry_wx1
             points.push(host_commitment); // registry_wy
             points.push(host_commitment); // a
             points.push(host_commitment); // b
-            points.push(registry_xy_commitment);
+            points.push(registry_xy_commitment); // native_registry_xy
 
-            assert_eq!(points.len(), NUM_ENDOSCALING_POINTS);
-
-            let witness =
-                PointsWitness::<C::HostCurve, NUM_ENDOSCALING_POINTS>::new(beta_endo, &points);
-
-            let endoscalar_rx = <EndoscalarStage as StageExt<C::ScalarField, R>>::rx(
-                C::ScalarField::ONE,
+            let mut trivial_rng =
+                <rand::rngs::StdRng as rand::SeedableRng>::from_seed([0u8; 32]);
+            self.compute_endoscaling(
+                &mut trivial_rng,
                 beta_endo,
+                &points,
+                C::ScalarField::ONE,
+                C::ScalarField::ONE,
+                &mut builder,
             )
-            .expect("trivial endoscalar rx");
-            let points_rx = <PointsStage<C::HostCurve, NUM_ENDOSCALING_POINTS> as StageExt<
-                C::ScalarField,
-                R,
-            >>::rx(C::ScalarField::ONE, &witness)
-            .expect("trivial points rx");
-
-            let num_steps = NumStepsLen::<NUM_ENDOSCALING_POINTS>::len();
-            let mut step_rxs = alloc::vec::Vec::with_capacity(num_steps);
-            for step in 0..num_steps {
-                let step_circuit =
-                    EndoscalingStep::<C::HostCurve, R, NUM_ENDOSCALING_POINTS>::new(step);
-                let staged = MultiStage::new(step_circuit);
-                let step_trace = staged
-                    .trace(EndoscalingStepWitness {
-                        endoscalar: beta_endo,
-                        points: &witness,
-                    })
-                    .expect("trivial step trace")
-                    .into_output();
-                let step_rx = self
-                    .nested_registry
-                    .assemble(
-                        &step_trace,
-                        nested::InternalCircuitIndex::EndoscalingStep(step as u32).circuit_index(),
-                        &mut <rand::rngs::StdRng as rand::SeedableRng>::from_seed([0u8; 32]),
-                    )
-                    .expect("trivial step rx");
-                step_rxs.push(step_rx);
-            }
-
-            builder.set_nested_endoscaling_step_rxs(step_rxs);
-            builder.set_nested_endoscalar_rx(endoscalar_rx);
-            builder.set_nested_points_rx(points_rx);
-
-            *witness
-                .interstitials
-                .last()
-                .expect("at least one interstitial")
+            .expect("trivial endoscaling")
         };
 
         // Set native_p_poly with the real accumulated commitment.
