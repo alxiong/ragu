@@ -47,7 +47,7 @@
   - [Analysis](protocol/analysis.md) <!-- todo -->
   - [Local (Sean's Corner!)]()
     - [Arithmetization](protocol/local/arithmetization.md)
-    - [Wiring Polynomials](protocol/local/wiring.md)
+    - [Wiring and Instance Polynomials](protocol/local/wiring.md)
 - [Part III: Implementation]()
   - [Architecture Overview](implementation/arch.md) <!-- todo -->
   - [Circuits](implementation/circuits.md) <!-- todo -->
