@@ -323,12 +323,6 @@ pub fn eval<F: Field, RC: RawCircuit<F>, R: Rank>(
     let xn_inv = x_inv.pow_vartime([R::n() as u64]); // x^(-n), or 0 if x = 0
     let base_a_x_inv = xn_inv.square(); // x^(-2n), or 0 if x = 0
 
-    if y == F::ZERO {
-        // If y is zero, all terms y^j for j > 0 vanish, leaving only the ONE
-        // wire coefficient.
-        return Ok(F::ONE);
-    }
-
     let mut evaluator = Evaluator::<F, R> {
         scope: SxyScope {
             current_a_x: base_a_x,

@@ -360,7 +360,7 @@ pub trait StageExt<F: Field, R: Rank>: Stage<F, R> {
         }
 
         let mut dr = RxDriver::<F, R>::with_capacity(Self::skip_gates() + Self::num_gates());
-        let mut allocator = Standard::<usize>::new();
+        let mut allocator = Standard::default();
 
         // SYSTEM gate: alpha at a[0], 0 at d[0].
         allocator.alloc(&mut dr, || Ok(Coeff::Arbitrary(alpha)))?;
@@ -396,9 +396,9 @@ pub trait StageExt<F: Field, R: Rank>: Stage<F, R> {
     /// this stage's partial trace.
     ///
     /// Staging circuits do not behave like normal circuits because their
-    /// `ONE` gate carries only an alpha value in `a[0]` (no `d[0] = 1` ONE
-    /// wire) and they are used solely for partial trace commitments. As a
-    /// result, their mask must be computed differently.
+    /// SYSTEM gate carries only an alpha value in `a[0]` (no `d[0] = 1`
+    /// ONE wire) and they are used solely for partial trace commitments.
+    /// As a result, their mask must be computed differently.
     fn mask<'a>() -> Result<BondingObject<'a, F, R>> {
         Ok(BondingObject::new(Box::new(mask::StageMask::new(
             Self::skip_gates(),
