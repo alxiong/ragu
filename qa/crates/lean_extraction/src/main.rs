@@ -16,30 +16,19 @@ use instance::CircuitInstance;
 
 use crate::instances::{
     core_alloc_mul::CoreAllocMulInstance,
-    element_add::ElementAddInstance,
-    element_add_coeff::ElementAddCoeffInstance,
     element_alloc::ElementAllocInstance,
     element_alloc_square::ElementAllocSquareInstance,
     element_div_nonzero::ElementDivNonzeroInstance,
-    element_double::ElementDoubleInstance,
     element_enforce_root_of_unity::ElementEnforceRootOfUnityInstance,
     element_enforce_zero::ElementEnforceZeroInstance,
     element_fold::ElementFoldInstance,
     element_invert::ElementInvertInstance,
     element_invert_with::ElementInvertWithInstance,
     element_mul::ElementMulInstance,
-    element_multiadd::ElementMultiaddInstance,
-    element_negate::ElementNegateInstance,
-    element_scale::ElementScaleInstance,
     element_square::ElementSquareInstance,
-    element_sub::ElementSubInstance,
-    element_sum::ElementSumInstance,
     point_add_incomplete::PointAddIncompleteInstance,
     point_alloc::{PointAllocInstanceFp, PointAllocInstanceFq},
-    point_constant::PointConstantInstance,
     point_double::PointDoubleInstance,
-    point_endo::PointEndoInstance,
-    point_negate::PointNegateInstance,
 };
 
 struct ExportTarget {
@@ -71,21 +60,6 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
         generated_file: generated_file_instance::<PointAddIncompleteInstance>,
     },
     ExportTarget {
-        name: "Ragu.Instances.Autogen.Point.Negate",
-        export: export_instance::<PointNegateInstance>,
-        generated_file: generated_file_instance::<PointNegateInstance>,
-    },
-    ExportTarget {
-        name: "Ragu.Instances.Autogen.Point.Endo",
-        export: export_instance::<PointEndoInstance>,
-        generated_file: generated_file_instance::<PointEndoInstance>,
-    },
-    ExportTarget {
-        name: "Ragu.Instances.Autogen.Point.Constant",
-        export: export_instance::<PointConstantInstance>,
-        generated_file: generated_file_instance::<PointConstantInstance>,
-    },
-    ExportTarget {
         name: "Ragu.Instances.Autogen.Element.Mul",
         export: export_instance::<ElementMulInstance>,
         generated_file: generated_file_instance::<ElementMulInstance>,
@@ -111,36 +85,6 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
         generated_file: generated_file_instance::<ElementDivNonzeroInstance>,
     },
     ExportTarget {
-        name: "Ragu.Instances.Autogen.Element.Negate",
-        export: export_instance::<ElementNegateInstance>,
-        generated_file: generated_file_instance::<ElementNegateInstance>,
-    },
-    ExportTarget {
-        name: "Ragu.Instances.Autogen.Element.Add",
-        export: export_instance::<ElementAddInstance>,
-        generated_file: generated_file_instance::<ElementAddInstance>,
-    },
-    ExportTarget {
-        name: "Ragu.Instances.Autogen.Element.Sub",
-        export: export_instance::<ElementSubInstance>,
-        generated_file: generated_file_instance::<ElementSubInstance>,
-    },
-    ExportTarget {
-        name: "Ragu.Instances.Autogen.Element.Double",
-        export: export_instance::<ElementDoubleInstance>,
-        generated_file: generated_file_instance::<ElementDoubleInstance>,
-    },
-    ExportTarget {
-        name: "Ragu.Instances.Autogen.Element.Sum",
-        export: export_instance::<ElementSumInstance>,
-        generated_file: generated_file_instance::<ElementSumInstance>,
-    },
-    ExportTarget {
-        name: "Ragu.Instances.Autogen.Element.Multiadd",
-        export: export_instance::<ElementMultiaddInstance>,
-        generated_file: generated_file_instance::<ElementMultiaddInstance>,
-    },
-    ExportTarget {
         name: "Ragu.Instances.Autogen.Element.Fold",
         export: export_instance::<ElementFoldInstance>,
         generated_file: generated_file_instance::<ElementFoldInstance>,
@@ -149,16 +93,6 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
         name: "Ragu.Instances.Autogen.Element.EnforceRootOfUnity",
         export: export_instance::<ElementEnforceRootOfUnityInstance>,
         generated_file: generated_file_instance::<ElementEnforceRootOfUnityInstance>,
-    },
-    ExportTarget {
-        name: "Ragu.Instances.Autogen.Element.Scale",
-        export: export_instance::<ElementScaleInstance>,
-        generated_file: generated_file_instance::<ElementScaleInstance>,
-    },
-    ExportTarget {
-        name: "Ragu.Instances.Autogen.Element.AddCoeff",
-        export: export_instance::<ElementAddCoeffInstance>,
-        generated_file: generated_file_instance::<ElementAddCoeffInstance>,
     },
     ExportTarget {
         name: "Ragu.Instances.Autogen.Element.EnforceZero",
