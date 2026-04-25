@@ -366,11 +366,11 @@ impl<F: PrimeField, R: Rank> Registry<'_, F, R> {
     /// Like [`assemble`](Self::assemble), but accepts an explicit
     /// `alpha` instead of sampling one from an RNG.
     ///
-    /// `alpha` is written to `b[0]` of the assembled polynomial to
+    /// `alpha` is written to `a[0]` of the assembled polynomial to
     /// prevent point-at-infinity commitments. The trace itself is never
     /// all-zero (the ONE wire at `d[0] = 1` ensures this), but the
     /// predictable ONE slot can cancel in linear combinations of traces;
-    /// a random `alpha` at `b[0]` keeps derived polynomials non-zero.
+    /// a random `alpha` at `a[0]` keeps derived polynomials non-zero.
     pub fn assemble_with_alpha(
         &self,
         trace: &crate::trace::Trace<F>,

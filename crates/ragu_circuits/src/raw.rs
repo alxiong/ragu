@@ -19,8 +19,8 @@
 //! Every driver performs the same sequence around the circuit body:
 //!
 //! 1. **SYSTEM gate** — Allocate the SYSTEM gate (gate 0). Its $d$ wire
-//!    carries the constant $1$ (the `Driver::ONE` wire) and its $b$ wire
-//!    carries the blinding factor $\alpha$. The $a$ and $c$ wires are zero.
+//!    carries the constant $1$ (the `Driver::ONE` wire) and its $a$ wire
+//!    carries the blinding factor $\alpha$. The $b$ and $c$ wires are zero.
 //! 2. **Witness** — Run the circuit's [`witness`](RawCircuit::witness) method,
 //!    passing the SYSTEM gate wires so that internal implementations (e.g.
 //!    [`StageMask`](crate::staging::mask::StageMask)) can reference them.
@@ -155,7 +155,7 @@ impl<F: Field, C: crate::Circuit<F>> RawCircuit<F> for CircuitAdapterRef<'_, C> 
 /// `MaybeKind = Empty` (polynomial evaluators, metrics), the gate closure is
 /// never called. For the trace driver (`MaybeKind = Always`), the zeros serve
 /// as placeholders that [`Trace::assemble`](crate::Trace::assemble) later
-/// overwrites with $d_0 = 1$ and $b_0 = \alpha$.
+/// overwrites with $d_0 = 1$ and $a_0 = \alpha$.
 ///
 /// # Public output enforcement
 ///

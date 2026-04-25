@@ -98,8 +98,8 @@ impl<R: Rank> StageMask<R> {
     /// the SYSTEM gate (gate 0) and must be at least 1. Gate wires are
     /// enforced to zero for gates `1..skip_gates` and
     /// `(skip_gates + num_gates)..n`. The SYSTEM gate is not constrained
-    /// here because `b[0]` carries the alpha blinding factor and
-    /// `d[0]` may or may not be set to 1; `a[0]` and `c[0]` are
+    /// here because `a[0]` carries the alpha blinding factor and
+    /// `d[0]` may or may not be set to 1; `b[0]` and `c[0]` are
     /// zero in all cases.
     pub fn new(skip_gates: usize, num_gates: usize) -> Result<Self> {
         assert!(skip_gates > 0, "skip_gates must include the SYSTEM gate");
