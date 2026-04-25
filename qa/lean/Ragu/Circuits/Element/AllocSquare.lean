@@ -71,7 +71,7 @@ theorem completenessSpec (hintReader : ProverHint (F p) → F p) :
   refine ⟨h0, ?_⟩
   rw [h2]; ring
 
-def generalCircuit (hintReader : ProverHint (F p) → F p) :
+def circuit (hintReader : ProverHint (F p) → F p) :
     GeneralFormalCircuit (F p) unit Square :=
   { elaborated hintReader with
     Assumptions := Assumptions,

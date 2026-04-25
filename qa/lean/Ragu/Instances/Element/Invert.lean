@@ -27,7 +27,7 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
   Spec (input : F p) (output : F p) := input * output = 1
 
   reimplementation :=
-    Circuits.Element.Invert.generalCircuit (fun _ => ⟨0, 0, 0⟩)
+    Circuits.Element.Invert.circuit (fun _ => ⟨0, 0, 0⟩)
 
   same_constraints := by
     intro input
@@ -35,7 +35,7 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
       Operations.toFlat, circuit_norm,
       GeneralFormalCircuit.toSubcircuit,
       deserializeInput, exportedOperations,
-      Circuits.Element.Invert.generalCircuit,
+      Circuits.Element.Invert.circuit,
       Circuits.Element.Invert.elaborated,
       Circuits.Element.Invert.main,
       Circuits.Core.AllocMul.circuit,
@@ -48,7 +48,7 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
     simp [circuit_norm,
       GeneralFormalCircuit.toSubcircuit,
       deserializeInput, serializeOutput,
-      Circuits.Element.Invert.generalCircuit,
+      Circuits.Element.Invert.circuit,
       Circuits.Element.Invert.elaborated,
       Circuits.Element.Invert.main,
       Circuits.Core.AllocMul.circuit,
@@ -56,8 +56,8 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
       Circuits.Core.AllocMul.main]
   same_spec := by
     intro input output
-    dsimp only [Circuits.Element.Invert.generalCircuit,
-      Circuits.Element.Invert.GeneralSpec]
+    dsimp only [Circuits.Element.Invert.circuit,
+      Circuits.Element.Invert.Spec]
     aesop
 
 end Ragu.Instances.Element.Invert

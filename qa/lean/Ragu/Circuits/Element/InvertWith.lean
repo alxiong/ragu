@@ -13,12 +13,12 @@ def main (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p)) (input : Ex
   assertZero (c - 1)
   return b
 
-def GeneralAssumptions (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
+def Assumptions (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
     (input : F p) (_data : ProverData (F p)) (hint : ProverHint (F p)) :=
   let r := hintReader hint
   r.x = input ∧ r.x * r.y = 1
 
-def GeneralSpec (input : F p) (out : F p) (_data : ProverData (F p)) :=
+def Spec (input : F p) (out : F p) (_data : ProverData (F p)) :=
   input * out = 1
 
 instance elaborated (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
@@ -26,8 +26,8 @@ instance elaborated (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
   main := main hintReader
   localLength _ := 3
 
-theorem generalSoundness (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
-    : GeneralFormalCircuit.Soundness (F p) (elaborated hintReader) GeneralSpec := by
+theorem soundness (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
+    : GeneralFormalCircuit.Soundness (F p) (elaborated hintReader) Spec := by
   circuit_proof_start [
     Core.AllocMul.circuit, Core.AllocMul.Assumptions, Core.AllocMul.Spec
   ]
@@ -36,26 +36,25 @@ theorem generalSoundness (hintReader : ProverHint (F p) → Core.AllocMul.Row (F
   rw [h_a, h_c] at h_mul
   exact h_mul
 
-theorem generalCompleteness (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
-    : GeneralFormalCircuit.Completeness (F p) (elaborated hintReader) (GeneralAssumptions hintReader) := by
+theorem completeness (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
+    : GeneralFormalCircuit.Completeness (F p) (elaborated hintReader) (Assumptions hintReader) := by
   circuit_proof_start [
     Core.AllocMul.circuit, Core.AllocMul.Assumptions,
     Core.AllocMul.Spec, Core.AllocMul.CompletenessSpec
   ]
   obtain ⟨_, h_x_eq, h_y_eq, h_z_eq⟩ := h_env
-  simp only [GeneralAssumptions] at h_assumptions
   obtain ⟨h_x_in, h_prod_in⟩ := h_assumptions
   rw [add_neg_eq_zero, add_neg_eq_zero]
   refine ⟨?_, ?_⟩
   · rw [h_x_eq]; exact h_x_in
   · rw [h_z_eq]; exact h_prod_in
 
-def generalCircuit (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
+def circuit (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
     : GeneralFormalCircuit (F p) field field :=
   { elaborated hintReader with
-    Assumptions := GeneralAssumptions hintReader,
-    Spec := GeneralSpec,
-    soundness := generalSoundness hintReader,
-    completeness := generalCompleteness hintReader }
+    Assumptions := Assumptions hintReader,
+    Spec := Spec,
+    soundness := soundness hintReader,
+    completeness := completeness hintReader }
 
 end Ragu.Circuits.Element.InvertWith
