@@ -30,7 +30,7 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
     input.y ≠ 0 ∨ input.x ≠ 0 → output = input.x / input.y
 
   reimplementation :=
-    Circuits.Element.DivNonzero.generalCircuit (fun _ => ⟨0, 0, 0⟩)
+    Circuits.Element.DivNonzero.circuit (fun _ => ⟨0, 0, 0⟩)
 
   same_constraints := by
     intro input
@@ -38,7 +38,7 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
       Operations.toFlat, circuit_norm,
       GeneralFormalCircuit.toSubcircuit,
       deserializeInput, exportedOperations,
-      Circuits.Element.DivNonzero.generalCircuit,
+      Circuits.Element.DivNonzero.circuit,
       Circuits.Element.DivNonzero.elaborated,
       Circuits.Element.DivNonzero.main,
       Circuits.Core.AllocMul.circuit,
@@ -51,7 +51,7 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
     simp [circuit_norm,
       GeneralFormalCircuit.toSubcircuit,
       deserializeInput, serializeOutput,
-      Circuits.Element.DivNonzero.generalCircuit,
+      Circuits.Element.DivNonzero.circuit,
       Circuits.Element.DivNonzero.elaborated,
       Circuits.Element.DivNonzero.main,
       Circuits.Core.AllocMul.circuit,
@@ -59,8 +59,8 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
       Circuits.Core.AllocMul.main]
   same_spec := by
     intro input output
-    dsimp only [Circuits.Element.DivNonzero.generalCircuit,
-      Circuits.Element.DivNonzero.GeneralSpec]
+    dsimp only [Circuits.Element.DivNonzero.circuit,
+      Circuits.Element.DivNonzero.Spec]
     aesop
 
 end Ragu.Instances.Element.DivNonzero

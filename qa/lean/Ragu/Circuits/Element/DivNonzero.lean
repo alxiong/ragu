@@ -17,7 +17,7 @@ def main (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p)) (input : Va
   assertZero (input.y - denominator)
   return quotient
 
-def GeneralAssumptions (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
+def Assumptions (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
     (input : Inputs (F p)) (_data : ProverData (F p)) (hint : ProverHint (F p)) :=
   let r := hintReader hint
   r.y = input.y ∧ r.x * r.y = input.x ∧ (input.y ≠ 0 ∨ input.x = 0)
@@ -31,7 +31,7 @@ def GeneralAssumptions (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p
 -- Callers of this gadget must establish `(x, y) ≠ (0, 0)` upstream or accept
 -- the unconstrained-output carve-out. See `element.rs:273-280` for the
 -- corresponding Rust `div_nonzero` doc comment.
-def GeneralSpec (input : Inputs (F p)) (out : field (F p)) (_data : ProverData (F p)) :=
+def Spec (input : Inputs (F p)) (out : field (F p)) (_data : ProverData (F p)) :=
   input.y ≠ 0 ∨ input.x ≠ 0 → out = input.x / input.y
 
 instance elaborated (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p)) :
@@ -39,33 +39,32 @@ instance elaborated (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p)) 
   main := main hintReader
   localLength _ := 3
 
-theorem generalSoundness (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
-    : GeneralFormalCircuit.Soundness (F p) (elaborated hintReader) GeneralSpec := by
+theorem soundness (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
+    : GeneralFormalCircuit.Soundness (F p) (elaborated hintReader) Spec := by
   circuit_proof_start [
-    Core.AllocMul.circuit, Core.AllocMul.Assumptions, Core.AllocMul.Spec, GeneralSpec
+    Core.AllocMul.circuit, Core.AllocMul.Assumptions, Core.AllocMul.Spec, Spec
   ]
   grind
 
-theorem generalCompleteness (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
-    : GeneralFormalCircuit.Completeness (F p) (elaborated hintReader) (GeneralAssumptions hintReader) := by
+theorem completeness (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
+    : GeneralFormalCircuit.Completeness (F p) (elaborated hintReader) (Assumptions hintReader) := by
   circuit_proof_start [
     Core.AllocMul.circuit, Core.AllocMul.Assumptions,
     Core.AllocMul.Spec, Core.AllocMul.CompletenessSpec
   ]
   obtain ⟨_, h_x_eq, h_y_eq, h_z_eq⟩ := h_env
-  simp only [GeneralAssumptions] at h_assumptions
   obtain ⟨h_y_in, h_z_in, _⟩ := h_assumptions
   rw [add_neg_eq_zero, add_neg_eq_zero]
   refine ⟨?_, ?_⟩
   · rw [h_z_eq]; exact h_z_in.symm
   · rw [h_y_eq]; exact h_y_in.symm
 
-def generalCircuit (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
+def circuit (hintReader : ProverHint (F p) → Core.AllocMul.Row (F p))
     : GeneralFormalCircuit (F p) Inputs field :=
   { elaborated hintReader with
-    Assumptions := GeneralAssumptions hintReader,
-    Spec := GeneralSpec,
-    soundness := generalSoundness hintReader,
-    completeness := generalCompleteness hintReader }
+    Assumptions := Assumptions hintReader,
+    Spec := Spec,
+    soundness := soundness hintReader,
+    completeness := completeness hintReader }
 
 end Ragu.Circuits.Element.DivNonzero

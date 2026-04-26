@@ -2,10 +2,14 @@ import Ragu.Instances.Point.AllocFp
 import Ragu.Instances.Point.AllocFq
 import Ragu.Instances.Point.Double
 import Ragu.Instances.Point.AddIncomplete
-import Ragu.Instances.Point.Negate
-import Ragu.Instances.Point.Endo
 import Ragu.Instances.Element.Mul
 import Ragu.Instances.Element.Square
+import Ragu.Instances.Element.Alloc
 import Ragu.Instances.Element.AllocSquare
 import Ragu.Instances.Element.DivNonzero
+import Ragu.Instances.Element.Fold
+import Ragu.Instances.Element.EnforceRootOfUnity
+import Ragu.Instances.Element.EnforceZero
+import Ragu.Instances.Element.Invert
+import Ragu.Instances.Element.InvertWith
 import Ragu.Instances.Core.AllocMul

@@ -26,7 +26,7 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
 
   Spec _input output := output.a_sq = output.a^2
 
-  reimplementation := Circuits.Element.AllocSquare.generalCircuit (fun _ => 0)
+  reimplementation := Circuits.Element.AllocSquare.circuit (fun _ => 0)
 
   same_constraints := by
     intro input
@@ -34,7 +34,7 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
       Operations.toFlat, circuit_norm,
       GeneralFormalCircuit.toSubcircuit,
       deserializeInput, exportedOperations,
-      Circuits.Element.AllocSquare.generalCircuit,
+      Circuits.Element.AllocSquare.circuit,
       Circuits.Element.AllocSquare.elaborated,
       Circuits.Element.AllocSquare.main]
     repeat (constructor; rfl)
@@ -44,12 +44,12 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
     simp [circuit_norm,
       GeneralFormalCircuit.toSubcircuit,
       deserializeInput, serializeOutput,
-      Circuits.Element.AllocSquare.generalCircuit,
+      Circuits.Element.AllocSquare.circuit,
       Circuits.Element.AllocSquare.elaborated,
       Circuits.Element.AllocSquare.main]
   same_spec := by
     intro input output
-    dsimp only [Circuits.Element.AllocSquare.generalCircuit,
+    dsimp only [Circuits.Element.AllocSquare.circuit,
       Circuits.Element.AllocSquare.Spec]
     aesop
 

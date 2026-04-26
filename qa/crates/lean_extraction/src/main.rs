@@ -16,15 +16,19 @@ use instance::CircuitInstance;
 
 use crate::instances::{
     core_alloc_mul::CoreAllocMulInstance,
+    element_alloc::ElementAllocInstance,
     element_alloc_square::ElementAllocSquareInstance,
     element_div_nonzero::ElementDivNonzeroInstance,
+    element_enforce_root_of_unity::ElementEnforceRootOfUnityInstance,
+    element_enforce_zero::ElementEnforceZeroInstance,
+    element_fold::ElementFoldInstance,
+    element_invert::ElementInvertInstance,
+    element_invert_with::ElementInvertWithInstance,
     element_mul::ElementMulInstance,
     element_square::ElementSquareInstance,
     point_add_incomplete::PointAddIncompleteInstance,
     point_alloc::{PointAllocInstanceFp, PointAllocInstanceFq},
     point_double::PointDoubleInstance,
-    point_endo::PointEndoInstance,
-    point_negate::PointNegateInstance,
 };
 
 struct ExportTarget {
@@ -56,16 +60,6 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
         generated_file: generated_file_instance::<PointAddIncompleteInstance>,
     },
     ExportTarget {
-        name: "Ragu.Instances.Autogen.Point.Negate",
-        export: export_instance::<PointNegateInstance>,
-        generated_file: generated_file_instance::<PointNegateInstance>,
-    },
-    ExportTarget {
-        name: "Ragu.Instances.Autogen.Point.Endo",
-        export: export_instance::<PointEndoInstance>,
-        generated_file: generated_file_instance::<PointEndoInstance>,
-    },
-    ExportTarget {
         name: "Ragu.Instances.Autogen.Element.Mul",
         export: export_instance::<ElementMulInstance>,
         generated_file: generated_file_instance::<ElementMulInstance>,
@@ -76,6 +70,11 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
         generated_file: generated_file_instance::<ElementSquareInstance>,
     },
     ExportTarget {
+        name: "Ragu.Instances.Autogen.Element.Alloc",
+        export: export_instance::<ElementAllocInstance>,
+        generated_file: generated_file_instance::<ElementAllocInstance>,
+    },
+    ExportTarget {
         name: "Ragu.Instances.Autogen.Element.AllocSquare",
         export: export_instance::<ElementAllocSquareInstance>,
         generated_file: generated_file_instance::<ElementAllocSquareInstance>,
@@ -84,6 +83,31 @@ static EXPORT_TARGETS: &[ExportTarget] = &[
         name: "Ragu.Instances.Autogen.Element.DivNonzero",
         export: export_instance::<ElementDivNonzeroInstance>,
         generated_file: generated_file_instance::<ElementDivNonzeroInstance>,
+    },
+    ExportTarget {
+        name: "Ragu.Instances.Autogen.Element.Fold",
+        export: export_instance::<ElementFoldInstance>,
+        generated_file: generated_file_instance::<ElementFoldInstance>,
+    },
+    ExportTarget {
+        name: "Ragu.Instances.Autogen.Element.EnforceRootOfUnity",
+        export: export_instance::<ElementEnforceRootOfUnityInstance>,
+        generated_file: generated_file_instance::<ElementEnforceRootOfUnityInstance>,
+    },
+    ExportTarget {
+        name: "Ragu.Instances.Autogen.Element.EnforceZero",
+        export: export_instance::<ElementEnforceZeroInstance>,
+        generated_file: generated_file_instance::<ElementEnforceZeroInstance>,
+    },
+    ExportTarget {
+        name: "Ragu.Instances.Autogen.Element.Invert",
+        export: export_instance::<ElementInvertInstance>,
+        generated_file: generated_file_instance::<ElementInvertInstance>,
+    },
+    ExportTarget {
+        name: "Ragu.Instances.Autogen.Element.InvertWith",
+        export: export_instance::<ElementInvertWithInstance>,
+        generated_file: generated_file_instance::<ElementInvertWithInstance>,
     },
     ExportTarget {
         name: "Ragu.Instances.Autogen.Core.AllocMul",

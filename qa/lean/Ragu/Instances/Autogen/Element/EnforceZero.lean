@@ -1,26 +1,25 @@
 import Ragu.Core
 
-namespace Ragu.Instances.Autogen.Point.Negate
+namespace Ragu.Instances.Autogen.Element.EnforceZero
 open Core.Primes
 
 @[reducible]
 def p := Core.Primes.p
 
 @[reducible]
-def inputLen := 2
+def inputLen := 1
 
 @[reducible]
-def outputLen := 2
+def outputLen := 0
 
 set_option linter.unusedVariables false in
 def exportedOperations (input_var : Vector (Expression (F p)) inputLen) : Operations (F p) := [
+  Operation.assert ((input_var[0])),
 ]
 
 set_option linter.unusedVariables false in
 @[reducible]
 def exportedOutput (input_var : Vector (Expression (F p)) inputLen) : Vector (Expression (F p)) outputLen := #v[
-  (input_var[0]),
-  (((-1 : F p) : Expression (F p)) * (input_var[1]))
 ]
 
-end Ragu.Instances.Autogen.Point.Negate
+end Ragu.Instances.Autogen.Element.EnforceZero
