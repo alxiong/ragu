@@ -1,7 +1,10 @@
 import Ragu.Instances.Point.AllocFp
 import Ragu.Instances.Point.AllocFq
 import Ragu.Instances.Point.Double
+import Ragu.Instances.Point.DoubleAndAddIncomplete
 import Ragu.Instances.Point.AddIncomplete
+import Ragu.Instances.Point.ConditionalEndo
+import Ragu.Instances.Point.ConditionalNegate
 import Ragu.Instances.Element.Mul
 import Ragu.Instances.Element.Square
 import Ragu.Instances.Element.Alloc
@@ -12,4 +15,10 @@ import Ragu.Instances.Element.EnforceRootOfUnity
 import Ragu.Instances.Element.EnforceZero
 import Ragu.Instances.Element.Invert
 import Ragu.Instances.Element.InvertWith
+import Ragu.Instances.Element.IsEqual
+import Ragu.Instances.Element.IsZero
 import Ragu.Instances.Core.AllocMul
+import Ragu.Instances.Boolean.Alloc
+import Ragu.Instances.Boolean.And
+import Ragu.Instances.Boolean.ConditionalSelect
+import Ragu.Instances.Boolean.ConditionalEnforceEqual
