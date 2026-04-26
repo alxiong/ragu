@@ -30,7 +30,7 @@ def formal_instance : Core.Statements.GeneralFormalInstance where
   Spec (_input : Unit) (output : F p) := output = 0 ∨ output = 1
 
   reimplementation :=
-    Circuits.Boolean.Alloc.circuit (fun _ => ⟨0, 1, 0⟩)
+    Circuits.Boolean.Alloc.circuit (fun _ => false)
 
   same_constraints := by
     intro input
