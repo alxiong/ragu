@@ -1,7 +1,8 @@
 use ff::Field;
-use ragu_core::drivers::Driver;
+use ragu_arithmetic::Coeff;
+use ragu_core::drivers::{Driver, LinearExpression};
 use ragu_pasta::Fp;
-use ragu_primitives::{Boolean, Element};
+use ragu_primitives::Element;
 
 use crate::{
     driver::ExtractionDriver,
@@ -19,20 +20,24 @@ impl CircuitInstance for BooleanConditionalSelectInstance {
         let a_wires = dr.alloc_input_wires(1);
         let b_wires = dr.alloc_input_wires(1);
 
-        let cond = Boolean::promote(
-            cond_wires[0].clone(),
-            ExtractionDriver::<Fp>::just(|| false),
-        );
+        let cond_wire = cond_wires[0].clone();
 
         let element_template = Element::constant(dr, Fp::ZERO);
         let a = WireDeserializer::new(a_wires).into_gadget(&element_template)?;
         let b = WireDeserializer::new(b_wires).into_gadget(&element_template)?;
 
-        // `conditional_select` is a composite: `b.sub(a)` (virtual),
-        // `cond.element().mul(diff)` (one mul gate + 2 enforce_equals),
-        // `a.add(cond_times_diff)` (virtual).
-        let result = cond.conditional_select(dr, &a, &b)?;
+        // Inline of `cond.conditional_select(a, b)` to avoid wrapping the raw
+        // `cond` input wire as a `Boolean`. The composite is:
+        //   diff = b - a                (virtual)
+        //   cond_times_diff = cond · diff   (one mul gate + 2 enforce_equals)
+        //   result = a + cond_times_diff    (virtual)
+        let diff_wire = dr.add(|lc| lc.add(b.wire()).sub(a.wire()));
+        let (mul_a, mul_b, mul_c) = dr.mul(|| Ok((Coeff::Zero, Coeff::Zero, Coeff::Zero)))?;
+        dr.enforce_equal(&mul_a, &cond_wire)?;
+        dr.enforce_equal(&mul_b, &diff_wire)?;
+        let result_wire = dr.add(|lc| lc.add(a.wire()).add(&mul_c));
 
+        let result = Element::promote(result_wire, ExtractionDriver::<Fp>::just(|| Fp::ZERO));
         WireCollector::collect_from(&result)
     }
 }

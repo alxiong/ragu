@@ -1,7 +1,8 @@
 use ff::Field;
-use ragu_core::drivers::Driver;
+use ragu_arithmetic::Coeff;
+use ragu_core::drivers::{Driver, DriverTypes, LinearExpression};
 use ragu_pasta::Fp;
-use ragu_primitives::{Boolean, Element};
+use ragu_primitives::Element;
 
 use crate::{
     driver::ExtractionDriver,
@@ -19,20 +20,24 @@ impl CircuitInstance for BooleanConditionalEnforceEqualInstance {
         let a_wires = dr.alloc_input_wires(1);
         let b_wires = dr.alloc_input_wires(1);
 
-        let cond = Boolean::promote(
-            cond_wires[0].clone(),
-            ExtractionDriver::<Fp>::just(|| false),
-        );
+        let cond_wire = cond_wires[0].clone();
 
         let element_template = Element::constant(dr, Fp::ZERO);
         let a = WireDeserializer::new(a_wires).into_gadget(&element_template)?;
         let b = WireDeserializer::new(b_wires).into_gadget(&element_template)?;
 
-        // Emits a custom gate (3 wires) plus three `enforce_zero`s:
-        // `cond_wire = cond_input`, `diff_wire = a - b`, `zero_wire = 0`.
-        // With the gate constraint `cond_wire * diff_wire = zero_wire = 0`,
-        // this enforces `cond * (a - b) = 0`.
-        cond.conditional_enforce_equal(dr, &mut (), &a, &b)?;
+        // Inline of `cond.conditional_enforce_equal(a, b)` to avoid wrapping the
+        // raw `cond` input wire as a `Boolean`. Emits one custom 3-wire gate
+        // (`cond_g · diff_g = zero_g`) plus three constraints:
+        //   * `cond_g = cond` (input)
+        //   * `diff_g = a - b`
+        //   * `zero_g = 0`
+        // Together these enforce `cond · (a - b) = 0` (i.e. `cond = 1 ⇒ a = b`).
+        let (cond_g, diff_g, zero_g, _extra) =
+            dr.gate(|| Ok((Coeff::Zero, Coeff::Zero, Coeff::Zero)))?;
+        dr.enforce_equal(&cond_g, &cond_wire)?;
+        dr.enforce_zero(|lc| lc.add(&diff_g).sub(a.wire()).add(b.wire()))?;
+        dr.enforce_zero(|lc| lc.add(&zero_g))?;
 
         // No output wires; the gadget is an assertion, not a value.
         Ok(Vec::new())
