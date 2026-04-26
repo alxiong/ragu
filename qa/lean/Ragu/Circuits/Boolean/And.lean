@@ -1,4 +1,5 @@
 import Clean.Circuit
+import Clean.Gadgets.Boolean
 import Ragu.Circuits.Core.AllocMul
 
 namespace Ragu.Circuits.Boolean.And
@@ -23,16 +24,15 @@ def main (input : Var Input (F p)) : Circuit (F p) (Expression (F p)) := do
   assertZero (y - input.b)
   return z
 
-/-- Caller must promise the inputs are boolean. Without this the output
-may not itself be boolean (though it would still equal `a * b`). -/
+/-- Caller must promise the inputs are boolean. -/
 def Assumptions (input : Input (F p)) :=
-  (input.a = 0 ∨ input.a = 1) ∧ (input.b = 0 ∨ input.b = 1)
+  IsBool input.a ∧ IsBool input.b
 
-/-- The output is the product — and, under the boolean assumption,
-equivalently the logical AND. The output is itself boolean-valued, so
-downstream consumers can treat the returned wire as a `Boolean`. -/
+/-- The output is the bitwise AND of the inputs (interpreted as `Nat`),
+and is itself boolean-valued. Stated in `Bool`/`Nat` form rather than
+field-multiplication form via `IsBool.and_eq_val_and`. -/
 def Spec (input : Input (F p)) (out : F p) :=
-  out = input.a * input.b ∧ (out = 0 ∨ out = 1)
+  out.val = input.a.val &&& input.b.val ∧ IsBool out
 
 instance elaborated : ElaboratedCircuit (F p) Input field where
   main
@@ -43,18 +43,12 @@ theorem soundness : Soundness (F p) elaborated Assumptions Spec := by
   obtain ⟨c1, c2, c3⟩ := h_holds
   rw [add_neg_eq_zero] at c1 c2 c3
   obtain ⟨ha, hb⟩ := h_assumptions
+  -- c1 : env_x * env_y = env_z, c2 : env_x = input_a, c3 : env_y = input_b
+  -- so env_z (= out) = input_a * input_b, and the spec follows from IsBool theorems.
+  have h_out : env.get (i₀ + 1 + 1) = input_a * input_b := by rw [←c2, ←c3, c1]
   refine ⟨?_, ?_⟩
-  · -- out = a * b
-    rw [←c2, ←c3, c1]
-  · -- out ∈ {0, 1}: case-split on the boolean inputs.
-    rcases ha with ha0 | ha1
-    · left
-      rw [← c1, c2, ha0, zero_mul]
-    · rcases hb with hb0 | hb1
-      · left
-        rw [← c1, c2, c3, ha1, hb0, mul_zero]
-      · right
-        rw [← c1, c2, c3, ha1, hb1, mul_one]
+  · rw [h_out]; exact IsBool.and_eq_val_and ha hb
+  · rw [h_out]; exact IsBool.and_is_bool ha hb
 
 theorem completeness : Completeness (F p) elaborated Assumptions := by
   circuit_proof_start
