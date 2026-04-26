@@ -1,4 +1,5 @@
 import Clean.Circuit
+import Clean.Gadgets.Boolean
 import Mathlib.Tactic.LinearCombination
 import Ragu.Circuits.Core.AllocMul
 
@@ -38,7 +39,7 @@ invocation) and, when `cond = 1`, `a = b` (otherwise the honest prover
 cannot satisfy the gate constraint). These preconditions are *not* used
 by soundness — the constraints alone force `cond · (a - b) = 0`. -/
 def Assumptions (input : Input (F p)) (_data : ProverData (F p)) (_hint : ProverHint (F p)) :=
-  (input.cond = 0 ∨ input.cond = 1) ∧ (input.cond = 1 → input.a = input.b)
+  IsBool input.cond ∧ (input.cond = 1 → input.a = input.b)
 
 /-- High-level operation: when `cond = 1`, the circuit forces `a = b`;
 when `cond = 0`, the circuit imposes no relation between `a` and `b`.

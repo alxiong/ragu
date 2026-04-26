@@ -1,4 +1,5 @@
 import Clean.Circuit
+import Clean.Gadgets.Boolean
 import Mathlib.Tactic.LinearCombination
 import Ragu.Circuits.Core.AllocMul
 
@@ -26,7 +27,7 @@ def Assumptions (_hintReader : ProverHint (F p) → Bool)
 
 /-- The verifier learns the output wire is boolean-valued. -/
 def Spec (_input : Unit) (out : F p) (_data : ProverData (F p)) :=
-  out = 0 ∨ out = 1
+  IsBool out
 
 instance elaborated (hintReader : ProverHint (F p) → Bool)
     : ElaboratedCircuit (F p) unit field where
